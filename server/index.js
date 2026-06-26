@@ -1,0 +1,30 @@
+const express = require('express');
+const cors    = require('cors');
+const boqRouter = require('./routes/boq');
+const dasRouter = require('./routes/das');
+const subRouter     = require('./routes/subcontract');
+const trackerRouter = require('./routes/tracker');
+const payappRouter  = require('./routes/payapp');
+
+const app  = express();
+const PORT = process.env.PORT || 3001;
+
+app.use(cors({ origin: 'http://localhost:5173' }));
+app.use(express.json());
+
+app.use('/api/v1', boqRouter);
+app.use('/api/v1', dasRouter);
+app.use('/api/v1', subRouter);
+app.use('/api/v1', trackerRouter);
+app.use('/api/v1', payappRouter);
+
+app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
+
+app.use((_req, res) => res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' }));
+
+app.use((err, _req, res, _next) => {
+  console.error(err);
+  res.status(500).json({ error: err.message, code: 'INTERNAL_ERROR' });
+});
+
+app.listen(PORT, () => console.log(`GMC API running on http://localhost:${PORT}`));
