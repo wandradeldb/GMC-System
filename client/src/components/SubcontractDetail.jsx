@@ -1,5 +1,4 @@
 import { useState, useEffect, useCallback } from 'react';
-import AssessmentForm from './AssessmentForm.jsx';
 import PaymentCalendar from './PaymentCalendar.jsx';
 
 const STATUS_STEPS = ['draft','assessed','approved','invoiced','paid'];
@@ -16,25 +15,31 @@ function fmtDate(d) {
 }
 
 export default function SubcontractDetail({ projectId, subcontractId, onBack }) {
-  const [data,     setData]     = useState(null);
-  const [tab,      setTab]      = useState('overview');
-  const [appPeriod, setAppPeriod] = useState(null); // YYYY-MM being viewed
+  const [data,       setData]       = useState(null);
+  const [tab,        setTab]        = useState('overview');
+  const [selectedAppId, setSelectedAppId] = useState(null);
+  const [appDetail,  setAppDetail]  = useState(null);
+  const [boqCertified, setBoqCertified] = useState([]);
 
   const load = useCallback(() => {
     fetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}`)
       .then(r => r.json()).then(setData);
+    fetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/boq`)
+      .then(r => r.json()).then(setBoqCertified).catch(() => {});
   }, [projectId, subcontractId]);
 
   useEffect(() => { load(); }, [load]);
 
+  const openApp = async (appId) => {
+    const res = await fetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${appId}`);
+    const json = await res.json();
+    setAppDetail(json);
+    setSelectedAppId(appId);
+  };
+
   if (!data) return <div className="state-box"><div className="icon">⏳</div><p>Loading…</p></div>;
 
   const { subcontract: sc, boq_items, applications, compensation_events } = data;
-
-  const currentPeriod = () => {
-    const now = new Date();
-    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
-  };
 
   const totalCertified = applications.filter(a => a.status !== 'draft')
                                      .reduce((s, a) => s + (a.value_gmc || 0), 0);
@@ -42,14 +47,11 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
                                      .reduce((s, a) => s + (a.net_payable || 0), 0);
   const retention      = Math.round(totalCertified * (sc.retention_pct / 100) * 100) / 100;
 
-  if (appPeriod !== null) return (
-    <AssessmentForm
-      projectId={projectId}
-      subcontractId={subcontractId}
-      subcontract={sc}
-      boqItems={boq_items}
-      period={appPeriod}
-      onBack={() => { setAppPeriod(null); load(); }}
+  if (selectedAppId !== null && appDetail) return (
+    <AppDetailView
+      detail={appDetail}
+      sc={sc}
+      onBack={() => { setSelectedAppId(null); setAppDetail(null); }}
     />
   );
 
@@ -107,12 +109,11 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
         {tab === 'overview' && (
           <ApplicationsTab
             applications={applications}
-            onOpen={period => setAppPeriod(period)}
-            onNewAssessment={() => setAppPeriod(currentPeriod())}
+            onOpen={openApp}
             retention_pct={sc.retention_pct}
           />
         )}
-        {tab === 'boq' && <BOQTab boqItems={boq_items} />}
+        {tab === 'boq' && <BOQTab boqItems={boq_items} boqCertified={boqCertified} />}
         {tab === 'ces'  && <CETab ces={compensation_events} subcontractId={sc.id} projectId={projectId} onRefresh={load} />}
         {tab === 'payments' && <PaymentCalendar projectId={projectId} />}
       </div>
@@ -121,7 +122,7 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
 }
 
 /* ── Applications Tab ───────────────────────────────────────────────────── */
-function ApplicationsTab({ applications, onOpen, onNewAssessment, retention_pct }) {
+function ApplicationsTab({ applications, onOpen, retention_pct }) {
   const fmtPeriod = p => {
     const [y, m] = p.split('-');
     return new Date(parseInt(y), parseInt(m) - 1, 1).toLocaleDateString('en-IE', { month: 'long', year: 'numeric' });
@@ -131,22 +132,21 @@ function ApplicationsTab({ applications, onOpen, onNewAssessment, retention_pct 
     <div>
       <div className="section-toolbar">
         <span className="section-stat">{applications.length} assessments</span>
-        <button className="btn-primary" onClick={onNewAssessment}>+ New Assessment</button>
       </div>
 
       {applications.length === 0 ? (
-        <div className="empty-hint">No assessments yet. Click "New Assessment" to start the monthly cycle.</div>
+        <div className="empty-hint">No assessments yet.</div>
       ) : (
         <table className="boq-table">
           <thead>
             <tr>
               <th>No.</th><th>Period</th>
-              <th className="col-num">Sub Claim (€)</th>
-              <th className="col-num">GMC Assessed (€)</th>
-              <th className="col-num">Delta (€)</th>
-              <th className="col-num">Retention (€)</th>
-              <th className="col-num">Net Payable (€)</th>
-              <th>Approved By</th><th>Status</th><th></th>
+              <th style={{textAlign:'right'}}>Sub Claim (€)</th>
+              <th style={{textAlign:'right'}}>GMC Assessed (€)</th>
+              <th style={{textAlign:'right'}}>Cumulative (€)</th>
+              <th style={{textAlign:'right'}}>Retention (€)</th>
+              <th style={{textAlign:'right'}}>Net Payable (€)</th>
+              <th>Status</th><th></th>
             </tr>
           </thead>
           <tbody>
@@ -156,21 +156,18 @@ function ApplicationsTab({ applications, onOpen, onNewAssessment, retention_pct 
                 <tr key={a.id}>
                   <td style={{ fontWeight: 700 }}>#{a.application_number}</td>
                   <td>{fmtPeriod(a.period)}</td>
-                  <td className="col-num">{fmt(a.value_sub)}</td>
-                  <td className="col-num" style={{ fontWeight: 600 }}>{fmt(a.value_gmc)}</td>
-                  <td className="col-num" style={{ color: (a.delta || 0) < 0 ? '#dc2626' : '#166534' }}>
-                    {(a.delta || 0) >= 0 ? '+' : ''}{fmt(a.delta)}
-                  </td>
-                  <td className="col-num" style={{ color: '#7c3aed' }}>{fmt(retHeld)}</td>
-                  <td className="col-num" style={{ fontWeight: 700 }}>{fmt(a.net_payable)}</td>
-                  <td style={{ fontSize: 12 }}>{a.qs_approved_by || '—'}</td>
+                  <td style={{textAlign:'right'}}>{fmt(a.value_sub)}</td>
+                  <td style={{textAlign:'right', fontWeight: 600, color:'#166534'}}>{fmt(a.value_gmc)}</td>
+                  <td style={{textAlign:'right', color:'#1e40af'}}>{fmt(a.cumulative_gmc)}</td>
+                  <td style={{textAlign:'right', color: '#7c3aed' }}>{fmt(retHeld)}</td>
+                  <td style={{textAlign:'right', fontWeight: 700 }}>{fmt(a.net_payable)}</td>
                   <td>
                     <span className="status-badge" style={{ background: STATUS_BG[a.status], color: STATUS_COLOR[a.status] }}>
                       {a.status}
                     </span>
                   </td>
                   <td>
-                    <button className="btn-link" onClick={() => onOpen(a.period)}>Open →</button>
+                    <button className="btn-link" onClick={() => onOpen(a.id)}>Ver detalhe →</button>
                   </td>
                 </tr>
               );
@@ -183,42 +180,173 @@ function ApplicationsTab({ applications, onOpen, onNewAssessment, retention_pct 
 }
 
 /* ── BOQ Tab ────────────────────────────────────────────────────────────── */
-function BOQTab({ boqItems }) {
-  const total = boqItems.reduce((s, i) => s + (i.qty || 0) * (i.rate || 0), 0);
+function BOQTab({ boqItems, boqCertified }) {
+  // Merge boqCertified data (value_certified, value_remaining, pct_certified) by id
+  const certMap = {};
+  boqCertified.forEach(c => { certMap[c.id] = c; });
+
+  const totalContract  = boqItems.reduce((s, i) => s + (i.qty || 0) * (i.rate || 0), 0);
+  const totalCertified = boqCertified.reduce((s, i) => s + (i.value_certified || 0), 0);
+  const totalRemaining = boqCertified.reduce((s, i) => s + (i.value_remaining || 0), 0);
+
   return (
     <div>
       <div className="section-toolbar">
-        <span className="section-stat">{boqItems.length} items · Sub total: €{fmt(total)}</span>
+        <span className="section-stat">
+          {boqItems.length} items · Contract: €{fmt(totalContract)} · Certified: €{fmt(totalCertified)} · Remaining: €{fmt(totalRemaining)}
+        </span>
       </div>
       {boqItems.length === 0 ? (
-        <div className="empty-hint">No sub BOQ items defined. Add items in the assessment to build the scope.</div>
+        <div className="empty-hint">No sub BOQ items defined.</div>
       ) : (
-        <table className="boq-table">
+        <div style={{ overflowX:'auto' }}>
+          <table className="boq-table">
+            <thead>
+              <tr>
+                <th>Ref</th><th>Description</th>
+                <th>Unit</th>
+                <th style={{textAlign:'right'}}>Qty</th>
+                <th style={{textAlign:'right'}}>Rate (€)</th>
+                <th style={{textAlign:'right'}}>Contract (€)</th>
+                <th style={{textAlign:'right', color:'#1e40af'}}>% Cert.</th>
+                <th style={{textAlign:'right', color:'#166534'}}>Certified (€)</th>
+                <th style={{textAlign:'right', color:'#dc2626'}}>Remaining (€)</th>
+              </tr>
+            </thead>
+            <tbody>
+              {boqItems.map((i, idx) => {
+                const c = certMap[i.id] || {};
+                const cv = (i.qty || 0) * (i.rate || 0);
+                return (
+                  <tr key={i.id} style={{ background: idx%2===0 ? '#f8fafc' : '#fff' }}>
+                    <td style={{fontFamily:'monospace', fontSize:12, whiteSpace:'nowrap'}}>{i.item_ref}</td>
+                    <td style={{maxWidth:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:12}} title={i.description}>{i.description}</td>
+                    <td style={{fontSize:12, color:'#6b7280'}}>{i.unit}</td>
+                    <td style={{textAlign:'right', fontSize:12}}>{fmt(i.qty, 3)}</td>
+                    <td style={{textAlign:'right', fontSize:12}}>€{fmt(i.rate)}</td>
+                    <td style={{textAlign:'right', fontWeight:600, fontSize:12}}>€{fmt(cv)}</td>
+                    <td style={{textAlign:'right', color: c.pct_certified > 0 ? '#1e40af' : '#d1d5db', fontSize:12}}>
+                      {c.pct_certified != null ? `${Number(c.pct_certified).toFixed(1)}%` : '—'}
+                    </td>
+                    <td style={{textAlign:'right', color:'#166534', fontWeight:600, fontSize:12}}>
+                      {c.value_certified > 0 ? `€${fmt(c.value_certified)}` : <span style={{color:'#d1d5db'}}>—</span>}
+                    </td>
+                    <td style={{textAlign:'right', color: c.value_remaining > 0 ? '#dc2626' : '#16a34a', fontSize:12}}>
+                      €{fmt(c.value_remaining ?? cv)}
+                    </td>
+                  </tr>
+                );
+              })}
+            </tbody>
+            <tfoot>
+              <tr style={{background:'#f1f5f9', fontWeight:700}}>
+                <td colSpan={5} style={{textAlign:'right', paddingRight:8}}>TOTAL</td>
+                <td style={{textAlign:'right'}}>€{fmt(totalContract)}</td>
+                <td></td>
+                <td style={{textAlign:'right', color:'#166534'}}>€{fmt(totalCertified)}</td>
+                <td style={{textAlign:'right', color:'#dc2626'}}>€{fmt(totalRemaining || totalContract - totalCertified)}</td>
+              </tr>
+            </tfoot>
+          </table>
+        </div>
+      )}
+    </div>
+  );
+}
+
+/* ── App Detail View (read-only) ─────────────────────────────────────────── */
+function AppDetailView({ detail, sc, onBack }) {
+  const app   = detail.application || detail.app;
+  const items = detail.items || [];
+  const ss    = STATUS_BG[app.status] ? { bg: STATUS_BG[app.status], color: STATUS_COLOR[app.status] } : { bg:'#f3f4f6', color:'#6b7280' };
+  const retention_pct = sc.retention_pct || 0;
+  const retHeld = Math.round((app.cumulative_gmc || 0) * (retention_pct / 100) * 100) / 100;
+
+  return (
+    <div>
+      <div className="detail-nav">
+        <button className="btn-back" onClick={onBack}>← Voltar à lista</button>
+      </div>
+
+      {/* Header */}
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16, flexWrap:'wrap' }}>
+        <div>
+          <div style={{ fontSize:18, fontWeight:700, color:'#1a1a2e' }}>
+            App #{app.application_number} — {app.period}
+          </div>
+          {app.notes && <div style={{ fontSize:12, color:'#9ca3af', marginTop:2 }}>{app.notes}</div>}
+        </div>
+        <span style={{ background:ss.bg, color:ss.color, borderRadius:12, padding:'3px 12px', fontSize:12, fontWeight:600 }}>
+          {app.status}
+        </span>
+        <div style={{ marginLeft:'auto', display:'flex', gap:20 }}>
+          {[
+            { label:'Sub Claimed', val:`€${fmt(app.value_sub)}`, color:'#92400e' },
+            { label:'GMC Assessed', val:`€${fmt(app.value_gmc)}`, color:'#166534' },
+            { label:'Cumulative', val:`€${fmt(app.cumulative_gmc)}`, color:'#1e40af' },
+            { label:'Retention', val:`€${fmt(retHeld)}`, color:'#7c3aed' },
+            { label:'Net Payable', val:`€${fmt(app.net_payable)}`, color:'#1a1a2e' },
+          ].map(k => (
+            <div key={k.label} style={{ textAlign:'right' }}>
+              <div style={{ fontSize:10, color:'#9ca3af', fontWeight:600, textTransform:'uppercase' }}>{k.label}</div>
+              <div style={{ fontSize:16, fontWeight:700, color:k.color }}>{k.val}</div>
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Item table */}
+      <div style={{ overflowX:'auto' }}>
+        <table className="boq-table" style={{ minWidth:900 }}>
           <thead>
             <tr>
-              <th className="col-ref">Ref</th><th>Description</th>
-              <th className="col-unit">Unit</th>
-              <th className="col-num">Qty</th>
-              <th className="col-num">Rate (€)</th>
-              <th className="col-num">Sub Total (€)</th>
-              <th>Contract Ref</th>
+              <th>Ref</th>
+              <th>Description</th>
+              <th>Unit</th>
+              <th style={{textAlign:'right'}}>Contract (€)</th>
+              <th style={{textAlign:'right', color:'#6b7280'}}>Prev %</th>
+              <th style={{textAlign:'right', color:'#92400e'}}>Sub %</th>
+              <th style={{textAlign:'right', color:'#166534'}}>GMC %</th>
+              <th style={{textAlign:'right', color:'#166534'}}>Esta App (€)</th>
+              <th style={{textAlign:'right', color:'#1e40af'}}>Cumul. (€)</th>
+              <th style={{textAlign:'right', color:'#dc2626'}}>Remaining (€)</th>
             </tr>
           </thead>
           <tbody>
-            {boqItems.map(i => (
-              <tr key={i.id}>
-                <td className="col-ref">{i.item_ref}</td>
-                <td>{i.description}</td>
-                <td className="col-unit">{i.unit}</td>
-                <td className="col-num">{fmt(i.qty, 3)}</td>
-                <td className="col-num">{fmt(i.rate)}</td>
-                <td className="col-num" style={{ fontWeight: 600 }}>{fmt(i.qty * i.rate)}</td>
-                <td style={{ fontSize: 12, color: '#6b7280' }}>{i.contract_ref || '—'}</td>
-              </tr>
-            ))}
+            {items.map((it, idx) => {
+              const cv       = it.contract_value || Math.round((it.qty_contracted || 0) * (it.rate || 0) * 100) / 100;
+              const pctCum   = (it.pct_prev || 0) + (it.pct_complete_gmc || 0);
+              const cumVal   = Math.round(pctCum / 100 * cv * 100) / 100;
+              const remVal   = Math.round((cv - cumVal) * 100) / 100;
+              const thisApp  = Math.round((it.pct_complete_gmc || 0) / 100 * cv * 100) / 100;
+              return (
+                <tr key={it.id} style={{ background: idx%2===0 ? '#f8fafc' : '#fff' }}>
+                  <td style={{fontFamily:'monospace', fontSize:11, whiteSpace:'nowrap'}}>{it.item_ref}</td>
+                  <td style={{maxWidth:280, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:12}} title={it.description}>{it.description}</td>
+                  <td style={{fontSize:12, color:'#6b7280'}}>{it.unit}</td>
+                  <td style={{textAlign:'right', fontSize:12}}>€{fmt(cv)}</td>
+                  <td style={{textAlign:'right', color:'#9ca3af', fontSize:12}}>{fmt(it.pct_prev, 1)}%</td>
+                  <td style={{textAlign:'right', color:'#92400e', fontSize:12}}>{fmt(it.pct_complete_sub, 1)}%</td>
+                  <td style={{textAlign:'right', color:'#166534', fontWeight:600, fontSize:12}}>{fmt(it.pct_complete_gmc, 1)}%</td>
+                  <td style={{textAlign:'right', fontWeight:600, color: thisApp > 0 ? '#166534' : '#9ca3af', fontSize:12}}>
+                    {thisApp > 0 ? `€${fmt(thisApp)}` : '—'}
+                  </td>
+                  <td style={{textAlign:'right', color:'#1e40af', fontSize:12}}>€{fmt(cumVal)}</td>
+                  <td style={{textAlign:'right', color: remVal > 0.01 ? '#dc2626' : '#16a34a', fontSize:12}}>€{fmt(remVal)}</td>
+                </tr>
+              );
+            })}
           </tbody>
+          <tfoot>
+            <tr style={{background:'#f1f5f9', fontWeight:700}}>
+              <td colSpan={7} style={{textAlign:'right', paddingRight:8}}>TOTAL</td>
+              <td style={{textAlign:'right', color:'#166534'}}>€{fmt(app.value_gmc)}</td>
+              <td style={{textAlign:'right', color:'#1e40af'}}>€{fmt(app.cumulative_gmc)}</td>
+              <td></td>
+            </tr>
+          </tfoot>
         </table>
-      )}
+      </div>
     </div>
   );
 }

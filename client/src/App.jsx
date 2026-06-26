@@ -4,6 +4,7 @@ import DASView from './components/DASView.jsx';
 import SubcontractView from './components/SubcontractView.jsx';
 import TrackerView from './components/TrackerView.jsx';
 import PayAppView from './components/PayAppView.jsx';
+import QSCostsView from './components/QSCostsView.jsx';
 
 const SCHEDULE_LABELS = {
   '1':  'Sch 1 — Preliminaries Fixed',
@@ -17,6 +18,7 @@ const NAV = [
   { id: 'das',     label: 'Daily Allocation', icon: '📋' },
   { id: 'tracker', label: 'Cost Tracker',     icon: '📊' },
   { id: 'payapp',  label: 'Applications',     icon: '🧾' },
+  { id: 'qscosts', label: 'QS Costs',         icon: '💰' },
 ];
 
 export default function App() {
@@ -24,6 +26,7 @@ export default function App() {
   const [summary,  setSummary]  = useState([]);
   const [activeNav, setActiveNav]   = useState('boq');
   const [activeSchedule, setActiveSchedule] = useState('all');
+  const [subDeepLink, setSubDeepLink] = useState(null); // { subName } — from tracker click
 
   useEffect(() => {
     Promise.all([
@@ -101,10 +104,11 @@ export default function App() {
             />
           )}
 
-          {activeNav === 'sub'     && <SubcontractView projectId={1} />}
+          {activeNav === 'sub'     && <SubcontractView projectId={1} deepLinkSubName={subDeepLink?.subName} onDeepLinkConsumed={() => setSubDeepLink(null)} />}
           {activeNav === 'das'     && <DASView projectId={1} />}
-          {activeNav === 'tracker' && <TrackerView projectId={1} />}
+          {activeNav === 'tracker' && <TrackerView projectId={1} onSubCellClick={subName => { setSubDeepLink({ subName }); setActiveNav('sub'); }} />}
           {activeNav === 'payapp'  && <PayAppView projectId={1} />}
+          {activeNav === 'qscosts' && <QSCostsView projectId={1} />}
         </main>
       </div>
     </div>

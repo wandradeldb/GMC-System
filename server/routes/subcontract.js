@@ -138,6 +138,7 @@ router.get('/projects/:pid/subcontracts/:id/applications/:appId', (req, res) => 
   if (!app) throw notFound('Application not found');
   const items   = con.prepare(`
     SELECT ai.*, sbi.item_ref, sbi.description, sbi.unit, sbi.qty AS qty_contracted, sbi.rate, sbi.section,
+      ROUND(sbi.qty * sbi.rate, 2) AS contract_value,
       ROUND(ai.qty_complete_sub * sbi.rate, 2) AS value_sub,
       ROUND(ai.qty_complete_gmc * sbi.rate, 2) AS value_gmc
     FROM sub_application_item ai
@@ -348,6 +349,31 @@ router.patch('/projects/:pid/payment-runs/:runId', (req, res) => {
   }
   res.json(con.prepare('SELECT * FROM payment_run WHERE id=?').get(req.params.runId));
   con.close();
+});
+
+// ── DELETE /projects/:pid/subcontracts/:scid ──────────────────────────────────
+router.delete('/projects/:pid/subcontracts/:scid', (req, res) => {
+  const con = db();
+  con.exec('BEGIN');
+  try {
+    // Delete applications and their items
+    const apps = con.prepare('SELECT id FROM sub_application WHERE subcontract_id=?').all(req.params.scid);
+    for (const a of apps) {
+      con.prepare('DELETE FROM sub_application_item WHERE sub_application_id=?').run(a.id);
+    }
+    con.prepare('DELETE FROM sub_application WHERE subcontract_id=?').run(req.params.scid);
+    con.prepare('DELETE FROM sub_boq_item WHERE subcontract_id=?').run(req.params.scid);
+    const r = con.prepare('DELETE FROM subcontract WHERE id=? AND project_id=?')
+      .run(req.params.scid, req.params.pid);
+    con.exec('COMMIT');
+    con.close();
+    if (r.changes === 0) return res.status(404).json({ error: 'Subcontract não encontrado' });
+    res.json({ ok: true });
+  } catch (e) {
+    con.exec('ROLLBACK');
+    con.close();
+    throw e;
+  }
 });
 
 // Error handler

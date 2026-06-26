@@ -492,15 +492,15 @@ body {
   position: sticky; left: 0; top: 0; z-index: 5;
   background: #1a1a2e; color: #fff; font-size: 10px; font-weight: 600;
   letter-spacing: .06em; text-transform: uppercase;
-  padding: 8px 14px; min-width: 200px; text-align: left;
-  border-right: 2px solid #374151;
+  padding: 8px 14px; width: 200px; min-width: 200px; text-align: left;
+  border-right: none;
 }
 .tracker-col-head {
   position: sticky; top: 0; z-index: 3;
   background: #1a1a2e; color: #fff; padding: 6px 8px; text-align: center;
   border-left: 1px solid #374151; min-width: 110px; white-space: nowrap;
 }
-.tracker-cum-head { background: #374151; border-left: 2px solid #9ca3af; }
+.tracker-cum-head { background: #374151; border-left: 2px solid #9ca3af; border-right: 2px solid #9ca3af; position: sticky; left: 200px; z-index: 4; }
 .tracker-we-label { font-size: 12px; font-weight: 600; }
 .tracker-we-num   { font-size: 10px; color: rgba(255,255,255,.55); margin-top: 1px; }
 .tracker-edit-btn {
@@ -512,17 +512,18 @@ body {
 .tracker-edit-btn:hover { background: rgba(255,255,255,.2); }
 
 .tracker-row-label {
-  position: sticky; left: 0; z-index: 1;
-  background: inherit; padding: 5px 14px; font-size: 12.5px;
-  border-right: 2px solid #d1d5db; border-bottom: 1px solid #e5e7eb;
-  white-space: nowrap; min-width: 200px;
+  position: sticky; left: 0; z-index: 2;
+  background: #fff; padding: 5px 14px; font-size: 12.5px;
+  border-right: none; border-bottom: 1px solid #e5e7eb;
+  white-space: nowrap; width: 200px; min-width: 200px; max-width: 200px; overflow: hidden; text-overflow: ellipsis;
+}
+.tracker-cum-cell {
+  border-left: 2px solid #9ca3af; border-right: 2px solid #9ca3af; background: #f0f4f8;
+  position: sticky; left: 200px; z-index: 2;
 }
 .tracker-cell {
   padding: 5px 10px; text-align: right; border-left: 1px solid #e5e7eb;
   border-bottom: 1px solid #e5e7eb; font-size: 12.5px; white-space: nowrap;
-}
-.tracker-cum-cell {
-  border-left: 2px solid #9ca3af; background: #f9fafb;
 }
 .tracker-section-row td { border-bottom: none; }
 .zero { color: #d1d5db; font-weight: 400; }

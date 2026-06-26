@@ -5,6 +5,10 @@ const dasRouter = require('./routes/das');
 const subRouter     = require('./routes/subcontract');
 const trackerRouter = require('./routes/tracker');
 const payappRouter  = require('./routes/payapp');
+const importRouter  = require('./routes/import');
+const qsCostsRouter    = require('./routes/qscosts');
+const assessmentRouter    = require('./routes/assessment');
+const subAssessmentRouter = require('./routes/subassessment');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -17,6 +21,10 @@ app.use('/api/v1', dasRouter);
 app.use('/api/v1', subRouter);
 app.use('/api/v1', trackerRouter);
 app.use('/api/v1', payappRouter);
+app.use('/api/v1', importRouter);
+app.use('/api/v1', qsCostsRouter);
+app.use('/api/v1', assessmentRouter);
+app.use('/api/v1', subAssessmentRouter);
 
 app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
 

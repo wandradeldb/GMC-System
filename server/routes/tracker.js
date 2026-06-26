@@ -56,8 +56,7 @@ function recalcWeek(con, projectId, weekEnding) {
   `).get(projectId, weekEnding);
   const revCumulative = prevWeeks.cum + revTotal;
 
-  // 3. Cost: subs from approved applications whose period falls within the WE's month
-  //    Convention: WE maps to YYYY-MM by taking the month of the week_ending date
+  // 3. Cost: subs from approved applications + Excel imports
   const wePeriod = weekEnding.slice(0, 7); // YYYY-MM
   const subsVal  = con.prepare(`
     SELECT COALESCE(SUM(a.value_gmc),0) AS total
@@ -65,6 +64,12 @@ function recalcWeek(con, projectId, weekEnding) {
     JOIN subcontract sc ON sc.id = a.subcontract_id
     WHERE sc.project_id=? AND a.period=? AND a.status NOT IN ('draft')
   `).get(projectId, wePeriod);
+
+  const excelSubs = con.prepare(`
+    SELECT COALESCE(SUM(amount),0) AS total
+    FROM excel_sub_cost
+    WHERE project_id=? AND week_ending=?
+  `).get(projectId, weekEnding);
 
   // Get existing tracker row to read manual cost entries + EFA
   const existing = con.prepare('SELECT * FROM tracker_we WHERE project_id=? AND week_ending=?').get(projectId, weekEnding);
@@ -75,7 +80,7 @@ function recalcWeek(con, projectId, weekEnding) {
   const efaCost   = existing?.efa_cost       || 0;
   const targetPct = existing?.target_margin_pct ?? 8.0;
 
-  const costSubs  = subsVal.total;
+  const costSubs  = subsVal.total + (excelSubs?.total ?? 0);
   const costTotal = costSubs + costMat + costPlant + ohp;
 
   // 4. Cost cumulative
@@ -131,15 +136,184 @@ router.get('/projects/:pid/tracker', (req, res) => {
   const con  = db();
   const rows = con.prepare('SELECT * FROM tracker_we WHERE project_id=? ORDER BY week_ending ASC').all(req.params.pid);
 
+  // Pull QS import costs per week (Material + Plant from qs_cost_transaction)
+  const qsRows = con.prepare(`
+    SELECT week_ending,
+      ROUND(SUM(CASE WHEN cost_category='Material' THEN cost ELSE 0 END),2) AS qs_mat,
+      ROUND(SUM(CASE WHEN cost_category='Plant'    THEN cost ELSE 0 END),2) AS qs_plant
+    FROM qs_cost_transaction WHERE project_id=? GROUP BY week_ending
+  `).all(req.params.pid);
+  const qsMap = {};
+  qsRows.forEach(r => { qsMap[r.week_ending] = r; });
+
+  // Overlay QS costs and recompute totals/margin/cumulative
+  let cumRev = 0, cumCost = 0;
+  const enriched = rows.map(r => {
+    const qs = qsMap[r.week_ending] || {};
+    const mat   = (r.cost_materials || 0) + (qs.qs_mat   || 0);
+    const plant = (r.cost_plant     || 0) + (qs.qs_plant || 0);
+    const costTotal = Math.round(((r.cost_subs || 0) + mat + plant + (r.ohp_allowance || 0)) * 100) / 100;
+    const revTotal  = r.rev_total_week || 0;
+    cumRev  += revTotal;
+    cumCost += costTotal;
+    const marginWeek = Math.round((revTotal  - costTotal)  * 100) / 100;
+    const marginCum  = Math.round((cumRev    - cumCost)    * 100) / 100;
+    const marginPct  = cumRev > 0 ? Math.round((marginCum / cumRev) * 10000) / 100 : 0;
+    return {
+      ...r,
+      cost_materials:   Math.round(mat   * 100) / 100,
+      cost_plant:       Math.round(plant * 100) / 100,
+      cost_total_week:  costTotal,
+      cost_cumulative:  Math.round(cumCost * 100) / 100,
+      rev_cumulative:   Math.round(cumRev  * 100) / 100,
+      margin_week:      marginWeek,
+      margin_cumulative: marginCum,
+      margin_pct:       marginPct,
+    };
+  });
+
   // Project summary: this week, previous, cumulative, EFA
-  const latest   = rows[rows.length - 1] || null;
-  const previous = rows[rows.length - 2] || null;
+  const latest   = enriched[enriched.length - 1] || null;
+  const previous = enriched[enriched.length - 2] || null;
 
   const contractValue = (con.prepare('SELECT contract_value FROM project WHERE id=?').get(req.params.pid) || {}).contract_value || 0;
   const totalBOQ      = (con.prepare('SELECT COALESCE(SUM(qty*rate),0) AS t FROM boq_item WHERE project_id=?').get(req.params.pid) || {}).t || 0;
 
+  // ── Sub breakdown per week ─────────────────────────────────────────────────
+  // Get all registered subcontracts for this project
+  const subs = con.prepare(`
+    SELECT sc.id, sc.ref, sc.description, s.name AS sub_name
+    FROM subcontract sc JOIN subcontractor s ON s.id = sc.subcontractor_id
+    WHERE sc.project_id=? ORDER BY sc.ref
+  `).all(req.params.pid);
+
+  // Cost-Payment per sub per WE — primeiro tenta sub_assessment (Excel import),
+  // depois fallback para sub_application (aplicações formais)
+  const assessRows = con.prepare(`
+    SELECT sub_name, week_ending, ROUND(SUM(gmc_assessment),2) AS cost_payment
+    FROM sub_assessment WHERE project_id=? AND week_ending IS NOT NULL
+    GROUP BY sub_name, week_ending
+  `).all(req.params.pid);
+  // index: sheet_name_norm + WE → cost_payment
+  const assessMap = {};
+  assessRows.forEach(r => { assessMap[`${r.sub_name}__${r.week_ending}`] = r.cost_payment; });
+
+  // Fallback: sub_application por período (YYYY-MM) — apenas status reais (não planned/draft)
+  const subPayments = con.prepare(`
+    SELECT sc.id AS sub_id, s.name AS sub_name, a.period,
+      ROUND(SUM(a.value_gmc),2) AS cost_payment
+    FROM sub_application a
+    JOIN subcontract sc ON sc.id = a.subcontract_id
+    JOIN subcontractor s ON s.id = sc.subcontractor_id
+    WHERE sc.project_id=? AND a.status NOT IN ('planned','draft')
+    GROUP BY sc.id, a.period
+  `).all(req.params.pid);
+  const payMap = {};
+  subPayments.forEach(r => { payMap[`${r.sub_id}__${r.period}`] = { cost_payment: r.cost_payment, sub_name: r.sub_name }; });
+
+  // Planned assessments por sub por período
+  const plannedPayments = con.prepare(`
+    SELECT sc.id AS sub_id, s.name AS sub_name, a.period,
+      ROUND(SUM(a.value_gmc),2) AS planned_cost
+    FROM sub_application a
+    JOIN subcontract sc ON sc.id = a.subcontract_id
+    JOIN subcontractor s ON s.id = sc.subcontractor_id
+    WHERE sc.project_id=? AND a.status = 'planned'
+    GROUP BY sc.id, a.period
+  `).all(req.params.pid);
+  const plannedMap = {};
+  plannedPayments.forEach(r => { plannedMap[`${r.sub_id}__${r.period}`] = r.planned_cost; });
+
+  // Material per sub per WE (from qs_cost_transaction, match on gang_name LIKE sub_name)
+  const subMaterials = con.prepare(`
+    SELECT week_ending, gang_name,
+      ROUND(SUM(CASE WHEN cost_category='Material' THEN cost ELSE 0 END),2) AS cost_material,
+      ROUND(SUM(CASE WHEN cost_category='Sub'      THEN cost ELSE 0 END),2) AS cost_sub_payment
+    FROM qs_cost_transaction
+    WHERE project_id=? AND week_ending IS NOT NULL
+    GROUP BY week_ending, gang_name
+  `).all(req.params.pid);
+
+  // Revenue manually entered per sub per WE
+  const subRevRows = con.prepare(`
+    SELECT week_ending, sub_name, revenue_generated, gmc_op_plant, misc_subbies_cost, misc_subbies_revenue
+    FROM tracker_sub_revenue WHERE project_id=?
+  `).all(req.params.pid);
+  // index: sub_name + WE → revenue_generated
+  const revMap = {};
+  subRevRows.forEach(r => { revMap[`${r.sub_name}__${r.week_ending}`] = r; });
+
+  // Build sub_lines: for each WE, for each sub, aggregate the 3 values
+  const subLines = {}; // week_ending → [{sub_id, sub_name, ref, cost_payment, cost_material, revenue_generated}]
+  enriched.forEach(r => {
+    const we = r.week_ending;
+    const period = we.slice(0, 7); // YYYY-MM
+    subLines[we] = subs.map(sc => {
+      // Cost-Payment: 1º tenta sub_assessment (Excel import) por correspondência de nome de aba
+      // O sheet name do Excel pode ser "Folan Civil", "Right Group", etc.
+      // Comparamos com palavras-chave do nome do sub registado
+      const GENERIC = new Set(['civil','group','engineering','construction','services','limited','solutions','building','contractors','infrastructure','ireland','costs','works','management']);
+      const subWords = sc.sub_name.toLowerCase().split(/\s+/).filter(w => w.length > 3 && !GENERIC.has(w));
+      let costPayment = 0;
+      // Procurar em assessMap: chave = "SheetName__WE"
+      for (const [key, val] of Object.entries(assessMap)) {
+        const [assessSubName, assessWE] = key.split('__');
+        if (assessWE === we) {
+          const assessNorm = assessSubName.toLowerCase();
+          if (subWords.some(w => assessNorm.includes(w))) {
+            costPayment += val;
+          }
+        }
+      }
+      // Fallback: sub_application formal — só se este sub NÃO tem dados no Excel (assessMap)
+      // Se tem dados no Excel, o valor 0 numa semana é correto (sem pagamento nessa semana)
+      const hasExcelData = Object.keys(assessMap).some(key => {
+        const [assessSubName] = key.split('__');
+        const assessNorm = assessSubName.toLowerCase();
+        return subWords.some(w => assessNorm.includes(w));
+      });
+      if (costPayment === 0 && !hasExcelData) {
+        const pa = payMap[`${sc.id}__${period}`];
+        if (pa) costPayment = pa.cost_payment;
+      }
+
+      // Material: match gang_name — try normal includes first, then space-stripped compare
+      const matRow = subMaterials.find(m => {
+        if (m.week_ending !== we) return false;
+        const gn = m.gang_name?.toLowerCase() || '';
+        const gnStripped = gn.replace(/\s+/g, '');
+        return subWords.some(w => gn.includes(w) || gnStripped.includes(w));
+      });
+      const costMaterial = matRow?.cost_material || 0;
+
+      // Revenue: from manual entry
+      const revRow = revMap[`${sc.sub_name}__${we}`] || {};
+      const revenueGenerated = revRow.revenue_generated || 0;
+
+      const plannedCost = plannedMap[`${sc.id}__${period}`] || 0;
+
+      return {
+        sub_id:            sc.id,
+        sub_name:          sc.sub_name,
+        ref:               sc.ref,
+        description:       sc.description,
+        cost_payment:      Math.round(costPayment  * 100) / 100,
+        cost_material:     Math.round(costMaterial * 100) / 100,
+        revenue_generated: Math.round(revenueGenerated * 100) / 100,
+        planned_cost:      Math.round(plannedCost  * 100) / 100,
+      };
+    });
+
+    // GMC OP and Misc from manual entry (use first sub_revenue row for this WE with sub_name='__gmc_op__')
+    const gmcOp   = revMap[`__gmc_op____${we}`]   || {};
+    const misc    = revMap[`__misc____${we}`]      || {};
+    subLines[we].__gmc_op__  = { gmc_op_plant:        gmcOp.gmc_op_plant        || 0 };
+    subLines[we].__misc__    = { misc_subbies_cost:    misc.misc_subbies_cost    || 0,
+                                 misc_subbies_revenue: misc.misc_subbies_revenue || 0 };
+  });
+
   con.close();
-  res.json({ rows, summary: { latest, previous, contractValue, totalBOQ } });
+  res.json({ rows: enriched, summary: { latest, previous, contractValue, totalBOQ }, sub_lines: subLines });
 });
 
 // ── GET /projects/:pid/tracker/:we  ─────────────────────────────────────────
@@ -286,6 +460,58 @@ router.get('/projects/:pid/tracker/:we/progress-sheet', (req, res) => {
 
   con.close();
   res.json({ week_ending: weekEnding, prev_week_ending: prevWE, items });
+});
+
+// ── PUT /projects/:pid/tracker/:we/sub-revenue ──────────────────────────────
+// Save revenue_generated per sub for a WE (and GMC OP plant + Misc)
+router.put('/projects/:pid/tracker/:we/sub-revenue', (req, res) => {
+  const con = db();
+  const { pid } = req.params;
+  const weekEnding = req.params.we;
+  const { sub_lines = [], gmc_op_plant = 0, misc_subbies_cost = 0, misc_subbies_revenue = 0 } = req.body;
+
+  con.exec('BEGIN');
+  try {
+    const stmt = con.prepare(`
+      INSERT INTO tracker_sub_revenue (project_id, week_ending, sub_name, revenue_generated)
+      VALUES (?,?,?,?)
+      ON CONFLICT(project_id, week_ending, sub_name) DO UPDATE SET revenue_generated=excluded.revenue_generated
+    `);
+    for (const line of sub_lines) {
+      stmt.run(pid, weekEnding, line.sub_name, line.revenue_generated || 0);
+    }
+    // GMC OP
+    con.prepare(`
+      INSERT INTO tracker_sub_revenue (project_id, week_ending, sub_name, gmc_op_plant)
+      VALUES (?,?,?,?)
+      ON CONFLICT(project_id, week_ending, sub_name) DO UPDATE SET gmc_op_plant=excluded.gmc_op_plant
+    `).run(pid, weekEnding, '__gmc_op__', gmc_op_plant);
+    // Misc
+    con.prepare(`
+      INSERT INTO tracker_sub_revenue (project_id, week_ending, sub_name, misc_subbies_cost, misc_subbies_revenue)
+      VALUES (?,?,?,?,?)
+      ON CONFLICT(project_id, week_ending, sub_name) DO UPDATE SET
+        misc_subbies_cost=excluded.misc_subbies_cost, misc_subbies_revenue=excluded.misc_subbies_revenue
+    `).run(pid, weekEnding, '__misc__', misc_subbies_cost, misc_subbies_revenue);
+
+    con.exec('COMMIT');
+    con.close();
+    res.json({ ok: true });
+  } catch(e) {
+    con.exec('ROLLBACK');
+    con.close();
+    throw e;
+  }
+});
+
+// ── DELETE /projects/:pid/tracker/:we ────────────────────────────────────────
+router.delete('/projects/:pid/tracker/:we', (req, res) => {
+  const con = db();
+  con.prepare('DELETE FROM boq_progress WHERE project_id=? AND week_ending=?').run(req.params.pid, req.params.we);
+  const r = con.prepare('DELETE FROM tracker_we WHERE project_id=? AND week_ending=?').run(req.params.pid, req.params.we);
+  con.close();
+  if (r.changes === 0) return res.status(404).json({ error: 'Semana não encontrada' });
+  res.json({ ok: true });
 });
 
 // Error handler
