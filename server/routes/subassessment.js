@@ -112,11 +112,11 @@ router.post('/projects/:pid/subcontracts/:scid/applications', (req, res) => {
 
   // week_ending é UNIQUE por subcontrato
   const dup = con.prepare(
-    'SELECT application_number FROM sub_application WHERE subcontract_id=? AND week_ending=?'
+    'SELECT application_number, status FROM sub_application WHERE subcontract_id=? AND week_ending=?'
   ).get(req.params.scid, weekEnding);
   if (dup) {
     con.close();
-    return res.status(409).json({ error: `Já existe uma App (#${dup.application_number}) para a semana ${weekEnding}.` });
+    return res.status(409).json({ error: `An application already exists for week ${weekEnding} (App #${dup.application_number}, status: ${dup.status}). Pick another week.` });
   }
 
   // Próximo número de aplicação
@@ -153,7 +153,9 @@ router.post('/projects/:pid/subcontracts/:scid/applications', (req, res) => {
     const vGmc = Math.round((pctGmc - prev) / 100 * cv * 100) / 100;
     valueSub += vSub;
     valueGmc += vGmc;
-    return { ...it, pct_prev: prev, value_sub: vSub, value_gmc: vGmc };
+    // pct_complete_* guardado = % DESTA app (delta), consistente com import e GET /boq
+    return { ...it, pct_prev: prev, this_pct_sub: Math.round((pctSub - prev) * 100) / 100,
+      this_pct_gmc: Math.round((pctGmc - prev) * 100) / 100, value_sub: vSub, value_gmc: vGmc };
   });
 
   // Cumulativos anteriores
@@ -186,7 +188,7 @@ router.post('/projects/:pid/subcontracts/:scid/applications', (req, res) => {
     `);
     for (const it of enrichedItems) {
       stmt.run(appId, it.sub_boq_item_id, it.pct_prev,
-        it.pct_complete_sub, it.pct_complete_gmc,
+        it.this_pct_sub, it.this_pct_gmc,
         it.value_sub, it.value_gmc, it.notes || null);
     }
 
@@ -258,7 +260,8 @@ router.put('/projects/:pid/subcontracts/:scid/applications/:appid/assessment', (
       if (!row) continue;
       const cv = row.contract_value || 0;
       const vGmc = Math.round((Number(it.value_gmc) || 0) * 100) / 100;
-      const pctGmc = cv > 0 ? Math.round((row.pct_prev + vGmc / cv * 100) * 100) / 100 : row.pct_prev;
+      // pct_complete_gmc = % DESTA app (consistente com import e GET /boq que soma para o cumulativo)
+      const pctGmc = cv > 0 ? Math.round(vGmc / cv * 100 * 100) / 100 : 0;
       upd.run(vGmc, pctGmc, it.id, appid);
       totalGmc += vGmc;
     }
@@ -282,6 +285,57 @@ router.put('/projects/:pid/subcontracts/:scid/applications/:appid/assessment', (
   } catch (e) {
     con.exec('ROLLBACK'); con.close(); throw e;
   }
+});
+
+// ── GET /projects/:pid/subcontracts/:scid/applications/:appid/certificate ─────
+// Dados para o Payment Certificate (resumo financeiro + histórico + itens).
+router.get('/projects/:pid/subcontracts/:scid/applications/:appid/certificate', (req, res) => {
+  const con = db();
+  const { pid, scid, appid } = req.params;
+
+  const app = con.prepare('SELECT * FROM sub_application WHERE id=? AND subcontract_id=?').get(appid, scid);
+  if (!app) { con.close(); return res.status(404).json({ error: 'Application not found' }); }
+
+  const sc = con.prepare(`
+    SELECT sc.ref, sc.retention_pct, s.name AS sub_name,
+      (SELECT ROUND(SUM(qty*rate),2) FROM sub_boq_item WHERE subcontract_id=sc.id) AS contract_value
+    FROM subcontract sc
+    JOIN subcontractor s ON s.id = sc.subcontractor_id
+    WHERE sc.id=?
+  `).get(scid);
+  const project = con.prepare('SELECT name, ref, client FROM project WHERE id=?').get(pid) || {};
+
+  const contractValue   = sc?.contract_value || 0;
+  const retentionPct    = sc?.retention_pct || 0;
+  const thisApp         = app.value_gmc || 0;
+  const cumulative      = app.cumulative_gmc || 0;
+  const previously      = Math.round((cumulative - thisApp) * 100) / 100;
+  const pctComplete     = contractValue ? Math.round((cumulative / contractValue) * 10000) / 100 : 0;
+  const retentionAmount = Math.round(thisApp * retentionPct) / 100;   // thisApp * pct/100
+  const netDue          = Math.round((thisApp - retentionAmount) * 100) / 100;
+
+  const history = con.prepare(`
+    SELECT application_number, week_ending, value_gmc, cumulative_gmc, status
+    FROM sub_application
+    WHERE subcontract_id=? AND application_number <= ? AND status != 'draft'
+    ORDER BY application_number
+  `).all(scid, app.application_number);
+
+  const items = con.prepare(`
+    SELECT sbi.item_ref, sbi.description, sbi.unit, ROUND(sbi.qty*sbi.rate,2) AS contract_value,
+      sai.pct_complete_gmc, sai.value_gmc_computed
+    FROM sub_application_item sai
+    JOIN sub_boq_item sbi ON sbi.id = sai.sub_boq_item_id
+    WHERE sai.sub_application_id = ?
+    ORDER BY sbi.sort_order
+  `).all(appid);
+
+  con.close();
+  res.json({
+    app, project, subcontract: sc,
+    summary: { contractValue, thisApp, previously, cumulative, pctComplete, retentionPct, retentionAmount, netDue },
+    history, items,
+  });
 });
 
 // ── Helpers para o formato "Folan" (vertical, uma App por sheet) ─────────────
@@ -382,39 +436,44 @@ function pctNorm(v) {
 }
 
 // ── POST /projects/:pid/subcontracts/:scid/applications/import-excel ─────────
-// Importa uma App do Excel (formato vertical "Folan") para sub_application + items.
-// Body (multipart): file=<xlsx>, sheet_name=<str>
-// As % no Excel são cumulativas (% complete to date); guardamos o DELTA face ao
-// que já está certificado no DB, mantendo a semântica do POST manual.
+// Importa uma App (claim) do Excel para sub_application + items.
+// Body (multipart): file=<xlsx>, week_ending=<YYYY-MM-DD> (obrigatório), sheet_name=<str> (opcional)
+// Os valores do Excel são DESTA aplicação. A semana é a escolhida no UI (não a do Excel).
 router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
   upload.single('file'),
   (req, res) => {
     const con = db();
-    const { sheet_name } = req.body;
-    if (!req.file || !sheet_name) {
+    const { sheet_name, week_ending } = req.body;
+    if (!req.file) {
       con.close();
-      return res.status(400).json({ error: 'file e sheet_name são obrigatórios' });
+      return res.status(400).json({ error: 'Excel file is required.' });
+    }
+    if (!week_ending) {
+      con.close();
+      return res.status(400).json({ error: 'Choose a Week Ending before importing.' });
     }
 
     const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
-    const sh = wb.Sheets[sheet_name];
+
+    // Escolher a aba: a indicada, ou a 1ª com cabeçalho válido
+    let sh, usedSheet, range, hdr;
+    const candidates = (sheet_name && wb.Sheets[sheet_name]) ? [sheet_name] : (wb.SheetNames || Object.keys(wb.Sheets));
+    for (const name of candidates) {
+      const s = wb.Sheets[name];
+      if (!s) continue;
+      const rng = XLSX.utils.decode_range(s['!ref'] || 'A1:A1');
+      const h = findHeader(s, rng);
+      if (h) { sh = s; usedSheet = name; range = rng; hdr = h; break; }
+    }
     if (!sh) {
       con.close();
       return res.status(400).json({
-        error: `Aba "${sheet_name}" não encontrada. Abas disponíveis: ${Object.keys(wb.Sheets).join(', ')}`,
-      });
-    }
-
-    const range = XLSX.utils.decode_range(sh['!ref'] || 'A1:A1');
-    const hdr = findHeader(sh, range);
-    if (!hdr) {
-      con.close();
-      return res.status(400).json({
-        error: 'Não foi possível encontrar a linha de cabeçalho (precisa de colunas "Item" e "% GMC" ou "€ GMC").',
+        error: `No sheet with a valid header found (needs "Item" and "% GMC"/"Assessment" columns). Sheets: ${(wb.SheetNames || []).join(', ')}`,
       });
     }
     const { headerRow, cols } = hdr;
-    const weekEnding = findWeekEnding(sh, range, headerRow);
+    // A semana é a escolhida no UI (não a do Excel)
+    const weekEnding = week_ending;
 
     // BOQ items do sub indexados por item_ref (suporta refs duplicados → fila)
     const boqItems = con.prepare(`
@@ -437,9 +496,8 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
     const certMap = {};
     certRows.forEach(r => { certMap[r.sub_boq_item_id] = r; });
 
-    // 1ª passagem: ler valores cumulativos por item (€ tem prioridade sobre %).
-    // Calcular a % a partir de €/contract_value evita a ambiguidade fração/percentagem
-    // (ex.: no Excel "1.2" significa 120%, não 1.2%).
+    // 1ª passagem: ler o valor DESTA aplicação por item (cada ficheiro = 1 aplicação).
+    // € tem prioridade sobre %. Deriva-se a % de €/contract_value (evita ambiguidade fração/%).
     const raw = [];
     const unmatched = [];
     let rowsScanned = 0, subFileTotal = 0, gmcFileTotal = 0;
@@ -458,16 +516,16 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
       const eurGmcRaw = cols.eurGmc != null ? numV(sh, r, cols.eurGmc) : null;
 
       const cv = boq.contract_value || 0;
-      // Valor cumulativo: € do Excel se existir, senão calcula da % (normalizada)
-      const subCumVal = eurSubRaw != null ? eurSubRaw : (pctSubRaw != null ? cv * pctNorm(pctSubRaw) / 100 : 0);
-      const gmcCumVal = eurGmcRaw != null ? eurGmcRaw : (pctGmcRaw != null ? cv * pctNorm(pctGmcRaw) / 100 : 0);
+      // Valor DESTA app: € do Excel se existir, senão calcula da % (normalizada)
+      const subThisApp = eurSubRaw != null ? eurSubRaw : (pctSubRaw != null ? cv * pctNorm(pctSubRaw) / 100 : 0);
+      const gmcThisApp = eurGmcRaw != null ? eurGmcRaw : (pctGmcRaw != null ? cv * pctNorm(pctGmcRaw) / 100 : 0);
 
       // Linha sem qualquer dado → ignorar
-      if (subCumVal === 0 && gmcCumVal === 0 && pctSubRaw == null && pctGmcRaw == null) continue;
+      if (subThisApp === 0 && gmcThisApp === 0 && pctSubRaw == null && pctGmcRaw == null) continue;
 
-      subFileTotal += subCumVal;
-      gmcFileTotal += gmcCumVal;
-      raw.push({ boq, ref, cv, subCumVal, gmcCumVal });
+      subFileTotal += subThisApp;
+      gmcFileTotal += gmcThisApp;
+      raw.push({ boq, ref, cv, subThisApp, gmcThisApp });
     }
 
     if (raw.length === 0) {
@@ -481,32 +539,34 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
     // Se a coluna GMC vier toda vazia, usa a claim do Folan (Sub) como assessment inicial.
     const gmcFromSub = gmcFileTotal === 0 && subFileTotal > 0;
 
-    // 2ª passagem: converter cumulativos em DELTAS face ao já certificado no DB
+    // 2ª passagem: os valores do Excel são DESTA aplicação (não cumulativos) → guardar direto.
+    // pct_prev = cumulativo das apps anteriores (só para mostrar / detetar over-claim).
     const items = [];
+    const overClaim = [];
     let valueSub = 0, valueGmc = 0;
     for (const it of raw) {
-      const subCumVal = it.subCumVal;
-      const gmcCumVal = gmcFromSub ? it.subCumVal : it.gmcCumVal;
-      const cv = it.cv || 1;
+      const cv = it.cv || 0;
+      const subVal = it.subThisApp;
+      const gmcVal = gmcFromSub ? it.subThisApp : it.gmcThisApp;
 
       const cert = certMap[it.boq.id] || { pct_cum: 0, val_cum: 0 };
       const pctPrev = Math.round(cert.pct_cum * 100) / 100;
 
-      // % cumulativa derivada do € (mais fiável que a % do Excel)
-      const pctSubCum = cv ? Math.round(subCumVal / cv * 100 * 100) / 100 : 0;
-      const pctGmcCum = cv ? Math.round(gmcCumVal / cv * 100 * 100) / 100 : 0;
+      // % desta app (derivada do €)
+      const pctSub = cv ? Math.round(subVal / cv * 100 * 100) / 100 : 0;
+      const pctGmc = cv ? Math.round(gmcVal / cv * 100 * 100) / 100 : 0;
 
-      const deltaSub = Math.round((subCumVal - cert.val_cum) * 100) / 100;
-      const deltaGmc = Math.round((gmcCumVal - cert.val_cum) * 100) / 100;
+      // Cumulativo acima de 100% → precisa de variation (compensation event)
+      const cumPct = Math.round((pctPrev + pctGmc) * 100) / 100;
+      if (cumPct > 100.01) overClaim.push({ ref: it.ref, cumulative_pct: cumPct });
 
-      valueSub += deltaSub;
-      valueGmc += deltaGmc;
+      valueSub += subVal;
+      valueGmc += gmcVal;
       items.push({
         boq_id: it.boq.id, ref: it.ref,
-        pctPrev,
-        pctSub: Math.round((pctPrev + (pctSubCum - pctPrev)) * 100) / 100,
-        pctGmc: Math.round((pctPrev + (pctGmcCum - pctPrev)) * 100) / 100,
-        vSub: deltaSub, vGmc: deltaGmc,
+        pctPrev, pctSub, pctGmc,
+        vSub: Math.round(subVal * 100) / 100,
+        vGmc: Math.round(gmcVal * 100) / 100,
       });
     }
 
@@ -523,19 +583,19 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
     // week_ending é NOT NULL e UNIQUE por subcontrato → fallback p/ hoje se não houver data
     const weekEndingFinal = weekEnding || new Date().toISOString().slice(0, 10);
     const dup = con.prepare(
-      'SELECT application_number FROM sub_application WHERE subcontract_id=? AND week_ending=?'
+      'SELECT application_number, status FROM sub_application WHERE subcontract_id=? AND week_ending=?'
     ).get(req.params.scid, weekEndingFinal);
     if (dup) {
       con.close();
       return res.status(409).json({
-        error: `Já existe uma App (#${dup.application_number}) para a semana ${weekEndingFinal}. Apaga-a primeiro ou usa outra data.`,
+        error: `An application already exists for week ${weekEndingFinal} (App #${dup.application_number}, status: ${dup.status}). `
+          + `Each week can only have one application. Pick a different Week Ending.`,
       });
     }
-    // GMC vazio → fica 'assessed' (claim do Folan carregada, QS ainda tem de cortar).
-    // GMC preenchido → 'approved'.
+    // GMC empty → 'assessed' (Folan claim loaded, QS still has to cut). GMC filled → 'approved'.
     const appStatus = gmcFromSub ? 'assessed' : 'approved';
-    const notes = `Importado do Excel — ${sheet_name}${weekEnding ? ' WE ' + weekEnding : ''}`
-      + (gmcFromSub ? ' (GMC vazio no Excel → usei a claim do Folan)' : '');
+    const notes = `Imported from Excel — ${usedSheet} WE ${weekEndingFinal}`
+      + (gmcFromSub ? ' (GMC empty → used Folan claim)' : '');
 
     con.exec('BEGIN');
     try {
@@ -577,6 +637,7 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
           gmc_from_sub: gmcFromSub,
         }],
         unmatched_refs: unmatched,
+        over_claim: overClaim,
       });
     } catch (e) {
       con.exec('ROLLBACK');

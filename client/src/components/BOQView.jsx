@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 
-const TYPE_LABELS = { F: 'Fixed', T: 'Time', M: 'Measured' };
+const TYPE_LABELS = { F: 'Prel. Fixed', T: 'Prel. Time', M: 'Measured' };
 
 const fmt = (n) =>
   n === 0 || n == null

@@ -108,7 +108,7 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
                 <button onClick={() => setSelected(sc.id)}
                   style={{ flex:1, padding:'5px 0', borderRadius:6, border:'1px solid #d1d5db',
                     background:'#f9fafb', cursor:'pointer', fontSize:12, color:'#374151' }}>
-                  Detalhes
+                  Details
                 </button>
                 <button onClick={() => setAssessment({ id: sc.id, ref: sc.ref, name: sc.subcontractor_name, contract_value: sc.contract_value })}
                   style={{ flex:2, padding:'5px 0', borderRadius:6, border:'none',
@@ -116,7 +116,7 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
                   📋 Assessment
                 </button>
                 <button onClick={async () => {
-                  if (!window.confirm(`Apagar ${sc.ref} — ${sc.subcontractor_name}?\nIsso remove também todas as applications e BOQ items.`)) return;
+                  if (!window.confirm(`Delete ${sc.ref} — ${sc.subcontractor_name}?\nThis also removes all its applications and BOQ items.`)) return;
                   await fetch(`/api/v1/projects/${projectId}/subcontracts/${sc.id}`, { method:'DELETE' });
                   load();
                 }} style={{ padding:'5px 8px', borderRadius:6, border:'1px solid #fca5a5',

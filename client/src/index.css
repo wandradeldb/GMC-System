@@ -1,5 +1,18 @@
 *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
+/* % entry cells: no spinner arrows (use ↑/↓ to move between rows) */
+input.cell-input::-webkit-outer-spin-button,
+input.cell-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
+input.cell-input { -moz-appearance: textfield; appearance: textfield; }
+
+/* Print: show only the Payment Certificate */
+@media print {
+  body * { visibility: hidden; }
+  .cert-print, .cert-print * { visibility: visible; }
+  .cert-print { position: absolute; left: 0; top: 0; width: 100%; border: none !important; }
+  .no-print { display: none !important; }
+}
+
 body {
   font-family: 'Inter', 'Segoe UI', system-ui, sans-serif;
   font-size: 14px;

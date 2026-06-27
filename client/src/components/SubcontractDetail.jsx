@@ -266,7 +266,7 @@ function AppDetailView({ detail, sc, onBack }) {
   return (
     <div>
       <div className="detail-nav">
-        <button className="btn-back" onClick={onBack}>← Voltar à lista</button>
+        <button className="btn-back" onClick={onBack}>← Back to list</button>
       </div>
 
       {/* Header */}

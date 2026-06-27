@@ -198,31 +198,31 @@ router.get('/projects/:pid/tracker', (req, res) => {
   const assessMap = {};
   assessRows.forEach(r => { assessMap[`${r.sub_name}__${r.week_ending}`] = r.cost_payment; });
 
-  // Fallback: sub_application por período (YYYY-MM) — apenas status reais (não planned/draft)
+  // Sub applications confirmadas (não-draft) por sub e SEMANA EXATA (week_ending)
   const subPayments = con.prepare(`
-    SELECT sc.id AS sub_id, s.name AS sub_name, substr(a.week_ending,1,7) AS period,
+    SELECT sc.id AS sub_id, s.name AS sub_name, a.week_ending,
       ROUND(SUM(a.value_gmc),2) AS cost_payment
     FROM sub_application a
     JOIN subcontract sc ON sc.id = a.subcontract_id
     JOIN subcontractor s ON s.id = sc.subcontractor_id
-    WHERE sc.project_id=? AND a.status NOT IN ('draft')
-    GROUP BY sc.id, substr(a.week_ending,1,7)
+    WHERE sc.project_id=? AND a.status != 'draft'
+    GROUP BY sc.id, a.week_ending
   `).all(req.params.pid);
   const payMap = {};
-  subPayments.forEach(r => { payMap[`${r.sub_id}__${r.period}`] = { cost_payment: r.cost_payment, sub_name: r.sub_name }; });
+  subPayments.forEach(r => { payMap[`${r.sub_id}__${r.week_ending}`] = { cost_payment: r.cost_payment, sub_name: r.sub_name }; });
 
-  // Planned assessments por sub por período (status 'draft' = ainda não aprovado)
+  // Sub applications em draft (planeadas) por sub e SEMANA EXATA
   const plannedPayments = con.prepare(`
-    SELECT sc.id AS sub_id, s.name AS sub_name, substr(a.week_ending,1,7) AS period,
+    SELECT sc.id AS sub_id, s.name AS sub_name, a.week_ending,
       ROUND(SUM(a.value_gmc),2) AS planned_cost
     FROM sub_application a
     JOIN subcontract sc ON sc.id = a.subcontract_id
     JOIN subcontractor s ON s.id = sc.subcontractor_id
     WHERE sc.project_id=? AND a.status = 'draft'
-    GROUP BY sc.id, substr(a.week_ending,1,7)
+    GROUP BY sc.id, a.week_ending
   `).all(req.params.pid);
   const plannedMap = {};
-  plannedPayments.forEach(r => { plannedMap[`${r.sub_id}__${r.period}`] = r.planned_cost; });
+  plannedPayments.forEach(r => { plannedMap[`${r.sub_id}__${r.week_ending}`] = r.planned_cost; });
 
   // Material per sub per WE (from qs_cost_transaction, match on gang_name LIKE sub_name)
   const subMaterials = con.prepare(`
@@ -255,26 +255,18 @@ router.get('/projects/:pid/tracker', (req, res) => {
       const GENERIC = new Set(['civil','group','engineering','construction','services','limited','solutions','building','contractors','infrastructure','ireland','costs','works','management']);
       const subWords = sc.sub_name.toLowerCase().split(/\s+/).filter(w => w.length > 3 && !GENERIC.has(w));
       let costPayment = 0;
-      // Procurar em assessMap: chave = "SheetName__WE"
-      for (const [key, val] of Object.entries(assessMap)) {
-        const [assessSubName, assessWE] = key.split('__');
-        if (assessWE === we) {
-          const assessNorm = assessSubName.toLowerCase();
-          if (subWords.some(w => assessNorm.includes(w))) {
-            costPayment += val;
+      // 1º (fonte de verdade): sub_application desta semana exata (approved/assessed/… — não draft)
+      const pa = payMap[`${sc.id}__${we}`];
+      if (pa) costPayment = pa.cost_payment;
+      // Fallback: sub_assessment legacy (import Excel antigo) por nome+semana
+      if (costPayment === 0) {
+        for (const [key, val] of Object.entries(assessMap)) {
+          const [assessSubName, assessWE] = key.split('__');
+          if (assessWE === we) {
+            const assessNorm = assessSubName.toLowerCase();
+            if (subWords.some(w => assessNorm.includes(w))) costPayment += val;
           }
         }
-      }
-      // Fallback: sub_application formal — só se este sub NÃO tem dados no Excel (assessMap)
-      // Se tem dados no Excel, o valor 0 numa semana é correto (sem pagamento nessa semana)
-      const hasExcelData = Object.keys(assessMap).some(key => {
-        const [assessSubName] = key.split('__');
-        const assessNorm = assessSubName.toLowerCase();
-        return subWords.some(w => assessNorm.includes(w));
-      });
-      if (costPayment === 0 && !hasExcelData) {
-        const pa = payMap[`${sc.id}__${period}`];
-        if (pa) costPayment = pa.cost_payment;
       }
 
       // Material: match gang_name — try normal includes first, then space-stripped compare
@@ -290,7 +282,7 @@ router.get('/projects/:pid/tracker', (req, res) => {
       const revRow = revMap[`${sc.sub_name}__${we}`] || {};
       const revenueGenerated = revRow.revenue_generated || 0;
 
-      const plannedCost = plannedMap[`${sc.id}__${period}`] || 0;
+      const plannedCost = plannedMap[`${sc.id}__${we}`] || 0;
 
       return {
         sub_id:            sc.id,

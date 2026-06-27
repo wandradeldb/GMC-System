@@ -3,6 +3,20 @@ import { useState, useEffect, useCallback } from 'react';
 const fmt  = (n, d = 2) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtE = (n, d = 0) => n == null ? '—' : `€${fmt(n, d)}`;
 const fmtP = n => n == null ? '—' : `${Number(n).toFixed(1)}%`;
+// ISO (YYYY-MM-DD) → dd/mm/yyyy
+const fmtDate = iso => {
+  if (!iso) return '—';
+  const m = String(iso).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
+};
+// ↑/↓ move o foco para o campo da linha de cima/baixo na mesma coluna
+const cellKeyNav = (e, colClass, idx) => {
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  e.preventDefault();
+  const inputs = Array.from(document.querySelectorAll('input.' + colClass));
+  const next = inputs[idx + (e.key === 'ArrowDown' ? 1 : -1)];
+  if (next) { next.focus(); next.select(); }
+};
 
 const STATUS_STYLE = {
   draft:     { bg: '#fef9c3', color: '#92400e', label: 'Draft' },
@@ -15,8 +29,9 @@ const STATUS_STYLE = {
 export default function SubAssessmentView({ projectId, subcontractId, subRef, subName, contractValue, onBack }) {
   const [boqItems,      setBoqItems]      = useState([]);
   const [apps,          setApps]          = useState([]);
-  const [view,          setView]          = useState('list'); // 'list' | 'new' | 'detail'
+  const [view,          setView]          = useState('list'); // 'list' | 'new' | 'detail' | 'certificate'
   const [detailApp,     setDetailApp]     = useState(null);
+  const [certData,      setCertData]      = useState(null);
   const [loading,       setLoading]       = useState(true);
   const [importing,     setImporting]     = useState(false);
   const [importResult,  setImportResult]  = useState(null);
@@ -39,6 +54,12 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
     setView('detail');
   };
 
+  const openCertificate = async (appId) => {
+    const res = await fetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${appId}/certificate`);
+    setCertData(await res.json());
+    setView('certificate');
+  };
+
   const reloadDetail = async () => {
     const cur = detailApp?.app || detailApp?.application;
     if (!cur) return;
@@ -52,7 +73,11 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
   const totalRemaining = boqItems.reduce((s, i) => s + (i.value_remaining || 0), 0);
   const latestApp = apps[0];
 
-  if (loading) return <div className="state-box"><div className="icon">⏳</div><p>A carregar…</p></div>;
+  if (loading) return <div className="state-box"><div className="icon">⏳</div><p>Loading…</p></div>;
+
+  if (view === 'certificate' && certData) {
+    return <CertificateView data={certData} onBack={() => { setView('list'); setCertData(null); loadApps(); }} />;
+  }
 
   return (
     <div>
@@ -82,17 +107,18 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
           apps={apps} boqItems={boqItems}
           onNew={() => setView('new')}
           onDetail={openDetail}
+          onCertificate={openCertificate}
           onDelete={async (appId) => {
             await fetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${appId}`, { method:'DELETE' });
             await Promise.all([loadBoq(), loadApps()]);
           }}
           importResult={importResult}
           importing={importing}
-          onImportExcel={async ({ file, sheetName }) => {
+          onImportExcel={async ({ file, weekEnding }) => {
             setImporting(true); setImportResult(null);
             const fd = new FormData();
             fd.append('file', file);
-            fd.append('sheet_name', sheetName);
+            fd.append('week_ending', weekEnding);
             const res = await fetch(
               `/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/import-excel`,
               { method: 'POST', body: fd }
@@ -132,6 +158,7 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
           projectId={projectId}
           subcontractId={subcontractId}
           onUpdated={reloadDetail}
+          onCertificate={openCertificate}
           onBack={() => setView('list')}
         />
       )}
@@ -140,10 +167,11 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
 }
 
 // ── Application list ─────────────────────────────────────────────────────────
-function ListView({ apps, boqItems, onNew, onDetail, onStatusChange, onDelete, onImportExcel, importing, importResult }) {
+function ListView({ apps, boqItems, onNew, onDetail, onCertificate, onStatusChange, onDelete, onImportExcel, importing, importResult }) {
   const [showImport, setShowImport] = useState(false);
   const [importFile, setImportFile] = useState(null);
-  const [sheetName,  setSheetName]  = useState('Folan Civil');
+  const [importWE,   setImportWE]   = useState('');   // semana escolhida (obrigatória)
+  const weOptions = fridayRange(todayFriday(), 8, 2);
 
   return (
     <div>
@@ -153,9 +181,9 @@ function ListView({ apps, boqItems, onNew, onDetail, onStatusChange, onDelete, o
           <button onClick={() => setShowImport(s => !s)}
             style={{ padding:'6px 14px', borderRadius:6, border:'1px solid #6366f1', background:'#f5f3ff',
               color:'#4338ca', cursor:'pointer', fontSize:13, fontWeight:600 }}>
-            ↑ Importar Excel
+            ↑ Import Claim
           </button>
-          <button className="btn-primary" onClick={onNew}>+ New Assessment</button>
+          <button className="btn-primary" onClick={onNew}>+ Manual Assessment</button>
         </div>
       </div>
 
@@ -163,28 +191,32 @@ function ListView({ apps, boqItems, onNew, onDetail, onStatusChange, onDelete, o
       {showImport && (
         <div style={{ background:'#f5f3ff', border:'1px solid #c4b5fd', borderRadius:8, padding:14, marginBottom:16 }}>
           <div style={{ fontWeight:600, fontSize:13, color:'#4338ca', marginBottom:10 }}>
-            Importar Apps históricos do Excel v2
+            Import a subcontractor claim (Excel) — creates the next application for the week you choose
           </div>
           <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'flex-end' }}>
             <label style={{ fontSize:13 }}>
-              <div style={{ fontWeight:600, color:'#374151', marginBottom:4 }}>Ficheiro Excel</div>
+              <div style={{ fontWeight:600, color:'#374151', marginBottom:4 }}>Excel file</div>
               <input type="file" accept=".xlsx,.xls"
                 onChange={e => setImportFile(e.target.files[0])}
                 style={{ fontSize:13 }} />
             </label>
             <label style={{ fontSize:13 }}>
-              <div style={{ fontWeight:600, color:'#374151', marginBottom:4 }}>Nome da Aba</div>
-              <input type="text" value={sheetName} onChange={e => setSheetName(e.target.value)}
-                placeholder="ex: Folan Civil"
-                style={{ padding:'5px 8px', borderRadius:6, border:'1px solid #c4b5fd', fontSize:13, width:160 }} />
+              <div style={{ fontWeight:600, color:'#374151', marginBottom:4 }}>Week Ending <span style={{color:'#dc2626'}}>*</span></div>
+              <select value={importWE} onChange={e => setImportWE(e.target.value)}
+                style={{ padding:'5px 8px', borderRadius:6, border:'1px solid #c4b5fd', fontSize:13, width:160,
+                  background: importWE ? '#fff' : '#fff7ed' }}>
+                <option value="">— choose week —</option>
+                {weOptions.map(we => <option key={we} value={we}>{fmtDate(we)}</option>)}
+              </select>
             </label>
             <button
-              disabled={!importFile || !sheetName || importing}
-              onClick={() => onImportExcel({ file: importFile, sheetName })}
+              disabled={!importFile || !importWE || importing}
+              onClick={() => onImportExcel({ file: importFile, weekEnding: importWE })}
+              title={!importFile ? 'Choose a file' : !importWE ? 'Choose a Week Ending' : ''}
               style={{ padding:'6px 18px', borderRadius:6, border:'none', background:'#4338ca',
-                color:'#fff', cursor: importFile && sheetName && !importing ? 'pointer' : 'not-allowed',
-                fontSize:13, fontWeight:600, opacity: importing ? 0.7 : 1 }}>
-              {importing ? 'A importar…' : 'Importar'}
+                color:'#fff', cursor: importFile && importWE && !importing ? 'pointer' : 'not-allowed',
+                fontSize:13, fontWeight:600, opacity: (importFile && importWE && !importing) ? 1 : 0.5 }}>
+              {importing ? 'Importing…' : 'Import'}
             </button>
           </div>
 
@@ -192,17 +224,26 @@ function ListView({ apps, boqItems, onNew, onDetail, onStatusChange, onDelete, o
             <div style={{ marginTop:12, background:'#fff', borderRadius:6, padding:10, fontSize:12, border:'1px solid #e5e7eb' }}>
               {importResult.ok ? (
                 <div>
-                  <div style={{ color:'#166534', fontWeight:600, marginBottom:6 }}>✓ Importação concluída</div>
+                  <div style={{ color:'#166534', fontWeight:600, marginBottom:6 }}>✓ Import complete</div>
                   {importResult.results.map(r => (
                     <div key={r.appNum} style={{ padding:'2px 0', color: r.created ? '#166534' : '#9ca3af' }}>
                       App {r.appNum}: {r.created
-                        ? `criado — GMC €${(r.value_gmc||0).toFixed(2)} (${r.items} itens)`
-                        : `ignorado — ${r.reason}`}
+                        ? `created — €${(r.value_gmc||0).toFixed(2)} GMC, ${r.items} items, WE ${fmtDate(r.week_ending)}`
+                        : `skipped — ${r.reason}`}
+                      {r.gmc_from_sub && <span style={{ color:'#9a3412' }}> · GMC empty → used Folan claim (review & cut)</span>}
                     </div>
                   ))}
+                  {importResult.over_claim?.length > 0 && (
+                    <div style={{ marginTop:6, color:'#b45309', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:4, padding:'4px 8px' }}>
+                      ⚠ Over 100% (needs a variation): {importResult.over_claim.map(o => `${o.ref} (${o.cumulative_pct}%)`).join(', ')}
+                    </div>
+                  )}
+                  {importResult.unmatched_refs?.length > 0 && (
+                    <div style={{ marginTop:4, color:'#9ca3af' }}>Unmatched refs (not in BOQ): {importResult.unmatched_refs.join(', ')}</div>
+                  )}
                 </div>
               ) : (
-                <div style={{ color:'#dc2626' }}>Erro: {importResult.error}</div>
+                <div style={{ color:'#dc2626' }}>{importResult.error}</div>
               )}
             </div>
           )}
@@ -212,7 +253,7 @@ function ListView({ apps, boqItems, onNew, onDetail, onStatusChange, onDelete, o
       {apps.length === 0 ? (
         <div className="state-box">
           <div className="icon">📋</div>
-          <p>Nenhuma aplicação ainda. Clica em "New Assessment" para começar.</p>
+          <p>No applications yet. Use "Import Claim" or "Manual Assessment" to start.</p>
         </div>
       ) : (
         <div style={{ overflowX:'auto' }}>
@@ -220,7 +261,7 @@ function ListView({ apps, boqItems, onNew, onDetail, onStatusChange, onDelete, o
             <thead>
               <tr>
                 <th>App #</th>
-                <th>Period</th>
+                <th>Week Ending</th>
                 <th style={{textAlign:'right'}}>This App (GMC)</th>
                 <th style={{textAlign:'right'}}>Cumulative (GMC)</th>
                 <th style={{textAlign:'right'}}>Sub Claimed</th>
@@ -234,7 +275,7 @@ function ListView({ apps, boqItems, onNew, onDetail, onStatusChange, onDelete, o
                 return (
                   <tr key={a.id}>
                     <td style={{fontWeight:700}}>App {a.application_number}</td>
-                    <td>{a.week_ending || a.period}</td>
+                    <td>{fmtDate(a.week_ending || a.period)}</td>
                     <td style={{textAlign:'right', fontWeight:600}}>{fmtE(a.value_gmc, 2)}</td>
                     <td style={{textAlign:'right', color:'#1e40af'}}>{fmtE(a.cumulative_gmc, 2)}</td>
                     <td style={{textAlign:'right', color:'#6b7280'}}>{fmtE(a.value_sub, 2)}</td>
@@ -253,12 +294,19 @@ function ListView({ apps, boqItems, onNew, onDetail, onStatusChange, onDelete, o
                           background:'#f0fdf4', border:'1px solid #16a34a', borderRadius:6, padding:'4px 10px',
                           cursor:'pointer', fontSize:11, fontWeight:600, color:'#166534'
                         }}>
-                        Ver
+                        View
                         <span style={{ fontSize:10, fontWeight:700, background:'#16a34a', color:'#fff', borderRadius:4, padding:'1px 5px' }}>
                           €{fmt(a.value_gmc, 0)}
                         </span>
                       </button>
-                      <button onClick={() => { if (window.confirm(`Apagar App ${a.application_number}?`)) onDelete(a.id); }}
+                      {['approved','invoiced','paid'].includes(a.status) && (
+                        <button onClick={() => onCertificate(a.id)} title="Payment Certificate"
+                          style={{ background:'#eff6ff', border:'1px solid #3b82f6', borderRadius:6, padding:'4px 10px',
+                            cursor:'pointer', fontSize:11, fontWeight:600, color:'#1e40af' }}>
+                          📄 Certificate
+                        </button>
+                      )}
+                      <button onClick={() => { if (window.confirm(`Delete App ${a.application_number}?`)) onDelete(a.id); }}
                         style={{ background:'none', border:'1px solid #fca5a5', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12, color:'#dc2626' }}>
                         ✕
                       </button>
@@ -342,43 +390,35 @@ function fridayRange(ref, before = 4, after = 2) {
   return result;
 }
 
-// ── New Assessment Form ───────────────────────────────────────────────────────
+// ── Manual Assessment Form ────────────────────────────────────────────────────
 function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, onCancel }) {
   const nextAppNum = (apps[0]?.application_number || 0) + 1;
   const defaultWE = todayFriday();
   const [weekEnding, setWeekEnding] = useState(defaultWE);
   const [appStatus, setAppStatus] = useState('draft');
-  const [pcts, setPcts]     = useState(() => {
+  // % desta aplicação (começa a 0 — o utilizador insere o trabalho deste período)
+  const [pcts, setPcts] = useState(() => {
     const m = {};
-    boqItems.forEach(i => { m[i.id] = { sub: i.pct_certified, gmc: i.pct_certified }; });
+    boqItems.forEach(i => { m[i.id] = { sub: 0, gmc: 0 }; });
     return m;
   });
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState(null);
-  const [showUpload, setShowUpload] = useState(false);
-  const [importFile, setImportFile] = useState(null);
-  const [sheetName,  setSheetName]  = useState('Folan Civil');
-  const [importing,  setImporting]  = useState(false);
 
   // Generate WE options
   const weOptions = fridayRange(defaultWE, 8, 2);
 
+  // Entrada livre (≥0). Acima de 100% cumulativo é permitido mas sinalizado (variation).
   const setPct = (id, field, val) => {
-    const n = Math.min(100, Math.max(0, parseFloat(val) || 0));
+    const n = Math.max(0, parseFloat(val) || 0);
     setPcts(p => ({ ...p, [id]: { ...p[id], [field]: n } }));
   };
 
-  // Calcular valor desta aplicação por item
+  // Valor desta aplicação por item (a % inserida é DESTE período)
   const itemCalc = (it) => {
-    const prev = it.pct_certified || 0;
-    const gmc  = pcts[it.id]?.gmc ?? prev;
-    const delta = Math.max(0, gmc - prev);
-    return {
-      prev,
-      gmc,
-      delta,
-      value: Math.round(delta / 100 * it.contract_value * 100) / 100,
-    };
+    const prev  = it.pct_certified || 0;
+    const gmc   = pcts[it.id]?.gmc ?? 0;            // % deste período
+    return { prev, gmc, value: Math.round(gmc / 100 * it.contract_value * 100) / 100 };
   };
 
   const totalGmc = boqItems.reduce((s,i) => s + itemCalc(i).value, 0);
@@ -386,14 +426,18 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
 
   const handleSave = async () => {
     setSaving(true); setError(null);
-    const items = boqItems.map(i => ({
-      sub_boq_item_id: i.id,
-      pct_complete_sub: pcts[i.id]?.sub ?? i.pct_certified,
-      pct_complete_gmc: pcts[i.id]?.gmc ?? i.pct_certified,
-    }));
+    // Backend espera a % CUMULATIVA (prev + deste período) e calcula o delta
+    const items = boqItems.map(i => {
+      const prev = i.pct_certified || 0;
+      return {
+        sub_boq_item_id: i.id,
+        pct_complete_sub: prev + (pcts[i.id]?.sub ?? 0),
+        pct_complete_gmc: prev + (pcts[i.id]?.gmc ?? 0),
+      };
+    });
     const res = await onSave({ week_ending: weekEnding, status: appStatus, items });
     setSaving(false);
-    if (!res.ok) setError(res.error || 'Erro ao guardar');
+    if (!res.ok) setError(res.error || 'Error saving');
   };
 
   return (
@@ -401,9 +445,9 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
         <button onClick={onCancel}
           style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:13 }}>
-          ← Voltar
+          ← Back
         </button>
-        <h3 style={{ margin:0, fontSize:16, color:'#1a1a2e' }}>App {nextAppNum} — New Assessment</h3>
+        <h3 style={{ margin:0, fontSize:16, color:'#1a1a2e' }}>App {nextAppNum} — Manual Assessment</h3>
       </div>
 
       {/* Week Ending + Status */}
@@ -413,9 +457,7 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
           <select value={weekEnding} onChange={e=>setWeekEnding(e.target.value)}
             style={{ padding:'5px 8px', borderRadius:6, border:'1px solid #d1d5db', fontSize:13 }}>
             {weOptions.map(we => (
-              <option key={we} value={we}>
-                {new Date(we + 'T12:00:00').toLocaleDateString('en-IE', { day: 'numeric', month: 'short' })}
-              </option>
+              <option key={we} value={we}>{fmtDate(we)}</option>
             ))}
           </select>
         </label>
@@ -432,73 +474,17 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
         </label>
         <div style={{ marginLeft:'auto', display:'flex', gap:16, alignItems:'center' }}>
           <div style={{ textAlign:'right' }}>
-            <div style={{ fontSize:11, color:'#9ca3af' }}>ESTA APP (GMC)</div>
+            <div style={{ fontSize:11, color:'#9ca3af' }}>THIS APP (GMC)</div>
             <div style={{ fontSize:18, fontWeight:700, color:'#1e40af' }}>{fmtE(totalGmc,2)}</div>
           </div>
           <div style={{ textAlign:'right' }}>
-            <div style={{ fontSize:11, color:'#9ca3af' }}>CUMULATIVO</div>
+            <div style={{ fontSize:11, color:'#9ca3af' }}>CUMULATIVE</div>
             <div style={{ fontSize:18, fontWeight:700, color:'#166534' }}>{fmtE(cumGmc,2)}</div>
           </div>
         </div>
       </div>
 
       {error && <div style={{ background:'#fee2e2', color:'#991b1b', padding:'8px 12px', borderRadius:6, marginBottom:12, fontSize:13 }}>{error}</div>}
-
-      {/* Upload Panel */}
-      <div style={{ marginBottom:16 }}>
-        <button onClick={() => setShowUpload(s => !s)}
-          style={{ padding:'6px 14px', borderRadius:6, border:'1px solid #6366f1', background:'#f5f3ff',
-            color:'#4338ca', cursor:'pointer', fontSize:13, fontWeight:600 }}>
-          {showUpload ? '▼' : '▶'} Importar dados do Excel
-        </button>
-        {showUpload && (
-          <div style={{ background:'#f5f3ff', border:'1px solid #c4b5fd', borderRadius:8, padding:12, marginTop:10 }}>
-            <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'flex-end', marginBottom:8 }}>
-              <label style={{ fontSize:13 }}>
-                <div style={{ fontWeight:600, color:'#374151', marginBottom:4 }}>Ficheiro Excel</div>
-                <input type="file" accept=".xlsx,.xls"
-                  onChange={e => setImportFile(e.target.files[0])}
-                  style={{ fontSize:13 }} />
-              </label>
-              <label style={{ fontSize:13 }}>
-                <div style={{ fontWeight:600, color:'#374151', marginBottom:4 }}>Nome da Aba</div>
-                <input type="text" value={sheetName} onChange={e => setSheetName(e.target.value)}
-                  placeholder="ex: Folan Civil"
-                  style={{ padding:'5px 8px', borderRadius:6, border:'1px solid #c4b5fd', fontSize:13, width:160 }} />
-              </label>
-              <button
-                disabled={!importFile || !sheetName || importing}
-                onClick={async () => {
-                  setImporting(true);
-                  const fd = new FormData();
-                  fd.append('file', importFile);
-                  fd.append('sheet_name', sheetName);
-                  const res = await fetch(
-                    `/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/import-excel`,
-                    { method: 'POST', body: fd }
-                  );
-                  const json = await res.json();
-                  if (json.ok) {
-                    setShowUpload(false);
-                    setImportFile(null);
-                    window.location.reload();
-                  } else {
-                    setError(`Erro import: ${json.error}`);
-                  }
-                  setImporting(false);
-                }}
-                style={{ padding:'6px 18px', borderRadius:6, border:'none', background:'#4338ca',
-                  color:'#fff', cursor: importFile && sheetName && !importing ? 'pointer' : 'not-allowed',
-                  fontSize:13, fontWeight:600, opacity: importing ? 0.7 : 1 }}>
-                {importing ? 'A importar…' : 'Importar'}
-              </button>
-            </div>
-            <div style={{ fontSize:11, color:'#6b7280', fontStyle:'italic' }}>
-              Importação carrega dados históricos do Excel. Após, volta à lista.
-            </div>
-          </div>
-        )}
-      </div>
 
       <div style={{ overflowX:'auto' }}>
         <table className="boq-table" style={{ minWidth:900 }}>
@@ -507,7 +493,7 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
               <th>Ref</th>
               <th>Description</th>
               <th style={{textAlign:'right'}}>Contract €</th>
-              <th style={{textAlign:'right', color:'#6b7280'}}>Prev %</th>
+              <th style={{textAlign:'right', color:'#6b7280'}}>Accum %</th>
               <th style={{textAlign:'center', background:'#fef3c7', color:'#92400e'}}>Sub %</th>
               <th style={{textAlign:'center', background:'#dcfce7', color:'#166534'}}>GMC %</th>
               <th style={{textAlign:'right', background:'#dcfce7', color:'#166534'}}>This App €</th>
@@ -518,27 +504,32 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
           <tbody>
             {boqItems.map((it, idx) => {
               const c = itemCalc(it);
-              const cumVal  = Math.round(pcts[it.id]?.gmc / 100 * it.contract_value * 100) / 100;
-              const remVal  = Math.round((1 - pcts[it.id]?.gmc / 100) * it.contract_value * 100) / 100;
+              const cumPct  = (c.prev || 0) + (pcts[it.id]?.gmc ?? 0);
+              const cumVal  = Math.round(cumPct / 100 * it.contract_value * 100) / 100;
+              const remVal  = Math.round((1 - cumPct / 100) * it.contract_value * 100) / 100;
               return (
                 <tr key={it.id} style={{ background: idx%2===0 ? '#f8fafc' : '#fff' }}>
                   <td style={{fontFamily:'monospace', fontSize:11, whiteSpace:'nowrap'}}>{it.item_ref}</td>
                   <td style={{maxWidth:240, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:12}} title={it.description}>{it.description}</td>
                   <td style={{textAlign:'right', fontVariantNumeric:'tabular-nums', fontSize:12}}>€{fmt(it.contract_value,2)}</td>
                   <td style={{textAlign:'right', color:'#9ca3af', fontSize:12}}>{fmtP(c.prev)}</td>
-                  {/* Sub % */}
+                  {/* Sub % (this period) */}
                   <td style={{background:'#fffbeb', padding:'2px 4px'}}>
                     <input type="number" min={0} max={100} step={1}
-                      value={pcts[it.id]?.sub ?? c.prev}
+                      className="cell-input sub-col"
+                      value={pcts[it.id]?.sub ?? 0}
                       onChange={e => setPct(it.id, 'sub', e.target.value)}
+                      onKeyDown={e => cellKeyNav(e, 'sub-col', idx)}
                       style={{ width:64, textAlign:'center', padding:'3px 4px', border:'1px solid #d97706',
                         borderRadius:4, fontSize:13, background:'#fffbeb' }} />
                   </td>
-                  {/* GMC % */}
+                  {/* GMC % (this period) */}
                   <td style={{background:'#f0fdf4', padding:'2px 4px'}}>
                     <input type="number" min={0} max={100} step={1}
-                      value={pcts[it.id]?.gmc ?? c.prev}
+                      className="cell-input gmc-col"
+                      value={pcts[it.id]?.gmc ?? 0}
                       onChange={e => setPct(it.id, 'gmc', e.target.value)}
+                      onKeyDown={e => cellKeyNav(e, 'gmc-col', idx)}
                       style={{ width:64, textAlign:'center', padding:'3px 4px', border:'1px solid #16a34a',
                         borderRadius:4, fontSize:13, background:'#f0fdf4', fontWeight:600 }} />
                   </td>
@@ -561,7 +552,7 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
               <td style={{textAlign:'right', color:'#166534'}}>€{fmt(totalGmc,2)}</td>
               <td style={{textAlign:'right', color:'#1e40af'}}>€{fmt(cumGmc,2)}</td>
               <td style={{textAlign:'right', color:'#dc2626'}}>
-                €{fmt(boqItems.reduce((s,i)=>s+Math.round((1-(pcts[i.id]?.gmc||i.pct_certified)/100)*i.contract_value*100)/100,0),2)}
+                €{fmt(boqItems.reduce((s,i)=>s+Math.round((1-((i.pct_certified||0)+(pcts[i.id]?.gmc||0))/100)*i.contract_value*100)/100,0),2)}
               </td>
             </tr>
           </tfoot>
@@ -571,11 +562,11 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
       <div style={{ marginTop:16, display:'flex', gap:12, justifyContent:'flex-end' }}>
         <button onClick={onCancel}
           style={{ padding:'8px 20px', borderRadius:6, border:'1px solid #d1d5db', background:'#fff', cursor:'pointer', fontSize:14 }}>
-          Cancelar
+          Cancel
         </button>
         <button onClick={handleSave} disabled={saving} className="btn-primary"
           style={{ padding:'8px 24px', fontSize:14 }}>
-          {saving ? 'A guardar…' : `Guardar App ${nextAppNum}`}
+          {saving ? 'Saving…' : `Save App ${nextAppNum}`}
         </button>
       </div>
     </div>
@@ -583,7 +574,7 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
 }
 
 // ── Application Detail ────────────────────────────────────────────────────────
-function DetailView({ detail, projectId, subcontractId, onUpdated, onBack }) {
+function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate, onBack }) {
   const app = detail.app || detail.application;
   const items = detail.items || [];
   const ss = STATUS_STYLE[app.status] || STATUS_STYLE.draft;
@@ -601,18 +592,22 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onBack }) {
   const [error,     setError]     = useState(null);
 
   const cvOf       = it => it.contract_value || 0;
-  const folanPctOf = it => it.pct_complete_sub || 0;          // % importado do Folan
-  const folanEurOf = it => it.value_sub_computed || 0;        // € claim do Folan (desta App)
-  const prevPctOf  = it => it.pct_prev || 0;
-  const gPctOf     = it => Number(gmcPct[it.id]) || 0;        // % de assessment (GMC)
-  // € GMC desta App = (% assessment − % anterior) × valor contrato
-  const gmcEurOf   = it => Math.round((gPctOf(it) - prevPctOf(it)) / 100 * cvOf(it) * 100) / 100;
+  const folanPctOf = it => it.pct_complete_sub || 0;          // % do Folan (deste período)
+  const folanEurOf = it => it.value_sub_computed || 0;        // € claim do Folan (deste período)
+  const prevPctOf  = it => it.pct_prev || 0;                  // % já certificada (apps anteriores)
+  const gPctOf     = it => Number(gmcPct[it.id]) || 0;        // % de assessment GMC (deste período)
+  // € GMC deste período = % assessment × valor contrato
+  const gmcEurOf   = it => Math.round(gPctOf(it) / 100 * cvOf(it) * 100) / 100;
+  // Cumulativo (anterior + este período) — não deve passar 100% (acima → variation)
+  const cumPctOf   = it => Math.round((prevPctOf(it) + gPctOf(it)) * 100) / 100;
+  const overItems  = items.filter(i => cumPctOf(i) > 100.01);
 
   const folanTotal = items.reduce((s, i) => s + folanEurOf(i), 0);
   const gmcTotal   = items.reduce((s, i) => s + (editable ? gmcEurOf(i) : (i.value_gmc_computed || 0)), 0);
   const cutTotal   = folanTotal - gmcTotal;
   const cutPctLive = folanTotal > 0 ? (1 - gmcTotal / folanTotal) * 100 : 0;
 
+  // Entrada livre (≥0). Acima de 100% cumulativo é permitido mas sinalizado (variation).
   const setItemGmcPct = (id, v) => {
     const n = parseFloat(v);
     setGmcPct(p => ({ ...p, [id]: isNaN(n) ? 0 : Math.round(Math.max(0, n) * 100) / 100 }));
@@ -637,19 +632,19 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onBack }) {
     setSaving(true); setError(null);
     const j = await saveAssessment();
     setSaving(false);
-    if (!j.ok) { setError(j.error || 'Erro ao guardar'); return; }
+    if (!j.ok) { setError(j.error || 'Error saving'); return; }
     await onUpdated();
   };
   const handleApprove = async () => {
-    if (!window.confirm(`Aprovar App ${app.application_number} com GMC ${fmtE(gmcTotal, 2)} (corte de ${cutPctLive.toFixed(1)}%)?`)) return;
+    if (!window.confirm(`Approve App ${app.application_number} with GMC ${fmtE(gmcTotal, 2)} (cut of ${cutPctLive.toFixed(1)}%)?`)) return;
     setApproving(true); setError(null);
     const j = await saveAssessment();
-    if (!j.ok) { setApproving(false); setError(j.error || 'Erro ao guardar'); return; }
+    if (!j.ok) { setApproving(false); setError(j.error || 'Error saving'); return; }
     const r = await fetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${app.id}/status`,
       { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved' }) });
     const rj = await r.json();
     setApproving(false);
-    if (!rj.ok) { setError(rj.error || 'Erro ao aprovar'); return; }
+    if (!rj.ok) { setError(rj.error || 'Error approving'); return; }
     await onUpdated();
   };
 
@@ -663,10 +658,10 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onBack }) {
       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16, flexWrap:'wrap' }}>
         <button onClick={onBack}
           style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:13 }}>
-          ← Voltar
+          ← Back
         </button>
         <h3 style={{ margin:0, fontSize:16, color:'#1a1a2e' }}>
-          App {app.application_number} — WE {app.week_ending || app.period}
+          App {app.application_number} — WE {fmtDate(app.week_ending || app.period)}
         </h3>
         <span style={{ background:ss.bg, color:ss.color, borderRadius:12, padding:'2px 10px', fontSize:12, fontWeight:600 }}>
           {ss.label}
@@ -688,25 +683,30 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onBack }) {
       {/* Painel de corte do QS (só quando editável) */}
       {editable && (
         <div style={{ background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:8, padding:14, marginBottom:16 }}>
-          <div style={{ fontSize:13, fontWeight:700, color:'#9a3412', marginBottom:10 }}>✂️ Corte do QS — ajusta o GMC antes de aprovar</div>
+          <div style={{ fontSize:13, fontWeight:700, color:'#9a3412', marginBottom:10 }}>✂️ QS Assessment — adjust GMC % before approving</div>
           <div style={{ display:'flex', gap:20, flexWrap:'wrap', alignItems:'center' }}>
             <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <label style={{ fontSize:13, fontWeight:600, color:'#374151' }}>Corte global:</label>
+              <label style={{ fontSize:13, fontWeight:600, color:'#374151' }}>Global cut:</label>
               <input type="number" min={0} max={100} step={1} value={cut}
                 onChange={e => setCut(e.target.value)} placeholder="ex: 10"
                 style={{ width:70, padding:'5px 8px', borderRadius:6, border:'1px solid #fb923c', fontSize:13, textAlign:'center' }} />
               <span style={{ fontSize:13, color:'#6b7280' }}>%</span>
               <button onClick={applyGlobalCut}
                 style={{ padding:'5px 12px', borderRadius:6, border:'none', background:'#ea580c', color:'#fff', cursor:'pointer', fontSize:12, fontWeight:600 }}>
-                Aplicar a todos
+                Apply to all
               </button>
             </div>
             <div style={{ marginLeft:'auto', display:'flex', gap:18, alignItems:'center' }}>
               <Stat label="FOLAN (CLAIM)" value={fmtE(folanTotal,2)} color="#92400e" />
-              <Stat label="GMC (APROVA)"  value={fmtE(gmcTotal,2)}   color="#166534" />
-              <Stat label="CORTE" value={`${fmtE(cutTotal,2)} · ${cutPctLive.toFixed(1)}%`} color="#dc2626" />
+              <Stat label="GMC (ASSESSED)" value={fmtE(gmcTotal,2)}   color="#166534" />
+              <Stat label="CUT" value={`${fmtE(cutTotal,2)} · ${cutPctLive.toFixed(1)}%`} color="#dc2626" />
             </div>
           </div>
+          {overItems.length > 0 && (
+            <div style={{ marginTop:10, color:'#b45309', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:6, padding:'6px 10px', fontSize:12 }}>
+              ⚠ Over 100% — these items need a <strong>variation</strong> (compensation event): {overItems.map(o => `${o.item_ref} (${cumPctOf(o)}%)`).join(', ')}
+            </div>
+          )}
         </div>
       )}
 
@@ -719,8 +719,13 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onBack }) {
             <Stat label="GMC Approved" value={fmtE(totalGmcC,2)} color="#166534" small />
             <Stat label="Cut Applied"  value={`${cutPctApproved}%`} color="#dc2626" small />
             {app.qs_approved_date && (
-              <Stat label="Date" value={new Date(app.qs_approved_date).toLocaleDateString('en-IE')} color="#374151" small />
+              <Stat label="Date" value={fmtDate(app.qs_approved_date)} color="#374151" small />
             )}
+            <button onClick={() => onCertificate(app.id)}
+              style={{ marginLeft:'auto', alignSelf:'center', background:'#1e40af', color:'#fff', border:'none',
+                borderRadius:6, padding:'8px 18px', cursor:'pointer', fontSize:13, fontWeight:600 }}>
+              📄 Issue Certificate
+            </button>
           </div>
         </div>
       )}
@@ -732,6 +737,7 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onBack }) {
               <th>Ref</th>
               <th>Description</th>
               <th style={{textAlign:'right'}}>Contract €</th>
+              <th style={{textAlign:'right', color:'#6b7280'}}>Accum %</th>
               <th style={{textAlign:'right', color:'#92400e'}}>Folan %</th>
               <th style={{textAlign:'right', color:'#92400e'}}>Folan €</th>
               <th style={{textAlign:'center', color:'#166534'}}>GMC % {editable && '✎'}</th>
@@ -749,13 +755,16 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onBack }) {
                   <td style={{fontFamily:'monospace', fontSize:11}}>{it.item_ref}</td>
                   <td style={{maxWidth:230, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:12}} title={it.description}>{it.description}</td>
                   <td style={{textAlign:'right', fontSize:12}}>€{fmt(it.contract_value,2)}</td>
+                  <td style={{textAlign:'right', color: cumPctOf(it) > 100.01 ? '#dc2626' : '#9ca3af', fontSize:12}}>{fmtP(prevPctOf(it))}</td>
                   <td style={{textAlign:'right', color:'#92400e', fontSize:12}}>{fmtP(folanPctOf(it))}</td>
                   <td style={{textAlign:'right', color:'#92400e', fontSize:12, fontVariantNumeric:'tabular-nums'}}>€{fmt(folanEur,2)}</td>
                   <td style={{textAlign:'center', background: editable ? '#f0fdf4' : 'transparent', padding: editable ? '2px 4px' : undefined}}>
                     {editable ? (
                       <span style={{ display:'inline-flex', alignItems:'center', gap:2 }}>
                         <input type="number" min={0} step={1} value={gmcPct[it.id] ?? ''}
+                          className="cell-input gmc-col"
                           onChange={e => setItemGmcPct(it.id, e.target.value)}
+                          onKeyDown={e => cellKeyNav(e, 'gmc-col', idx)}
                           style={{ width:64, textAlign:'right', padding:'3px 6px', border:'1px solid #16a34a',
                             borderRadius:4, fontSize:12, background:'#f0fdf4', fontWeight:600, fontVariantNumeric:'tabular-nums' }} />
                         <span style={{ fontSize:11, color:'#6b7280' }}>%</span>
@@ -774,7 +783,7 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onBack }) {
           </tbody>
           <tfoot>
             <tr style={{background:'#f1f5f9', fontWeight:700}}>
-              <td colSpan={4} style={{textAlign:'right', paddingRight:8}}>TOTAL</td>
+              <td colSpan={5} style={{textAlign:'right', paddingRight:8}}>TOTAL</td>
               <td style={{textAlign:'right', color:'#92400e'}}>{fmtE(folanTotal,2)}</td>
               <td></td>
               <td style={{textAlign:'right', color:'#166534'}}>{fmtE(gmcTotal,2)}</td>
@@ -789,11 +798,11 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onBack }) {
           <button onClick={handleSave} disabled={saving || approving}
             style={{ padding:'8px 20px', borderRadius:6, border:'1px solid #16a34a', background:'#fff', color:'#166534',
               cursor: saving||approving ? 'not-allowed' : 'pointer', fontSize:14, fontWeight:600 }}>
-            {saving ? 'A guardar…' : 'Guardar corte'}
+            {saving ? 'Saving…' : 'Save assessment'}
           </button>
           <button onClick={handleApprove} disabled={saving || approving} className="btn-primary"
             style={{ padding:'8px 24px', fontSize:14 }}>
-            {approving ? 'A aprovar…' : '✓ Aprovar App'}
+            {approving ? 'Approving…' : '✓ Approve App'}
           </button>
         </div>
       )}
@@ -806,6 +815,158 @@ function Stat({ label, value, color, small }) {
     <div style={{ textAlign:'right' }}>
       <div style={{ fontSize:10, color:'#6b7280', fontWeight:600 }}>{label}</div>
       <div style={{ fontSize: small ? 14 : 15, fontWeight:700, color }}>{value}</div>
+    </div>
+  );
+}
+
+// ── Payment Certificate ───────────────────────────────────────────────────────
+function CertificateView({ data, onBack }) {
+  const { app, project = {}, subcontract = {}, summary: s = {}, history = [], items = [] } = data;
+  const checklist = [
+    'Contract Alignment — application within contract scope',
+    'Documentation — invoices, timesheets, certificates received',
+    'Progress Verification — progress substantiated and verified on site',
+    'Rate Validation — unit rates match BOQ pricing',
+    'Retention Compliance — retention applied correctly',
+    'Variations — no unapproved change orders included',
+    'Performance — on programme, quality acceptable',
+    'Insurance & H&S — valid insurance and H&S compliance',
+  ];
+  const stLabel = st => (STATUS_STYLE[st] || {}).label || st;
+
+  return (
+    <div>
+      <div className="no-print" style={{ display:'flex', gap:12, marginBottom:16 }}>
+        <button onClick={onBack}
+          style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'6px 14px', cursor:'pointer', fontSize:13 }}>
+          ← Back
+        </button>
+        <button onClick={() => window.print()} className="btn-primary" style={{ padding:'6px 18px', fontSize:13 }}>
+          🖨 Print / Save PDF
+        </button>
+      </div>
+
+      <div className="cert-print" style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:8, padding:28, maxWidth:920, margin:'0 auto' }}>
+        <div style={{ borderBottom:'3px solid #1a1a2e', paddingBottom:12, marginBottom:16 }}>
+          <div style={{ fontSize:22, fontWeight:800, color:'#1a1a2e', letterSpacing:'0.02em' }}>PAYMENT CERTIFICATE</div>
+          <div style={{ fontSize:13, color:'#6b7280', marginTop:2 }}>{project.name} — {project.ref} · {project.client}</div>
+        </div>
+
+        <div style={{ display:'flex', flexWrap:'wrap', gap:'8px 40px', marginBottom:22, fontSize:13 }}>
+          <CField label="Contractor" value={`${subcontract.sub_name || ''} (${subcontract.ref || ''})`} />
+          <CField label="Application No." value={`App ${app.application_number}`} />
+          <CField label="Week Ending" value={fmtDate(app.week_ending)} />
+          <CField label="Status" value={stLabel(app.status)} />
+          {app.qs_approved_date && <CField label="Approved Date" value={fmtDate(app.qs_approved_date)} />}
+        </div>
+
+        <CTitle>Financial Summary</CTitle>
+        <table className="boq-table" style={{ marginBottom:22 }}>
+          <tbody>
+            <CRow label="Contract Value" value={fmtE(s.contractValue,2)} />
+            <CRow label="This Application Value" value={fmtE(s.thisApp,2)} />
+            <CRow label="Previously Certified" value={fmtE(s.previously,2)} />
+            <CRow label="Cumulative Certified" value={fmtE(s.cumulative,2)} bold />
+            <CRow label="% of Works Completed" value={`${s.pctComplete}%`} />
+            <CRow label={`Retention (${s.retentionPct}%)`} value={`− ${fmtE(s.retentionAmount,2)}`} color="#dc2626" />
+            <CRow label="NET PAYMENT DUE" value={fmtE(s.netDue,2)} big />
+          </tbody>
+        </table>
+
+        <CTitle>Applications History</CTitle>
+        <table className="boq-table" style={{ marginBottom:22 }}>
+          <thead><tr>
+            <th>App #</th><th>Week Ending</th>
+            <th style={{textAlign:'right'}}>This App €</th>
+            <th style={{textAlign:'right'}}>Cumulative €</th><th>Status</th>
+          </tr></thead>
+          <tbody>
+            {history.map(h => (
+              <tr key={h.application_number} style={{ fontWeight: h.application_number === app.application_number ? 700 : 400,
+                background: h.application_number === app.application_number ? '#eff6ff' : undefined }}>
+                <td>App {h.application_number}</td>
+                <td>{fmtDate(h.week_ending)}</td>
+                <td style={{textAlign:'right'}}>{fmtE(h.value_gmc,2)}</td>
+                <td style={{textAlign:'right'}}>{fmtE(h.cumulative_gmc,2)}</td>
+                <td>{stLabel(h.status)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+
+        <CTitle>This Application — Item Breakdown</CTitle>
+        <table className="boq-table" style={{ marginBottom:22 }}>
+          <thead><tr>
+            <th>Ref</th><th>Description</th>
+            <th style={{textAlign:'right'}}>Contract €</th>
+            <th style={{textAlign:'right'}}>GMC %</th>
+            <th style={{textAlign:'right'}}>This App €</th>
+          </tr></thead>
+          <tbody>
+            {items.filter(i => (i.value_gmc_computed || 0) > 0).map((i, idx) => (
+              <tr key={idx}>
+                <td style={{fontFamily:'monospace', fontSize:11}}>{i.item_ref}</td>
+                <td style={{maxWidth:340, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:12}} title={i.description}>{i.description}</td>
+                <td style={{textAlign:'right'}}>€{fmt(i.contract_value,2)}</td>
+                <td style={{textAlign:'right'}}>{fmtP(i.pct_complete_gmc)}</td>
+                <td style={{textAlign:'right'}}>{fmtE(i.value_gmc_computed,2)}</td>
+              </tr>
+            ))}
+          </tbody>
+          <tfoot><tr style={{fontWeight:700, background:'#f1f5f9'}}>
+            <td colSpan={4} style={{textAlign:'right', paddingRight:8}}>TOTAL</td>
+            <td style={{textAlign:'right'}}>{fmtE(s.thisApp,2)}</td>
+          </tr></tfoot>
+        </table>
+
+        <CTitle>Assessment Checklist</CTitle>
+        <div style={{ marginBottom:24 }}>
+          {checklist.map((c, i) => (
+            <div key={i} style={{ display:'flex', alignItems:'center', gap:8, padding:'3px 0', fontSize:12.5, color:'#374151' }}>
+              <span style={{ width:14, height:14, border:'1.5px solid #9ca3af', borderRadius:3, display:'inline-block', flexShrink:0 }} />
+              {c}
+            </div>
+          ))}
+        </div>
+
+        <CTitle>Recommendation & Sign-off</CTitle>
+        <div style={{ display:'flex', gap:48, marginTop:28, flexWrap:'wrap' }}>
+          <CSign role="Reviewed By (QS)" />
+          <CSign role="Approved By (Project Manager)" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function CField({ label, value }) {
+  return (
+    <div>
+      <div style={{ fontSize:10, color:'#9ca3af', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em' }}>{label}</div>
+      <div style={{ fontSize:14, fontWeight:600, color:'#1a1a2e' }}>{value}</div>
+    </div>
+  );
+}
+function CTitle({ children }) {
+  return <div style={{ fontSize:12, fontWeight:700, color:'#1a1a2e', textTransform:'uppercase', letterSpacing:'0.05em',
+    borderBottom:'1px solid #e5e7eb', paddingBottom:4, marginBottom:8 }}>{children}</div>;
+}
+function CRow({ label, value, bold, big, color }) {
+  return (
+    <tr style={{ background: big ? '#f0fdf4' : undefined }}>
+      <td style={{ fontWeight: bold || big ? 700 : 400, fontSize: big ? 15 : 13 }}>{label}</td>
+      <td style={{ textAlign:'right', fontVariantNumeric:'tabular-nums', fontWeight: bold || big ? 700 : 500,
+        fontSize: big ? 16 : 13, color: color || (big ? '#166534' : '#1a1a2e') }}>{value}</td>
+    </tr>
+  );
+}
+function CSign({ role }) {
+  return (
+    <div style={{ flex:1, minWidth:220 }}>
+      <div style={{ borderBottom:'1px solid #1a1a2e', height:36 }} />
+      <div style={{ fontSize:12, color:'#6b7280', marginTop:4 }}>{role}</div>
+      <div style={{ borderBottom:'1px solid #d1d5db', height:28, marginTop:14, width:'60%' }} />
+      <div style={{ fontSize:11, color:'#9ca3af', marginTop:4 }}>Date</div>
     </div>
   );
 }
