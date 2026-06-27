@@ -39,6 +39,14 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
     setView('detail');
   };
 
+  const reloadDetail = async () => {
+    const cur = detailApp?.app || detailApp?.application;
+    if (!cur) return;
+    const res = await fetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${cur.id}`);
+    setDetailApp(await res.json());
+    await Promise.all([loadBoq(), loadApps()]);
+  };
+
   const totalContract = boqItems.reduce((s, i) => s + (i.contract_value || 0), 0);
   const totalCertified = boqItems.reduce((s, i) => s + (i.value_certified || 0), 0);
   const totalRemaining = boqItems.reduce((s, i) => s + (i.value_remaining || 0), 0);
@@ -119,7 +127,11 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
       )}
       {view === 'detail' && detailApp && (
         <DetailView
+          key={(detailApp.app || detailApp.application).id}
           detail={detailApp}
+          projectId={projectId}
+          subcontractId={subcontractId}
+          onUpdated={reloadDetail}
           onBack={() => setView('list')}
         />
       )}
@@ -571,20 +583,84 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
 }
 
 // ── Application Detail ────────────────────────────────────────────────────────
-function DetailView({ detail, onBack }) {
+function DetailView({ detail, projectId, subcontractId, onUpdated, onBack }) {
   const app = detail.app || detail.application;
-  const { items } = detail;
+  const items = detail.items || [];
   const ss = STATUS_STYLE[app.status] || STATUS_STYLE.draft;
-  const isApproved = app.status === 'approved';
+  const editable = ['draft', 'assessed'].includes(app.status);
 
-  // Calculate totals for approved view
-  const totalSub = items?.reduce((s, i) => s + (i.value_sub || 0), 0) || 0;
-  const totalGmc = items?.reduce((s, i) => s + (i.value_gmc_computed || 0), 0) || 0;
-  const cutPct = totalSub > 0 ? Math.round((1 - (totalGmc / totalSub)) * 100 * 10) / 10 : 0;
+  // % GMC (assessment) editável por item — começa no % atual (= claim do Folan após import)
+  const [gmcPct, setGmcPct] = useState(() => {
+    const m = {};
+    items.forEach(i => { m[i.id] = Math.round((i.pct_complete_gmc || 0) * 100) / 100; });
+    return m;
+  });
+  const [cut,       setCut]       = useState('');   // corte global %
+  const [saving,    setSaving]    = useState(false);
+  const [approving, setApproving] = useState(false);
+  const [error,     setError]     = useState(null);
+
+  const cvOf       = it => it.contract_value || 0;
+  const folanPctOf = it => it.pct_complete_sub || 0;          // % importado do Folan
+  const folanEurOf = it => it.value_sub_computed || 0;        // € claim do Folan (desta App)
+  const prevPctOf  = it => it.pct_prev || 0;
+  const gPctOf     = it => Number(gmcPct[it.id]) || 0;        // % de assessment (GMC)
+  // € GMC desta App = (% assessment − % anterior) × valor contrato
+  const gmcEurOf   = it => Math.round((gPctOf(it) - prevPctOf(it)) / 100 * cvOf(it) * 100) / 100;
+
+  const folanTotal = items.reduce((s, i) => s + folanEurOf(i), 0);
+  const gmcTotal   = items.reduce((s, i) => s + (editable ? gmcEurOf(i) : (i.value_gmc_computed || 0)), 0);
+  const cutTotal   = folanTotal - gmcTotal;
+  const cutPctLive = folanTotal > 0 ? (1 - gmcTotal / folanTotal) * 100 : 0;
+
+  const setItemGmcPct = (id, v) => {
+    const n = parseFloat(v);
+    setGmcPct(p => ({ ...p, [id]: isNaN(n) ? 0 : Math.round(Math.max(0, n) * 100) / 100 }));
+  };
+  // Corte global: GMC % = Folan % × (1 − corte%)
+  const applyGlobalCut = () => {
+    const c = Math.min(100, Math.max(0, parseFloat(cut) || 0));
+    setGmcPct(() => {
+      const m = {};
+      items.forEach(i => { m[i.id] = Math.round(folanPctOf(i) * (1 - c / 100) * 100) / 100; });
+      return m;
+    });
+  };
+
+  const saveAssessment = async () => {
+    const payload = { items: items.map(i => ({ id: i.id, value_gmc: gmcEurOf(i) })) };
+    const res = await fetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${app.id}/assessment`,
+      { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(payload) });
+    return res.json();
+  };
+  const handleSave = async () => {
+    setSaving(true); setError(null);
+    const j = await saveAssessment();
+    setSaving(false);
+    if (!j.ok) { setError(j.error || 'Erro ao guardar'); return; }
+    await onUpdated();
+  };
+  const handleApprove = async () => {
+    if (!window.confirm(`Aprovar App ${app.application_number} com GMC ${fmtE(gmcTotal, 2)} (corte de ${cutPctLive.toFixed(1)}%)?`)) return;
+    setApproving(true); setError(null);
+    const j = await saveAssessment();
+    if (!j.ok) { setApproving(false); setError(j.error || 'Erro ao guardar'); return; }
+    const r = await fetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${app.id}/status`,
+      { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved' }) });
+    const rj = await r.json();
+    setApproving(false);
+    if (!rj.ok) { setError(rj.error || 'Erro ao aprovar'); return; }
+    await onUpdated();
+  };
+
+  // Resumo (usa value_*_computed — os campos value_sub/value_gmc são qty*rate=0)
+  const totalSubC = items.reduce((s, i) => s + (i.value_sub_computed || 0), 0);
+  const totalGmcC = items.reduce((s, i) => s + (i.value_gmc_computed || 0), 0);
+  const cutPctApproved = totalSubC > 0 ? Math.round((1 - totalGmcC / totalSubC) * 1000) / 10 : 0;
 
   return (
     <div>
-      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
+      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16, flexWrap:'wrap' }}>
         <button onClick={onBack}
           style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:13 }}>
           ← Voltar
@@ -598,7 +674,7 @@ function DetailView({ detail, onBack }) {
         <div style={{ marginLeft:'auto', display:'flex', gap:16 }}>
           <div style={{ textAlign:'right' }}>
             <div style={{ fontSize:11, color:'#9ca3af' }}>GMC ASSESSMENT</div>
-            <div style={{ fontSize:18, fontWeight:700, color:'#166534' }}>{fmtE(app.value_gmc,2)}</div>
+            <div style={{ fontSize:18, fontWeight:700, color:'#166534' }}>{fmtE(editable ? gmcTotal : app.value_gmc, 2)}</div>
           </div>
           <div style={{ textAlign:'right' }}>
             <div style={{ fontSize:11, color:'#9ca3af' }}>CUMULATIVE</div>
@@ -607,83 +683,129 @@ function DetailView({ detail, onBack }) {
         </div>
       </div>
 
-      {/* Approved Summary */}
-      {isApproved && (
+      {error && <div style={{ background:'#fee2e2', color:'#991b1b', padding:'8px 12px', borderRadius:6, marginBottom:12, fontSize:13 }}>{error}</div>}
+
+      {/* Painel de corte do QS (só quando editável) */}
+      {editable && (
+        <div style={{ background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:8, padding:14, marginBottom:16 }}>
+          <div style={{ fontSize:13, fontWeight:700, color:'#9a3412', marginBottom:10 }}>✂️ Corte do QS — ajusta o GMC antes de aprovar</div>
+          <div style={{ display:'flex', gap:20, flexWrap:'wrap', alignItems:'center' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+              <label style={{ fontSize:13, fontWeight:600, color:'#374151' }}>Corte global:</label>
+              <input type="number" min={0} max={100} step={1} value={cut}
+                onChange={e => setCut(e.target.value)} placeholder="ex: 10"
+                style={{ width:70, padding:'5px 8px', borderRadius:6, border:'1px solid #fb923c', fontSize:13, textAlign:'center' }} />
+              <span style={{ fontSize:13, color:'#6b7280' }}>%</span>
+              <button onClick={applyGlobalCut}
+                style={{ padding:'5px 12px', borderRadius:6, border:'none', background:'#ea580c', color:'#fff', cursor:'pointer', fontSize:12, fontWeight:600 }}>
+                Aplicar a todos
+              </button>
+            </div>
+            <div style={{ marginLeft:'auto', display:'flex', gap:18, alignItems:'center' }}>
+              <Stat label="FOLAN (CLAIM)" value={fmtE(folanTotal,2)} color="#92400e" />
+              <Stat label="GMC (APROVA)"  value={fmtE(gmcTotal,2)}   color="#166534" />
+              <Stat label="CORTE" value={`${fmtE(cutTotal,2)} · ${cutPctLive.toFixed(1)}%`} color="#dc2626" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Resumo aprovado */}
+      {!editable && (
         <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:8, padding:12, marginBottom:16 }}>
-          <div style={{ fontSize:12, fontWeight:600, color:'#166534', marginBottom:8 }}>✓ APROVADO</div>
+          <div style={{ fontSize:12, fontWeight:600, color:'#166534', marginBottom:8 }}>✓ {ss.label.toUpperCase()}</div>
           <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
-            <div>
-              <div style={{ fontSize:10, color:'#6b7280' }}>Sub Claimed</div>
-              <div style={{ fontSize:14, fontWeight:700, color:'#1a1a2e' }}>{fmtE(totalSub,2)}</div>
-            </div>
-            <div>
-              <div style={{ fontSize:10, color:'#6b7280' }}>GMC Approved</div>
-              <div style={{ fontSize:14, fontWeight:700, color:'#166534' }}>{fmtE(totalGmc,2)}</div>
-            </div>
-            <div>
-              <div style={{ fontSize:10, color:'#dc2626' }}>Cut Applied</div>
-              <div style={{ fontSize:14, fontWeight:700, color:'#dc2626' }}>{cutPct}%</div>
-            </div>
-            {app.qs_approved_by && (
-              <div>
-                <div style={{ fontSize:10, color:'#6b7280' }}>Approved By</div>
-                <div style={{ fontSize:13, fontWeight:600, color:'#374151' }}>{app.qs_approved_by}</div>
-              </div>
-            )}
+            <Stat label="Sub Claimed"  value={fmtE(totalSubC,2)} color="#1a1a2e" small />
+            <Stat label="GMC Approved" value={fmtE(totalGmcC,2)} color="#166534" small />
+            <Stat label="Cut Applied"  value={`${cutPctApproved}%`} color="#dc2626" small />
             {app.qs_approved_date && (
-              <div>
-                <div style={{ fontSize:10, color:'#6b7280' }}>Date</div>
-                <div style={{ fontSize:13, fontWeight:600, color:'#374151' }}>
-                  {new Date(app.qs_approved_date).toLocaleDateString('en-IE')}
-                </div>
-              </div>
+              <Stat label="Date" value={new Date(app.qs_approved_date).toLocaleDateString('en-IE')} color="#374151" small />
             )}
           </div>
         </div>
       )}
 
       <div style={{ overflowX:'auto' }}>
-        <table className="boq-table" style={{ minWidth:800 }}>
+        <table className="boq-table" style={{ minWidth:860 }}>
           <thead>
             <tr>
               <th>Ref</th>
               <th>Description</th>
               <th style={{textAlign:'right'}}>Contract €</th>
-              <th style={{textAlign:'right', color:'#6b7280'}}>Prev %</th>
-              <th style={{textAlign:'right', color:'#92400e'}}>Sub %</th>
-              <th style={{textAlign:'right', color:'#166534'}}>GMC %</th>
-              <th style={{textAlign:'right'}}>This App €</th>
-              <th style={{textAlign:'right', color:'#1e40af'}}>Cumul €</th>
+              <th style={{textAlign:'right', color:'#92400e'}}>Folan %</th>
+              <th style={{textAlign:'right', color:'#92400e'}}>Folan €</th>
+              <th style={{textAlign:'center', color:'#166534'}}>GMC % {editable && '✎'}</th>
+              <th style={{textAlign:'right', color:'#166534'}}>GMC €</th>
+              <th style={{textAlign:'right', color:'#dc2626'}}>Cut €</th>
             </tr>
           </thead>
           <tbody>
             {items.map((it, idx) => {
-              const cumVal = Math.round(it.pct_complete_gmc / 100 * it.contract_value * 100) / 100;
+              const folanEur = folanEurOf(it);
+              const gmcEur   = editable ? gmcEurOf(it) : (it.value_gmc_computed || 0);
+              const itemCut  = folanEur - gmcEur;
               return (
                 <tr key={it.id} style={{ background: idx%2===0 ? '#f8fafc' : '#fff' }}>
                   <td style={{fontFamily:'monospace', fontSize:11}}>{it.item_ref}</td>
-                  <td style={{maxWidth:280, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:12}} title={it.description}>{it.description}</td>
+                  <td style={{maxWidth:230, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:12}} title={it.description}>{it.description}</td>
                   <td style={{textAlign:'right', fontSize:12}}>€{fmt(it.contract_value,2)}</td>
-                  <td style={{textAlign:'right', color:'#9ca3af', fontSize:12}}>{fmtP(it.pct_prev)}</td>
-                  <td style={{textAlign:'right', color:'#92400e', fontSize:12}}>{fmtP(it.pct_complete_sub)}</td>
-                  <td style={{textAlign:'right', color:'#166534', fontWeight:600, fontSize:12}}>{fmtP(it.pct_complete_gmc)}</td>
-                  <td style={{textAlign:'right', fontWeight:600, fontVariantNumeric:'tabular-nums', fontSize:12}}>
-                    {it.value_gmc_computed > 0 ? fmtE(it.value_gmc_computed,2) : <span style={{color:'#d1d5db'}}>—</span>}
+                  <td style={{textAlign:'right', color:'#92400e', fontSize:12}}>{fmtP(folanPctOf(it))}</td>
+                  <td style={{textAlign:'right', color:'#92400e', fontSize:12, fontVariantNumeric:'tabular-nums'}}>€{fmt(folanEur,2)}</td>
+                  <td style={{textAlign:'center', background: editable ? '#f0fdf4' : 'transparent', padding: editable ? '2px 4px' : undefined}}>
+                    {editable ? (
+                      <span style={{ display:'inline-flex', alignItems:'center', gap:2 }}>
+                        <input type="number" min={0} step={1} value={gmcPct[it.id] ?? ''}
+                          onChange={e => setItemGmcPct(it.id, e.target.value)}
+                          style={{ width:64, textAlign:'right', padding:'3px 6px', border:'1px solid #16a34a',
+                            borderRadius:4, fontSize:12, background:'#f0fdf4', fontWeight:600, fontVariantNumeric:'tabular-nums' }} />
+                        <span style={{ fontSize:11, color:'#6b7280' }}>%</span>
+                      </span>
+                    ) : (
+                      <span style={{ color:'#166534', fontWeight:600, fontSize:12 }}>{fmtP(it.pct_complete_gmc)}</span>
+                    )}
                   </td>
-                  <td style={{textAlign:'right', color:'#1e40af', fontVariantNumeric:'tabular-nums', fontSize:12}}>€{fmt(cumVal,2)}</td>
+                  <td style={{textAlign:'right', color:'#166534', fontWeight:600, fontSize:12, fontVariantNumeric:'tabular-nums'}}>€{fmt(gmcEur,2)}</td>
+                  <td style={{textAlign:'right', color: itemCut > 0.005 ? '#dc2626' : '#9ca3af', fontSize:12, fontVariantNumeric:'tabular-nums'}}>
+                    {itemCut > 0.005 ? `−€${fmt(itemCut,2)}` : '—'}
+                  </td>
                 </tr>
               );
             })}
           </tbody>
           <tfoot>
             <tr style={{background:'#f1f5f9', fontWeight:700}}>
-              <td colSpan={6} style={{textAlign:'right', paddingRight:8}}>TOTAL</td>
-              <td style={{textAlign:'right', color:'#166534'}}>{fmtE(app.value_gmc,2)}</td>
-              <td style={{textAlign:'right', color:'#1e40af'}}>{fmtE(app.cumulative_gmc,2)}</td>
+              <td colSpan={4} style={{textAlign:'right', paddingRight:8}}>TOTAL</td>
+              <td style={{textAlign:'right', color:'#92400e'}}>{fmtE(folanTotal,2)}</td>
+              <td></td>
+              <td style={{textAlign:'right', color:'#166534'}}>{fmtE(gmcTotal,2)}</td>
+              <td style={{textAlign:'right', color:'#dc2626'}}>{cutTotal > 0.005 ? `−${fmtE(cutTotal,2)}` : '—'}</td>
             </tr>
           </tfoot>
         </table>
       </div>
+
+      {editable && (
+        <div style={{ marginTop:16, display:'flex', gap:12, justifyContent:'flex-end', flexWrap:'wrap' }}>
+          <button onClick={handleSave} disabled={saving || approving}
+            style={{ padding:'8px 20px', borderRadius:6, border:'1px solid #16a34a', background:'#fff', color:'#166534',
+              cursor: saving||approving ? 'not-allowed' : 'pointer', fontSize:14, fontWeight:600 }}>
+            {saving ? 'A guardar…' : 'Guardar corte'}
+          </button>
+          <button onClick={handleApprove} disabled={saving || approving} className="btn-primary"
+            style={{ padding:'8px 24px', fontSize:14 }}>
+            {approving ? 'A aprovar…' : '✓ Aprovar App'}
+          </button>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function Stat({ label, value, color, small }) {
+  return (
+    <div style={{ textAlign:'right' }}>
+      <div style={{ fontSize:10, color:'#6b7280', fontWeight:600 }}>{label}</div>
+      <div style={{ fontSize: small ? 14 : 15, fontWeight:700, color }}>{value}</div>
     </div>
   );
 }

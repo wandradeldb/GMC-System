@@ -208,10 +208,80 @@ router.put('/projects/:pid/subcontracts/:scid/applications/:appid/status', (req,
   if (!['draft','assessed','approved','invoiced','paid'].includes(status)) {
     con.close(); return res.status(400).json({ error: 'Status inválido' });
   }
-  con.prepare(`UPDATE sub_application SET status=?, updated_at=datetime('now') WHERE id=? AND subcontract_id=?`)
-    .run(status, req.params.appid, req.params.scid);
+  // Ao aprovar, carimba a data de aprovação (se ainda não tiver)
+  if (status === 'approved') {
+    con.prepare(`UPDATE sub_application
+      SET status=?, qs_approved_date=COALESCE(qs_approved_date, date('now')), updated_at=datetime('now')
+      WHERE id=? AND subcontract_id=?`).run(status, req.params.appid, req.params.scid);
+  } else {
+    con.prepare(`UPDATE sub_application SET status=?, updated_at=datetime('now') WHERE id=? AND subcontract_id=?`)
+      .run(status, req.params.appid, req.params.scid);
+  }
   con.close();
   res.json({ ok: true });
+});
+
+// ── PUT /projects/:pid/subcontracts/:scid/applications/:appid/assessment ──────
+// Corte do QS: atualiza o € GMC item a item de uma App existente e recalcula totais.
+// Body: { items: [{ id, value_gmc }] }  (id = sub_application_item.id; value_gmc = € desta App)
+router.put('/projects/:pid/subcontracts/:scid/applications/:appid/assessment', (req, res) => {
+  const con = db();
+  const { items = [] } = req.body;
+  const { appid, scid } = req.params;
+
+  const app = con.prepare('SELECT * FROM sub_application WHERE id=? AND subcontract_id=?').get(appid, scid);
+  if (!app) { con.close(); return res.status(404).json({ error: 'Application não encontrada' }); }
+  if (['approved', 'invoiced', 'paid'].includes(app.status)) {
+    con.close();
+    return res.status(409).json({ error: `App já está "${app.status}" — muda o estado para editar.` });
+  }
+
+  // contract_value + pct_prev por item desta App
+  const rows = con.prepare(`
+    SELECT sai.id, sai.pct_prev, ROUND(sbi.qty*sbi.rate,2) AS contract_value
+    FROM sub_application_item sai
+    JOIN sub_boq_item sbi ON sbi.id = sai.sub_boq_item_id
+    WHERE sai.sub_application_id=?
+  `).all(appid);
+  const byId = {};
+  rows.forEach(r => { byId[r.id] = r; });
+
+  con.exec('BEGIN');
+  try {
+    const upd = con.prepare(`
+      UPDATE sub_application_item SET value_gmc_computed=?, pct_complete_gmc=?
+      WHERE id=? AND sub_application_id=?
+    `);
+    let totalGmc = 0;
+    for (const it of items) {
+      const row = byId[it.id];
+      if (!row) continue;
+      const cv = row.contract_value || 0;
+      const vGmc = Math.round((Number(it.value_gmc) || 0) * 100) / 100;
+      const pctGmc = cv > 0 ? Math.round((row.pct_prev + vGmc / cv * 100) * 100) / 100 : row.pct_prev;
+      upd.run(vGmc, pctGmc, it.id, appid);
+      totalGmc += vGmc;
+    }
+    totalGmc = Math.round(totalGmc * 100) / 100;
+
+    // cumulativo das apps anteriores (não-draft, exceptuando esta)
+    const prev = con.prepare(`
+      SELECT COALESCE(SUM(value_gmc),0) AS cg
+      FROM sub_application WHERE subcontract_id=? AND status != 'draft' AND id != ?
+    `).get(scid, appid);
+    const cumulativeGmc = Math.round((prev.cg + totalGmc) * 100) / 100;
+
+    con.prepare(`
+      UPDATE sub_application SET value_gmc=?, cumulative_gmc=?, net_payable=?, updated_at=datetime('now')
+      WHERE id=?
+    `).run(totalGmc, cumulativeGmc, totalGmc, appid);
+
+    con.exec('COMMIT');
+    con.close();
+    res.json({ ok: true, value_gmc: totalGmc, cumulative_gmc: cumulativeGmc });
+  } catch (e) {
+    con.exec('ROLLBACK'); con.close(); throw e;
+  }
 });
 
 // ── Helpers para o formato "Folan" (vertical, uma App por sheet) ─────────────
