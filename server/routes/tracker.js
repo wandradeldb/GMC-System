@@ -62,7 +62,7 @@ function recalcWeek(con, projectId, weekEnding) {
     SELECT COALESCE(SUM(a.value_gmc),0) AS total
     FROM sub_application a
     JOIN subcontract sc ON sc.id = a.subcontract_id
-    WHERE sc.project_id=? AND a.period=? AND a.status NOT IN ('draft')
+    WHERE sc.project_id=? AND substr(a.week_ending,1,7)=? AND a.status NOT IN ('draft')
   `).get(projectId, wePeriod);
 
   const excelSubs = con.prepare(`
@@ -200,26 +200,26 @@ router.get('/projects/:pid/tracker', (req, res) => {
 
   // Fallback: sub_application por período (YYYY-MM) — apenas status reais (não planned/draft)
   const subPayments = con.prepare(`
-    SELECT sc.id AS sub_id, s.name AS sub_name, a.period,
+    SELECT sc.id AS sub_id, s.name AS sub_name, substr(a.week_ending,1,7) AS period,
       ROUND(SUM(a.value_gmc),2) AS cost_payment
     FROM sub_application a
     JOIN subcontract sc ON sc.id = a.subcontract_id
     JOIN subcontractor s ON s.id = sc.subcontractor_id
-    WHERE sc.project_id=? AND a.status NOT IN ('planned','draft')
-    GROUP BY sc.id, a.period
+    WHERE sc.project_id=? AND a.status NOT IN ('draft')
+    GROUP BY sc.id, substr(a.week_ending,1,7)
   `).all(req.params.pid);
   const payMap = {};
   subPayments.forEach(r => { payMap[`${r.sub_id}__${r.period}`] = { cost_payment: r.cost_payment, sub_name: r.sub_name }; });
 
-  // Planned assessments por sub por período
+  // Planned assessments por sub por período (status 'draft' = ainda não aprovado)
   const plannedPayments = con.prepare(`
-    SELECT sc.id AS sub_id, s.name AS sub_name, a.period,
+    SELECT sc.id AS sub_id, s.name AS sub_name, substr(a.week_ending,1,7) AS period,
       ROUND(SUM(a.value_gmc),2) AS planned_cost
     FROM sub_application a
     JOIN subcontract sc ON sc.id = a.subcontract_id
     JOIN subcontractor s ON s.id = sc.subcontractor_id
-    WHERE sc.project_id=? AND a.status = 'planned'
-    GROUP BY sc.id, a.period
+    WHERE sc.project_id=? AND a.status = 'draft'
+    GROUP BY sc.id, substr(a.week_ending,1,7)
   `).all(req.params.pid);
   const plannedMap = {};
   plannedPayments.forEach(r => { plannedMap[`${r.sub_id}__${r.period}`] = r.planned_cost; });

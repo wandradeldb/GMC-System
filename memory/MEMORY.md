@@ -1,0 +1,5 @@
+- [Autonomy & Testing](feedback_autonomy.md) — hybrid execution: run low-risk directly, validate high-risk with agent
+- [Sub Agents Config](sub_agents_config.md) — parallel agents for testing, frontend, backend, security, performance
+- **Reference:** [[WORKING_STATE.md]] in project root documents current stable state (never break these baseline functions)
+- [Sub Assessment route shadowing](subassessment_route_shadowing.md) — subcontract.js shadows subassessment.js for GET/PUT; edit the right file
+- [Migration 006 FK corruption](migration_006_fk_corruption.md) — dangling sub_application_old FK broke inserts; fixed by migration 007

@@ -124,6 +124,7 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
 /* ── Applications Tab ───────────────────────────────────────────────────── */
 function ApplicationsTab({ applications, onOpen, retention_pct }) {
   const fmtPeriod = p => {
+    if (!p) return '—';
     const [y, m] = p.split('-');
     return new Date(parseInt(y), parseInt(m) - 1, 1).toLocaleDateString('en-IE', { month: 'long', year: 'numeric' });
   };

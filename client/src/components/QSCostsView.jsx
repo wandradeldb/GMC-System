@@ -34,6 +34,8 @@ export default function QSCostsView({ projectId }) {
   const [importing,  setImporting]  = useState(false);
   const [importMsg,  setImportMsg]  = useState(null);
   const [viewMode,   setViewMode]   = useState('list'); // 'list' | 'summary'
+  const [selected,   setSelected]   = useState(new Set()); // row IDs for delete
+  const [deleting,   setDeleting]   = useState(false);
   const fileRef = useRef();
 
   const load = useCallback(() => {
@@ -69,6 +71,51 @@ export default function QSCostsView({ projectId }) {
 
   const clearFilters = () => { setSearch(''); setGang(''); setCategory(''); setWeek(''); };
   const hasFilters   = search || gang || category || week;
+
+  const toggleSelect = (id) => {
+    const newSelected = new Set(selected);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelected(newSelected);
+  };
+
+  const toggleSelectAll = (rows) => {
+    if (selected.size === rows.length) {
+      setSelected(new Set());
+    } else {
+      setSelected(new Set(rows.map(r => r.id)));
+    }
+  };
+
+  const handleDelete = async () => {
+    const ids = Array.from(selected);
+    if (ids.length === 0) return;
+    if (!window.confirm(`Delete ${ids.length} transaction${ids.length > 1 ? 's' : ''}? This cannot be undone.`)) return;
+
+    setDeleting(true);
+    try {
+      const res = await fetch(`/api/v1/projects/${projectId}/qs-costs`, {
+        method: 'DELETE',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ ids })
+      });
+      const json = await res.json();
+      if (json.ok) {
+        setImportMsg({ type: 'ok', text: `${json.deleted} transaction${json.deleted > 1 ? 's' : ''} deleted` });
+        setSelected(new Set());
+        load();
+      } else {
+        setImportMsg({ type: 'err', text: json.error || 'Delete failed' });
+      }
+    } catch (e) {
+      setImportMsg({ type: 'err', text: e.message });
+    } finally {
+      setDeleting(false);
+    }
+  };
 
   if (!data) return <div className="state-box"><div className="icon">⏳</div><p>Loading QS Costs…</p></div>;
 
@@ -179,6 +226,12 @@ export default function QSCostsView({ projectId }) {
             Clear ✕
           </button>
         )}
+        {selected.size > 0 && (
+          <button onClick={handleDelete} disabled={deleting}
+            style={{ padding:'6px 12px', borderRadius:6, border:'1px solid #dc2626', background:'#fee2e2', fontSize:12, cursor: deleting ? 'wait' : 'pointer', color:'#991b1b', fontWeight:600 }}>
+            {deleting ? 'Deleting…' : `🗑 Delete ${selected.size}`}
+          </button>
+        )}
       </div>
 
       {/* ── View: By Week Summary ─────────────────────────────────── */}
@@ -198,6 +251,12 @@ export default function QSCostsView({ projectId }) {
             <table className="boq-table" style={{ minWidth:900 }}>
               <thead>
                 <tr>
+                  <th style={{ width:32, textAlign:'center', padding:'4px' }}>
+                    <input type="checkbox"
+                      checked={data.rows.length > 0 && selected.size === data.rows.length}
+                      onChange={() => toggleSelectAll(data.rows)}
+                      style={{ cursor:'pointer' }} />
+                  </th>
                   <th>Date</th>
                   <th>WE</th>
                   <th>Sub / Gang</th>
@@ -213,6 +272,12 @@ export default function QSCostsView({ projectId }) {
               <tbody>
                 {rows.map(r => (
                   <tr key={r.id}>
+                    <td style={{ width:32, textAlign:'center', padding:'4px' }}>
+                      <input type="checkbox"
+                        checked={selected.has(r.id)}
+                        onChange={() => toggleSelect(r.id)}
+                        style={{ cursor:'pointer' }} />
+                    </td>
                     <td style={{whiteSpace:'nowrap'}}>{fmtDate(r.trans_date)}</td>
                     <td style={{whiteSpace:'nowrap', color:'#6b7280', fontSize:12}}>WE {fmtWE(r.week_ending)}</td>
                     <td style={{fontWeight:600, maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}
@@ -237,7 +302,7 @@ export default function QSCostsView({ projectId }) {
               </tbody>
               <tfoot>
                 <tr style={{background:'#f8fafc', fontWeight:700}}>
-                  <td colSpan={9} style={{textAlign:'right', paddingRight:8}}>Total ({rows.length} transactions)</td>
+                  <td colSpan={10} style={{textAlign:'right', paddingRight:8}}>Total ({rows.length} transactions)</td>
                   <td style={{textAlign:'right', fontVariantNumeric:'tabular-nums'}}>
                     €{fmt(rows.reduce((s, r) => s + (r.cost || 0), 0))}
                   </td>

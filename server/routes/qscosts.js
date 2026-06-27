@@ -253,6 +253,26 @@ router.get('/projects/:pid/qs-costs', (req, res) => {
   res.json({ rows, summary, filters: { gangs: gangs.map(r=>r.gang_name), weeks: weeks.map(r=>r.week_ending), categories: cats.map(r=>r.cost_category) } });
 });
 
+// ── DELETE /projects/:pid/qs-costs ──────────────────────────────────────────
+// Body: { ids: [1, 2, 3] }
+router.delete('/projects/:pid/qs-costs', (req, res) => {
+  const ids = req.body.ids;
+  if (!ids || !Array.isArray(ids) || ids.length === 0) {
+    return res.status(400).json({ error: 'ids must be a non-empty array', code: 'INVALID_IDS' });
+  }
+  const con = db();
+  const placeholders = ids.map(() => '?').join(',');
+  try {
+    const stmt = con.prepare(`DELETE FROM qs_cost_transaction WHERE id IN (${placeholders}) AND project_id=?`);
+    const result = stmt.run(...ids, req.params.pid);
+    con.close();
+    res.json({ ok: true, deleted: result.changes });
+  } catch (e) {
+    con.close();
+    throw e;
+  }
+});
+
 // ── GET /projects/:pid/qs-costs/summary-by-week ─────────────────────────────
 router.get('/projects/:pid/qs-costs/summary-by-week', (req, res) => {
   const con = db();

@@ -85,6 +85,8 @@ Pilot project: **Merlin Park** — W03/26 — Uisce Éireann — €5,347,965
 |------|-------------|
 | `db/migrations/001_...` | Initial schema |
 | `db/migrations/005_supplier_master.sql` | Added code, short_name, balance, credit_limit to subcontractor; UNIQUE INDEX on code |
+| `db/migrations/006_sub_application_week_ending.sql` | Replaced `sub_application.period` (YYYY-MM) with `week_ending` (date); status set now `draft/assessed/approved/invoiced/paid` |
+| `db/migrations/007_fix_sub_application_fk.sql` | Repaired dangling FK refs to `sub_application_old` left by 006's table-rename (recreated `sub_application_item`, `compensation_event`, `sub_invoice`) |
 
 ---
 

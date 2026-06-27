@@ -107,7 +107,17 @@ router.get('/projects/:pid/subcontracts/:scid/applications/:appid', (req, res) =
 // Body: { period, notes, items: [{sub_boq_item_id, pct_complete_sub, pct_complete_gmc, notes}] }
 router.post('/projects/:pid/subcontracts/:scid/applications', (req, res) => {
   const con = db();
-  const { period, notes, status, items = [] } = req.body;
+  const { week_ending, notes, status, items = [] } = req.body;
+  const weekEnding = week_ending || new Date().toISOString().slice(0, 10);
+
+  // week_ending é UNIQUE por subcontrato
+  const dup = con.prepare(
+    'SELECT application_number FROM sub_application WHERE subcontract_id=? AND week_ending=?'
+  ).get(req.params.scid, weekEnding);
+  if (dup) {
+    con.close();
+    return res.status(409).json({ error: `Já existe uma App (#${dup.application_number}) para a semana ${weekEnding}.` });
+  }
 
   // Próximo número de aplicação
   const last = con.prepare('SELECT MAX(application_number) AS n FROM sub_application WHERE subcontract_id=?').get(req.params.scid);
@@ -156,16 +166,16 @@ router.post('/projects/:pid/subcontracts/:scid/applications', (req, res) => {
   try {
     const appId = con.prepare(`
       INSERT INTO sub_application
-        (subcontract_id, application_number, period, value_sub, value_gmc,
+        (subcontract_id, application_number, week_ending, value_sub, value_gmc,
          cumulative_sub, cumulative_gmc, net_payable, status, notes, created_at, updated_at)
       VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))
     `).run(
-      req.params.scid, appNum, period || new Date().toISOString().slice(0,7),
+      req.params.scid, appNum, weekEnding,
       Math.round(valueSub*100)/100, Math.round(valueGmc*100)/100,
       Math.round((prevCum.cum_sub + valueSub)*100)/100,
       Math.round((prevCum.cum_gmc + valueGmc)*100)/100,
       Math.round(valueGmc*100)/100,
-      status || 'planned', notes || null
+      status || 'draft', notes || null
     ).lastInsertRowid;
 
     const stmt = con.prepare(`
@@ -195,7 +205,7 @@ router.post('/projects/:pid/subcontracts/:scid/applications', (req, res) => {
 router.put('/projects/:pid/subcontracts/:scid/applications/:appid/status', (req, res) => {
   const con = db();
   const { status } = req.body;
-  if (!['draft','submitted','approved','paid'].includes(status)) {
+  if (!['draft','assessed','approved','invoiced','paid'].includes(status)) {
     con.close(); return res.status(400).json({ error: 'Status inválido' });
   }
   con.prepare(`UPDATE sub_application SET status=?, updated_at=datetime('now') WHERE id=? AND subcontract_id=?`)
@@ -204,10 +214,108 @@ router.put('/projects/:pid/subcontracts/:scid/applications/:appid/status', (req,
   res.json({ ok: true });
 });
 
+// ── Helpers para o formato "Folan" (vertical, uma App por sheet) ─────────────
+// Suporta dois layouts:
+//  (a) Simples (1 linha header): Item | Description | % Sub | € Sub | % GMC | € GMC
+//  (b) Real (2 linhas header): linha de grupo "Folan" / "GMC" por cima,
+//      linha de rótulos Item | Description | % Complete | (€) | % Complete | Assessment
+// Em ambos: a coluna € de cada lado é a coluna imediatamente à direita da % .
+// A data (week ending) está numa linha acima do header.
+
+function norm(s) { return String(s).toLowerCase().replace(/\s+/g, ' ').trim(); }
+
+// Localiza a linha de cabeçalho e mapeia colunas: item, desc, pctSub, eurSub, pctGmc, eurGmc
+function findHeader(sh, range) {
+  const isItem = v => ['item', 'item#', 'item #', 'ref', 'referência', 'referencia'].includes(v);
+  const isDesc = v => ['description', 'descrição', 'descricao', 'desc'].includes(v);
+  // Coluna de percentagem: rótulo com "%" ou "complete" (ex.: "% sub", "% gmc", "% complete")
+  const isPct  = v => v.includes('%') || v.includes('complete') || v.includes('completo');
+
+  for (let r = range.s.r; r <= Math.min(range.e.r, 30); r++) {
+    const labels = {};
+    let itemCol, descCol;
+    const pctCols = [];
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const v = norm(strV(sh, r, c));
+      if (!v) continue;
+      labels[c] = v;
+      if (isItem(v) && itemCol == null) itemCol = c;
+      if (isDesc(v) && descCol == null) descCol = c;
+      if (isPct(v)) pctCols.push(c);
+    }
+    if (itemCol == null || pctCols.length === 0) continue;
+
+    // Linha de grupo (acima): identifica "folan"/"sub" vs "gmc" por coluna
+    const groupRow = r > range.s.r ? r - 1 : -1;
+    const groupAt = (c) => {
+      if (groupRow < 0) return '';
+      for (let cc = c; cc >= Math.max(range.s.c, c - 3); cc--) {
+        const g = norm(strV(sh, groupRow, cc));
+        if (g.includes('gmc')) return 'gmc';
+        if (g.includes('folan') || g.includes('sub')) return 'sub';
+      }
+      return '';
+    };
+
+    pctCols.sort((a, b) => a - b);
+    let subPct, gmcPct;
+    for (const c of pctCols) {
+      const lab = labels[c] || '', grp = groupAt(c);
+      if (lab.includes('gmc') || grp === 'gmc') { if (gmcPct == null) gmcPct = c; }
+      else if (lab.includes('sub') || lab.includes('folan') || grp === 'sub') { if (subPct == null) subPct = c; }
+    }
+    // Fallback posicional: 1ª % = Sub, 2ª % = GMC
+    if (subPct == null && gmcPct == null) { subPct = pctCols[0]; gmcPct = pctCols[1]; }
+    else if (gmcPct == null && pctCols.length >= 2) gmcPct = pctCols.find(c => c !== subPct);
+    else if (subPct == null && pctCols.length >= 2) subPct = pctCols.find(c => c !== gmcPct);
+
+    const cols = {
+      item: itemCol, desc: descCol,
+      pctSub: subPct, eurSub: subPct != null ? subPct + 1 : undefined,
+      pctGmc: gmcPct, eurGmc: gmcPct != null ? gmcPct + 1 : undefined,
+    };
+    if (cols.item != null && (cols.pctGmc != null || cols.pctSub != null)) {
+      return { headerRow: r, cols };
+    }
+  }
+  return null;
+}
+
+// Procura a data (week ending) nas linhas acima do header — serial numérico,
+// objecto Date, ou string dd.mm.yyyy / dd/mm/yyyy
+function findWeekEnding(sh, range, headerRow) {
+  for (let r = range.s.r; r < headerRow; r++) {
+    for (let c = range.s.c; c <= range.e.c; c++) {
+      const cell = sh[XLSX.utils.encode_cell({ r, c })];
+      if (!cell || cell.v == null) continue;
+      if (cell.t === 'n' && cell.v > 40000 && cell.v < 60000) {
+        const iso = serialToISO(cell.v);
+        if (iso) return iso;
+      }
+      if (cell.v instanceof Date) {
+        const d = cell.v;
+        return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+      }
+      if (typeof cell.v === 'string') {
+        const m = cell.v.trim().match(/^(\d{1,2})[.\/-](\d{1,2})[.\/-](\d{4})$/);
+        if (m) return `${m[3]}-${m[2].padStart(2,'0')}-${m[1].padStart(2,'0')}`;
+      }
+    }
+  }
+  return null;
+}
+
+// Normaliza % — fracção (0.35) → 35; valor já em % (35) fica como está
+function pctNorm(v) {
+  if (v == null) return null;
+  return Math.abs(v) <= 1.0001 ? v * 100 : v;
+}
+
 // ── POST /projects/:pid/subcontracts/:scid/applications/import-excel ─────────
-// Importa Apps históricos do Excel v2 (por sheet name) para sub_application + sub_application_item
+// Importa uma App do Excel (formato vertical "Folan") para sub_application + items.
 // Body (multipart): file=<xlsx>, sheet_name=<str>
-// Cada App com algum valor GMC não-zero é criado; duplicados (por application_number) são ignorados
+// As % no Excel são cumulativas (% complete to date); guardamos o DELTA face ao
+// que já está certificado no DB, mantendo a semântica do POST manual.
 router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
   upload.single('file'),
   (req, res) => {
@@ -222,136 +330,184 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
     const sh = wb.Sheets[sheet_name];
     if (!sh) {
       con.close();
-      return res.status(400).json({ error: `Aba "${sheet_name}" não encontrada no ficheiro` });
+      return res.status(400).json({
+        error: `Aba "${sheet_name}" não encontrada. Abas disponíveis: ${Object.keys(wb.Sheets).join(', ')}`,
+      });
     }
 
-    // Detectar Apps: col inicial 19, step 5
-    const FIRST_COL = 19; const STEP = 5;
-    const apps = [];
-    for (let c = FIRST_COL; c <= 60; c += STEP) {
-      const label = strV(sh, 1, c);
-      const dateSerial = numV(sh, 2, c + 3);
-      if (!label && !dateSerial) break;
-      const we = serialToISO(dateSerial);
-      apps.push({ appNum: apps.length + 1, startCol: c, label, week_ending: we });
+    const range = XLSX.utils.decode_range(sh['!ref'] || 'A1:A1');
+    const hdr = findHeader(sh, range);
+    if (!hdr) {
+      con.close();
+      return res.status(400).json({
+        error: 'Não foi possível encontrar a linha de cabeçalho (precisa de colunas "Item" e "% GMC" ou "€ GMC").',
+      });
     }
+    const { headerRow, cols } = hdr;
+    const weekEnding = findWeekEnding(sh, range, headerRow);
 
-    // BOQ items do sub (indexados por item_ref)
+    // BOQ items do sub indexados por item_ref (suporta refs duplicados → fila)
     const boqItems = con.prepare(`
       SELECT id, item_ref, ROUND(qty*rate,2) AS contract_value
-      FROM sub_boq_item WHERE subcontract_id=?
+      FROM sub_boq_item WHERE subcontract_id=? ORDER BY sort_order
     `).all(req.params.scid);
     const boqByRef = {};
-    boqItems.forEach(b => { boqByRef[b.item_ref] = b; });
+    boqItems.forEach(b => { (boqByRef[b.item_ref] ||= []).push({ ...b }); });
 
-    // Próximo número de aplicação sequencial no DB (ignora colunas sem dados)
+    // % e valor já certificados por item (apps não-draft)
+    const certRows = con.prepare(`
+      SELECT sai.sub_boq_item_id,
+        COALESCE(SUM(sai.pct_complete_gmc),0) AS pct_cum,
+        COALESCE(SUM(sai.value_gmc_computed),0) AS val_cum
+      FROM sub_application_item sai
+      JOIN sub_application sa ON sa.id = sai.sub_application_id
+      WHERE sa.subcontract_id=? AND sa.status != 'draft'
+      GROUP BY sai.sub_boq_item_id
+    `).all(req.params.scid);
+    const certMap = {};
+    certRows.forEach(r => { certMap[r.sub_boq_item_id] = r; });
+
+    // 1ª passagem: ler valores cumulativos por item (€ tem prioridade sobre %).
+    // Calcular a % a partir de €/contract_value evita a ambiguidade fração/percentagem
+    // (ex.: no Excel "1.2" significa 120%, não 1.2%).
+    const raw = [];
+    const unmatched = [];
+    let rowsScanned = 0, subFileTotal = 0, gmcFileTotal = 0;
+    for (let r = headerRow + 1; r <= range.e.r; r++) {
+      const ref = strV(sh, r, cols.item);
+      if (!ref) continue;
+      rowsScanned++;
+
+      const queue = boqByRef[ref];
+      const boq = queue && queue.length ? queue.shift() : null;
+      if (!boq) { unmatched.push(ref); continue; }
+
+      const pctSubRaw = cols.pctSub != null ? numV(sh, r, cols.pctSub) : null;
+      const pctGmcRaw = cols.pctGmc != null ? numV(sh, r, cols.pctGmc) : null;
+      const eurSubRaw = cols.eurSub != null ? numV(sh, r, cols.eurSub) : null;
+      const eurGmcRaw = cols.eurGmc != null ? numV(sh, r, cols.eurGmc) : null;
+
+      const cv = boq.contract_value || 0;
+      // Valor cumulativo: € do Excel se existir, senão calcula da % (normalizada)
+      const subCumVal = eurSubRaw != null ? eurSubRaw : (pctSubRaw != null ? cv * pctNorm(pctSubRaw) / 100 : 0);
+      const gmcCumVal = eurGmcRaw != null ? eurGmcRaw : (pctGmcRaw != null ? cv * pctNorm(pctGmcRaw) / 100 : 0);
+
+      // Linha sem qualquer dado → ignorar
+      if (subCumVal === 0 && gmcCumVal === 0 && pctSubRaw == null && pctGmcRaw == null) continue;
+
+      subFileTotal += subCumVal;
+      gmcFileTotal += gmcCumVal;
+      raw.push({ boq, ref, cv, subCumVal, gmcCumVal });
+    }
+
+    if (raw.length === 0) {
+      con.close();
+      return res.status(400).json({
+        error: 'Nenhum item correspondido. Verifica que os refs do Excel coincidem com o BOQ do subcontrato.',
+        debug: { headerRow, cols, weekEnding, rowsScanned, unmatched_refs: unmatched.slice(0, 20) },
+      });
+    }
+
+    // Se a coluna GMC vier toda vazia, usa a claim do Folan (Sub) como assessment inicial.
+    const gmcFromSub = gmcFileTotal === 0 && subFileTotal > 0;
+
+    // 2ª passagem: converter cumulativos em DELTAS face ao já certificado no DB
+    const items = [];
+    let valueSub = 0, valueGmc = 0;
+    for (const it of raw) {
+      const subCumVal = it.subCumVal;
+      const gmcCumVal = gmcFromSub ? it.subCumVal : it.gmcCumVal;
+      const cv = it.cv || 1;
+
+      const cert = certMap[it.boq.id] || { pct_cum: 0, val_cum: 0 };
+      const pctPrev = Math.round(cert.pct_cum * 100) / 100;
+
+      // % cumulativa derivada do € (mais fiável que a % do Excel)
+      const pctSubCum = cv ? Math.round(subCumVal / cv * 100 * 100) / 100 : 0;
+      const pctGmcCum = cv ? Math.round(gmcCumVal / cv * 100 * 100) / 100 : 0;
+
+      const deltaSub = Math.round((subCumVal - cert.val_cum) * 100) / 100;
+      const deltaGmc = Math.round((gmcCumVal - cert.val_cum) * 100) / 100;
+
+      valueSub += deltaSub;
+      valueGmc += deltaGmc;
+      items.push({
+        boq_id: it.boq.id, ref: it.ref,
+        pctPrev,
+        pctSub: Math.round((pctPrev + (pctSubCum - pctPrev)) * 100) / 100,
+        pctGmc: Math.round((pctPrev + (pctGmcCum - pctPrev)) * 100) / 100,
+        vSub: deltaSub, vGmc: deltaGmc,
+      });
+    }
+
+    // Número sequencial e cumulativos anteriores
     const lastApp = con.prepare(
       'SELECT MAX(application_number) AS n FROM sub_application WHERE subcontract_id=?'
     ).get(req.params.scid);
-    let nextAppNum = (lastApp.n || 0) + 1;
+    const dbAppNum = (lastApp.n || 0) + 1;
+    const prevCum = con.prepare(`
+      SELECT COALESCE(SUM(value_gmc),0) AS cg, COALESCE(SUM(value_sub),0) AS cs
+      FROM sub_application WHERE subcontract_id=? AND status != 'draft'
+    `).get(req.params.scid);
 
-    // Labels já importados (para evitar duplicados por label/week_ending)
-    const existingLabels = new Set(
-      con.prepare('SELECT notes FROM sub_application WHERE subcontract_id=?')
-        .all(req.params.scid).map(r => r.notes || '')
-    );
-
-    const results = [];
+    // week_ending é NOT NULL e UNIQUE por subcontrato → fallback p/ hoje se não houver data
+    const weekEndingFinal = weekEnding || new Date().toISOString().slice(0, 10);
+    const dup = con.prepare(
+      'SELECT application_number FROM sub_application WHERE subcontract_id=? AND week_ending=?'
+    ).get(req.params.scid, weekEndingFinal);
+    if (dup) {
+      con.close();
+      return res.status(409).json({
+        error: `Já existe uma App (#${dup.application_number}) para a semana ${weekEndingFinal}. Apaga-a primeiro ou usa outra data.`,
+      });
+    }
+    // GMC vazio → fica 'assessed' (claim do Folan carregada, QS ainda tem de cortar).
+    // GMC preenchido → 'approved'.
+    const appStatus = gmcFromSub ? 'assessed' : 'approved';
+    const notes = `Importado do Excel — ${sheet_name}${weekEnding ? ' WE ' + weekEnding : ''}`
+      + (gmcFromSub ? ' (GMC vazio no Excel → usei a claim do Folan)' : '');
 
     con.exec('BEGIN');
     try {
-      for (const app of apps) {
-        // Verificar se já foi importado (pelo label no notes)
-        const importLabel = `Importado do Excel — ${app.label || ''}${app.week_ending ? ' WE '+app.week_ending : ''}`;
-        if ([...existingLabels].some(n => n.includes(app.week_ending || app.label || ''))) {
-          results.push({ appNum: app.appNum, skipped: true, reason: 'já existe' });
-          continue;
-        }
+      const appId = con.prepare(`
+        INSERT INTO sub_application
+          (subcontract_id, application_number, week_ending, value_sub, value_gmc,
+           cumulative_sub, cumulative_gmc, net_payable, status, notes, created_at, updated_at)
+        VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))
+      `).run(
+        req.params.scid, dbAppNum, weekEndingFinal,
+        Math.round(valueSub*100)/100, Math.round(valueGmc*100)/100,
+        Math.round((prevCum.cs + valueSub)*100)/100,
+        Math.round((prevCum.cg + valueGmc)*100)/100,
+        Math.round(valueGmc*100)/100,
+        appStatus, notes
+      ).lastInsertRowid;
 
-        // Ler items desta App
-        const items = [];
-        let valueSub = 0, valueGmc = 0;
-        for (let r = 6; r <= 120; r++) {
-          const ref = strV(sh, r, 2);
-          if (!ref) continue;
-          const pctFolan = numV(sh, r, app.startCol);
-          const valFolan = numV(sh, r, app.startCol + 1);
-          const pctGmc   = numV(sh, r, app.startCol + 2);
-          const valGmc   = numV(sh, r, app.startCol + 3);
-
-          const boq = boqByRef[ref];
-          if (!boq) continue;
-          if (!pctGmc && !valGmc) continue;
-
-          const pctSubPct  = pctFolan != null ? Math.round(pctFolan * 100 * 100) / 100 : 0;
-          const pctGmcPct  = pctGmc   != null ? Math.round(pctGmc   * 100 * 100) / 100 : 0;
-
-          const vSub = valFolan != null ? Math.round(valFolan * 100) / 100 : 0;
-          const vGmc = valGmc   != null ? Math.round(valGmc   * 100) / 100 : 0;
-          valueSub += vSub;
-          valueGmc += vGmc;
-
-          // pct_prev = soma acumulada de apps anteriores já no DB
-          const prevData = con.prepare(`
-            SELECT COALESCE(SUM(sai.pct_complete_gmc),0) AS pct_prev
-            FROM sub_application_item sai
-            JOIN sub_application sa ON sa.id = sai.sub_application_id
-            WHERE sai.sub_boq_item_id=? AND sa.subcontract_id=?
-          `).get(boq.id, req.params.scid);
-          const pctPrev = Math.round((prevData.pct_prev || 0) * 100) / 100;
-
-          items.push({ boq_id: boq.id, pctSub: pctSubPct, pctGmc: pctGmcPct, pctPrev, vSub, vGmc });
-        }
-
-        if (valueGmc === 0 && items.length === 0) {
-          results.push({ appNum: app.appNum, skipped: true, reason: 'sem dados' });
-          continue;
-        }
-
-        // Número sequencial real (ignora apps do Excel sem dados)
-        const dbAppNum = nextAppNum;
-
-        // Cumulativos de apps anteriores já importadas neste mesmo ciclo
-        const prevCum = con.prepare(`
-          SELECT COALESCE(SUM(value_gmc),0) AS cg, COALESCE(SUM(value_sub),0) AS cs
-          FROM sub_application WHERE subcontract_id=? AND status != 'draft'
-        `).get(req.params.scid);
-
-        const period = app.week_ending ? app.week_ending.slice(0,7) : null;
-        const label  = app.label || `App ${app.appNum}`;
-
-        const appId = con.prepare(`
-          INSERT INTO sub_application
-            (subcontract_id, application_number, period, value_sub, value_gmc,
-             cumulative_sub, cumulative_gmc, net_payable, status, notes, created_at, updated_at)
-          VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'),datetime('now'))
-        `).run(
-          req.params.scid, dbAppNum, period,
-          Math.round(valueSub*100)/100, Math.round(valueGmc*100)/100,
-          Math.round((prevCum.cs + valueSub)*100)/100,
-          Math.round((prevCum.cg + valueGmc)*100)/100,
-          Math.round(valueGmc*100)/100,
-          'approved',
-          `Importado do Excel — ${label}${app.week_ending ? ' WE '+app.week_ending : ''}`
-        ).lastInsertRowid;
-
-        const stmt = con.prepare(`
-          INSERT INTO sub_application_item
-            (sub_application_id, sub_boq_item_id, pct_prev, pct_complete_sub, pct_complete_gmc,
-             qty_complete_sub, qty_complete_gmc, value_sub_computed, value_gmc_computed, notes)
-          VALUES (?,?,?,?,?,0,0,?,?,NULL)
-        `);
-        for (const it of items) {
-          stmt.run(appId, it.boq_id, it.pctPrev || 0, it.pctSub, it.pctGmc, it.vSub, it.vGmc);
-        }
-
-        nextAppNum++;
-        results.push({ appNum: dbAppNum, created: true, value_gmc: Math.round(valueGmc*100)/100, items: items.length });
+      const stmt = con.prepare(`
+        INSERT INTO sub_application_item
+          (sub_application_id, sub_boq_item_id, pct_prev, pct_complete_sub, pct_complete_gmc,
+           qty_complete_sub, qty_complete_gmc, value_sub_computed, value_gmc_computed, notes)
+        VALUES (?,?,?,?,?,0,0,?,?,NULL)
+      `);
+      for (const it of items) {
+        stmt.run(appId, it.boq_id, it.pctPrev || 0, it.pctSub, it.pctGmc, it.vSub, it.vGmc);
       }
 
       con.exec('COMMIT');
       con.close();
-      res.json({ ok: true, results });
+      res.json({
+        ok: true,
+        results: [{
+          appNum: dbAppNum, created: true,
+          value_gmc: Math.round(valueGmc*100)/100,
+          value_sub: Math.round(valueSub*100)/100,
+          items: items.length,
+          week_ending: weekEnding,
+          status: appStatus,
+          gmc_from_sub: gmcFromSub,
+        }],
+        unmatched_refs: unmatched,
+      });
     } catch (e) {
       con.exec('ROLLBACK');
       con.close();

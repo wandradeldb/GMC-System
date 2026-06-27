@@ -5,10 +5,10 @@ const fmtE = (n, d = 0) => n == null ? '—' : `€${fmt(n, d)}`;
 const fmtP = n => n == null ? '—' : `${Number(n).toFixed(1)}%`;
 
 const STATUS_STYLE = {
-  planned:   { bg: '#f3f4f6', color: '#6b7280', label: 'Planned' },
   draft:     { bg: '#fef9c3', color: '#92400e', label: 'Draft' },
-  submitted: { bg: '#fef3c7', color: '#d97706', label: 'Submitted' },
+  assessed:  { bg: '#fef3c7', color: '#d97706', label: 'Assessed' },
   approved:  { bg: '#dcfce7', color: '#166534', label: 'Approved' },
+  invoiced:  { bg: '#ede9fe', color: '#6d28d9', label: 'Invoiced' },
   paid:      { bg: '#dbeafe', color: '#1e40af', label: 'Paid' },
 };
 
@@ -222,7 +222,7 @@ function ListView({ apps, boqItems, onNew, onDetail, onStatusChange, onDelete, o
                 return (
                   <tr key={a.id}>
                     <td style={{fontWeight:700}}>App {a.application_number}</td>
-                    <td>{a.period}</td>
+                    <td>{a.week_ending || a.period}</td>
                     <td style={{textAlign:'right', fontWeight:600}}>{fmtE(a.value_gmc, 2)}</td>
                     <td style={{textAlign:'right', color:'#1e40af'}}>{fmtE(a.cumulative_gmc, 2)}</td>
                     <td style={{textAlign:'right', color:'#6b7280'}}>{fmtE(a.value_sub, 2)}</td>
@@ -234,10 +234,17 @@ function ListView({ apps, boqItems, onNew, onDetail, onStatusChange, onDelete, o
                         {Object.entries(STATUS_STYLE).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
                       </select>
                     </td>
-                    <td style={{ display:'flex', gap:6, alignItems:'center' }}>
+                    <td style={{ display:'flex', gap:4, alignItems:'center' }}>
                       <button onClick={() => onDetail(a.id)}
-                        style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'3px 10px', cursor:'pointer', fontSize:12 }}>
+                        style={{
+                          display:'flex', alignItems:'center', gap:6,
+                          background:'#f0fdf4', border:'1px solid #16a34a', borderRadius:6, padding:'4px 10px',
+                          cursor:'pointer', fontSize:11, fontWeight:600, color:'#166534'
+                        }}>
                         Ver
+                        <span style={{ fontSize:10, fontWeight:700, background:'#16a34a', color:'#fff', borderRadius:4, padding:'1px 5px' }}>
+                          €{fmt(a.value_gmc, 0)}
+                        </span>
                       </button>
                       <button onClick={() => { if (window.confirm(`Apagar App ${a.application_number}?`)) onDelete(a.id); }}
                         style={{ background:'none', border:'1px solid #fca5a5', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12, color:'#dc2626' }}>
@@ -305,11 +312,30 @@ function ListView({ apps, boqItems, onNew, onDetail, onStatusChange, onDelete, o
   );
 }
 
+// ── Helper: Generate Fridays ──────────────────────────────────────────────
+function todayFriday() {
+  const d = new Date();
+  const diff = (d.getDay() - 5 + 7) % 7;
+  d.setDate(d.getDate() - diff);
+  return d.toISOString().slice(0, 10);
+}
+
+function fridayRange(ref, before = 4, after = 2) {
+  const result = [];
+  for (let i = -before; i <= after; i++) {
+    const d = new Date(ref + 'T12:00:00');
+    d.setDate(d.getDate() + i * 7);
+    result.push(d.toISOString().slice(0, 10));
+  }
+  return result;
+}
+
 // ── New Assessment Form ───────────────────────────────────────────────────────
-function NewAssessmentView({ boqItems, apps, onSave, onCancel }) {
+function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, onCancel }) {
   const nextAppNum = (apps[0]?.application_number || 0) + 1;
-  const [period,   setPeriod]   = useState(new Date().toISOString().slice(0,7));
-  const [appStatus, setAppStatus] = useState('planned');
+  const defaultWE = todayFriday();
+  const [weekEnding, setWeekEnding] = useState(defaultWE);
+  const [appStatus, setAppStatus] = useState('draft');
   const [pcts, setPcts]     = useState(() => {
     const m = {};
     boqItems.forEach(i => { m[i.id] = { sub: i.pct_certified, gmc: i.pct_certified }; });
@@ -317,6 +343,13 @@ function NewAssessmentView({ boqItems, apps, onSave, onCancel }) {
   });
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState(null);
+  const [showUpload, setShowUpload] = useState(false);
+  const [importFile, setImportFile] = useState(null);
+  const [sheetName,  setSheetName]  = useState('Folan Civil');
+  const [importing,  setImporting]  = useState(false);
+
+  // Generate WE options
+  const weOptions = fridayRange(defaultWE, 8, 2);
 
   const setPct = (id, field, val) => {
     const n = Math.min(100, Math.max(0, parseFloat(val) || 0));
@@ -346,7 +379,7 @@ function NewAssessmentView({ boqItems, apps, onSave, onCancel }) {
       pct_complete_sub: pcts[i.id]?.sub ?? i.pct_certified,
       pct_complete_gmc: pcts[i.id]?.gmc ?? i.pct_certified,
     }));
-    const res = await onSave({ period, status: appStatus, items });
+    const res = await onSave({ week_ending: weekEnding, status: appStatus, items });
     setSaving(false);
     if (!res.ok) setError(res.error || 'Erro ao guardar');
   };
@@ -361,21 +394,27 @@ function NewAssessmentView({ boqItems, apps, onSave, onCancel }) {
         <h3 style={{ margin:0, fontSize:16, color:'#1a1a2e' }}>App {nextAppNum} — New Assessment</h3>
       </div>
 
-      {/* Period + Status */}
+      {/* Week Ending + Status */}
       <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:16, flexWrap:'wrap' }}>
         <label style={{ fontSize:13, fontWeight:600, color:'#374151' }}>
-          Período:&nbsp;
-          <input type="month" value={period} onChange={e=>setPeriod(e.target.value)}
-            style={{ padding:'5px 8px', borderRadius:6, border:'1px solid #d1d5db', fontSize:13 }} />
+          WE:&nbsp;
+          <select value={weekEnding} onChange={e=>setWeekEnding(e.target.value)}
+            style={{ padding:'5px 8px', borderRadius:6, border:'1px solid #d1d5db', fontSize:13 }}>
+            {weOptions.map(we => (
+              <option key={we} value={we}>
+                {new Date(we + 'T12:00:00').toLocaleDateString('en-IE', { day: 'numeric', month: 'short' })}
+              </option>
+            ))}
+          </select>
         </label>
         <label style={{ fontSize:13, fontWeight:600, color:'#374151' }}>
           Status:&nbsp;
           <select value={appStatus} onChange={e=>setAppStatus(e.target.value)}
             style={{ padding:'5px 8px', borderRadius:6, border:'1px solid #d1d5db', fontSize:13 }}>
-            <option value="planned">Planned (Forecast)</option>
             <option value="draft">Draft</option>
             <option value="assessed">Assessed</option>
             <option value="approved">Approved</option>
+            <option value="invoiced">Invoiced</option>
             <option value="paid">Paid</option>
           </select>
         </label>
@@ -392,6 +431,62 @@ function NewAssessmentView({ boqItems, apps, onSave, onCancel }) {
       </div>
 
       {error && <div style={{ background:'#fee2e2', color:'#991b1b', padding:'8px 12px', borderRadius:6, marginBottom:12, fontSize:13 }}>{error}</div>}
+
+      {/* Upload Panel */}
+      <div style={{ marginBottom:16 }}>
+        <button onClick={() => setShowUpload(s => !s)}
+          style={{ padding:'6px 14px', borderRadius:6, border:'1px solid #6366f1', background:'#f5f3ff',
+            color:'#4338ca', cursor:'pointer', fontSize:13, fontWeight:600 }}>
+          {showUpload ? '▼' : '▶'} Importar dados do Excel
+        </button>
+        {showUpload && (
+          <div style={{ background:'#f5f3ff', border:'1px solid #c4b5fd', borderRadius:8, padding:12, marginTop:10 }}>
+            <div style={{ display:'flex', gap:10, flexWrap:'wrap', alignItems:'flex-end', marginBottom:8 }}>
+              <label style={{ fontSize:13 }}>
+                <div style={{ fontWeight:600, color:'#374151', marginBottom:4 }}>Ficheiro Excel</div>
+                <input type="file" accept=".xlsx,.xls"
+                  onChange={e => setImportFile(e.target.files[0])}
+                  style={{ fontSize:13 }} />
+              </label>
+              <label style={{ fontSize:13 }}>
+                <div style={{ fontWeight:600, color:'#374151', marginBottom:4 }}>Nome da Aba</div>
+                <input type="text" value={sheetName} onChange={e => setSheetName(e.target.value)}
+                  placeholder="ex: Folan Civil"
+                  style={{ padding:'5px 8px', borderRadius:6, border:'1px solid #c4b5fd', fontSize:13, width:160 }} />
+              </label>
+              <button
+                disabled={!importFile || !sheetName || importing}
+                onClick={async () => {
+                  setImporting(true);
+                  const fd = new FormData();
+                  fd.append('file', importFile);
+                  fd.append('sheet_name', sheetName);
+                  const res = await fetch(
+                    `/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/import-excel`,
+                    { method: 'POST', body: fd }
+                  );
+                  const json = await res.json();
+                  if (json.ok) {
+                    setShowUpload(false);
+                    setImportFile(null);
+                    window.location.reload();
+                  } else {
+                    setError(`Erro import: ${json.error}`);
+                  }
+                  setImporting(false);
+                }}
+                style={{ padding:'6px 18px', borderRadius:6, border:'none', background:'#4338ca',
+                  color:'#fff', cursor: importFile && sheetName && !importing ? 'pointer' : 'not-allowed',
+                  fontSize:13, fontWeight:600, opacity: importing ? 0.7 : 1 }}>
+                {importing ? 'A importar…' : 'Importar'}
+              </button>
+            </div>
+            <div style={{ fontSize:11, color:'#6b7280', fontStyle:'italic' }}>
+              Importação carrega dados históricos do Excel. Após, volta à lista.
+            </div>
+          </div>
+        )}
+      </div>
 
       <div style={{ overflowX:'auto' }}>
         <table className="boq-table" style={{ minWidth:900 }}>
@@ -480,6 +575,12 @@ function DetailView({ detail, onBack }) {
   const app = detail.app || detail.application;
   const { items } = detail;
   const ss = STATUS_STYLE[app.status] || STATUS_STYLE.draft;
+  const isApproved = app.status === 'approved';
+
+  // Calculate totals for approved view
+  const totalSub = items?.reduce((s, i) => s + (i.value_sub || 0), 0) || 0;
+  const totalGmc = items?.reduce((s, i) => s + (i.value_gmc_computed || 0), 0) || 0;
+  const cutPct = totalSub > 0 ? Math.round((1 - (totalGmc / totalSub)) * 100 * 10) / 10 : 0;
 
   return (
     <div>
@@ -489,7 +590,7 @@ function DetailView({ detail, onBack }) {
           ← Voltar
         </button>
         <h3 style={{ margin:0, fontSize:16, color:'#1a1a2e' }}>
-          App {app.application_number} — {app.period}
+          App {app.application_number} — WE {app.week_ending || app.period}
         </h3>
         <span style={{ background:ss.bg, color:ss.color, borderRadius:12, padding:'2px 10px', fontSize:12, fontWeight:600 }}>
           {ss.label}
@@ -505,6 +606,41 @@ function DetailView({ detail, onBack }) {
           </div>
         </div>
       </div>
+
+      {/* Approved Summary */}
+      {isApproved && (
+        <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:8, padding:12, marginBottom:16 }}>
+          <div style={{ fontSize:12, fontWeight:600, color:'#166534', marginBottom:8 }}>✓ APROVADO</div>
+          <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
+            <div>
+              <div style={{ fontSize:10, color:'#6b7280' }}>Sub Claimed</div>
+              <div style={{ fontSize:14, fontWeight:700, color:'#1a1a2e' }}>{fmtE(totalSub,2)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize:10, color:'#6b7280' }}>GMC Approved</div>
+              <div style={{ fontSize:14, fontWeight:700, color:'#166534' }}>{fmtE(totalGmc,2)}</div>
+            </div>
+            <div>
+              <div style={{ fontSize:10, color:'#dc2626' }}>Cut Applied</div>
+              <div style={{ fontSize:14, fontWeight:700, color:'#dc2626' }}>{cutPct}%</div>
+            </div>
+            {app.qs_approved_by && (
+              <div>
+                <div style={{ fontSize:10, color:'#6b7280' }}>Approved By</div>
+                <div style={{ fontSize:13, fontWeight:600, color:'#374151' }}>{app.qs_approved_by}</div>
+              </div>
+            )}
+            {app.qs_approved_date && (
+              <div>
+                <div style={{ fontSize:10, color:'#6b7280' }}>Date</div>
+                <div style={{ fontSize:13, fontWeight:600, color:'#374151' }}>
+                  {new Date(app.qs_approved_date).toLocaleDateString('en-IE')}
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       <div style={{ overflowX:'auto' }}>
         <table className="boq-table" style={{ minWidth:800 }}>
