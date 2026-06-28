@@ -145,13 +145,25 @@ router.get('/projects/:pid/tracker', (req, res) => {
   const qsMap = {};
   qsRows.forEach(r => { qsMap[r.week_ending] = r; });
 
-  // Overlay QS costs and recompute totals/margin/cumulative
+  // Live sub costs from approved sub_applications (by exact week_ending)
+  const subCostRows = con.prepare(`
+    SELECT a.week_ending, ROUND(SUM(a.value_gmc),2) AS live_subs
+    FROM sub_application a
+    JOIN subcontract sc ON sc.id = a.subcontract_id
+    WHERE sc.project_id=? AND a.status != 'draft'
+    GROUP BY a.week_ending
+  `).all(req.params.pid);
+  const subCostMap = {};
+  subCostRows.forEach(r => { subCostMap[r.week_ending] = r.live_subs; });
+
+  // Overlay QS + live sub costs and recompute totals/margin/cumulative
   let cumRev = 0, cumCost = 0;
   const enriched = rows.map(r => {
-    const qs = qsMap[r.week_ending] || {};
-    const mat   = (r.cost_materials || 0) + (qs.qs_mat   || 0);
-    const plant = (r.cost_plant     || 0) + (qs.qs_plant || 0);
-    const costTotal = Math.round(((r.cost_subs || 0) + mat + plant + (r.ohp_allowance || 0)) * 100) / 100;
+    const qs       = qsMap[r.week_ending] || {};
+    const mat      = (r.cost_materials || 0) + (qs.qs_mat   || 0);
+    const plant    = (r.cost_plant     || 0) + (qs.qs_plant || 0);
+    const liveSubs = subCostMap[r.week_ending] ?? (r.cost_subs || 0);
+    const costTotal = Math.round((liveSubs + mat + plant + (r.ohp_allowance || 0)) * 100) / 100;
     const revTotal  = r.rev_total_week || 0;
     cumRev  += revTotal;
     cumCost += costTotal;
@@ -160,6 +172,7 @@ router.get('/projects/:pid/tracker', (req, res) => {
     const marginPct  = cumRev > 0 ? Math.round((marginCum / cumRev) * 10000) / 100 : 0;
     return {
       ...r,
+      cost_subs:        Math.round(liveSubs * 100) / 100,
       cost_materials:   Math.round(mat   * 100) / 100,
       cost_plant:       Math.round(plant * 100) / 100,
       cost_total_week:  costTotal,
