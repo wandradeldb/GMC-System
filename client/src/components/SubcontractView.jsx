@@ -168,13 +168,21 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
 
 function EditSubcontractModal({ projectId, sc, onClose, onSaved }) {
   const [form, setForm] = useState({
-    description:    sc.description    || '',
-    contract_value: sc.contract_value ?? '',
-    retention_pct:  sc.retention_pct  ?? 5,
-    start_date:     sc.start_date     || '',
-    end_date:       sc.end_date       || '',
-    status:         sc.status         || 'active',
-    sub_type:       sc.sub_type       || 'main',
+    description:      sc.description      || '',
+    contract_value:   sc.contract_value   ?? '',
+    retention_pct:    sc.retention_pct    ?? 5,
+    start_date:       sc.start_date       || '',
+    end_date:         sc.end_date         || '',
+    status:           sc.status           || 'active',
+    sub_type:         sc.sub_type         || 'main',
+    has_contract:     sc.has_contract     ? 1 : 0,
+    has_insurance:    sc.has_insurance    ? 1 : 0,
+    responsible_name: sc.responsible_name || '',
+    phone:            sc.phone            || '',
+    email:            sc.email            || '',
+    pricing_lumpsum:  sc.pricing_lumpsum  ? 1 : 0,
+    mat_by:           sc.mat_by           || 'sub',
+    plant_by:         sc.plant_by         || 'sub',
   });
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState('');
@@ -186,13 +194,21 @@ function EditSubcontractModal({ projectId, sc, onClose, onSaved }) {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        description:    form.description   || null,
-        contract_value: parseFloat(form.contract_value) || null,
-        retention_pct:  parseFloat(form.retention_pct)  || null,
-        start_date:     form.start_date || null,
-        end_date:       form.end_date   || null,
-        status:         form.status     || null,
-        sub_type:       form.sub_type   || 'main',
+        description:      form.description   || null,
+        contract_value:   parseFloat(form.contract_value) || null,
+        retention_pct:    parseFloat(form.retention_pct)  || null,
+        start_date:       form.start_date || null,
+        end_date:         form.end_date   || null,
+        status:           form.status     || null,
+        sub_type:         form.sub_type   || 'main',
+        has_contract:     form.has_contract  ? 1 : 0,
+        has_insurance:    form.has_insurance ? 1 : 0,
+        responsible_name: form.responsible_name || null,
+        phone:            form.phone  || null,
+        email:            form.email  || null,
+        pricing_lumpsum:  form.pricing_lumpsum ? 1 : 0,
+        mat_by:           form.mat_by   || 'sub',
+        plant_by:         form.plant_by || 'sub',
       }),
     });
     setSaving(false);
@@ -248,6 +264,69 @@ function EditSubcontractModal({ projectId, sc, onClose, onSaved }) {
                 <option value="main">Main</option>
                 <option value="misc">MISC</option>
               </select>
+            </div>
+          </div>
+
+          <div style={{ fontWeight:700, fontSize:12, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.05em', margin:'14px 0 8px', paddingBottom:4, borderBottom:'1px solid #e5e7eb' }}>
+            Compliance
+          </div>
+          <div style={{ display:'flex', gap:24, marginBottom:12 }}>
+            <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
+              <input type="checkbox" checked={!!form.has_contract} onChange={e => set('has_contract', e.target.checked ? 1 : 0)}
+                style={{ width:16, height:16, cursor:'pointer' }} />
+              Contract signed
+            </label>
+            <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
+              <input type="checkbox" checked={!!form.has_insurance} onChange={e => set('has_insurance', e.target.checked ? 1 : 0)}
+                style={{ width:16, height:16, cursor:'pointer' }} />
+              Insurance in place
+            </label>
+          </div>
+
+          <div style={{ fontWeight:700, fontSize:12, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.05em', margin:'14px 0 8px', paddingBottom:4, borderBottom:'1px solid #e5e7eb' }}>
+            Pricing
+          </div>
+          <div style={{ display:'flex', alignItems:'center', flexWrap:'wrap', gap:28, marginBottom:12 }}>
+            <label style={{ display:'flex', alignItems:'center', gap:8, fontSize:13, cursor:'pointer' }}>
+              <input type="checkbox" checked={!!form.pricing_lumpsum} onChange={e => set('pricing_lumpsum', e.target.checked ? 1 : 0)}
+                style={{ width:16, height:16, cursor:'pointer' }} />
+              Lumpsum
+            </label>
+            <div style={{ display:'flex', alignItems:'center', gap:10 }}>
+              <span style={{ fontWeight:700, fontSize:14, color:'#1e3a8a' }}>Materials:</span>
+              {['gmc','sub'].map(v => (
+                <label key={v} style={{ display:'flex', alignItems:'center', gap:5, fontSize:13, cursor:'pointer' }}>
+                  <input type="radio" name="mat_by" value={v} checked={form.mat_by === v} onChange={() => set('mat_by', v)} />
+                  {v.toUpperCase()}
+                </label>
+              ))}
+            </div>
+            <div style={{ display:'flex', alignItems:'center', gap:10, marginLeft:24 }}>
+              <span style={{ fontWeight:700, fontSize:14, color:'#1e3a8a' }}>Plant:</span>
+              {['gmc','sub'].map(v => (
+                <label key={v} style={{ display:'flex', alignItems:'center', gap:5, fontSize:13, cursor:'pointer' }}>
+                  <input type="radio" name="plant_by" value={v} checked={form.plant_by === v} onChange={() => set('plant_by', v)} />
+                  {v.toUpperCase()}
+                </label>
+              ))}
+            </div>
+          </div>
+
+          <div style={{ fontWeight:700, fontSize:12, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.05em', margin:'14px 0 8px', paddingBottom:4, borderBottom:'1px solid #e5e7eb' }}>
+            Contact
+          </div>
+          <div className="section-grid">
+            <div className="field">
+              <label className="field-label">Responsible</label>
+              <input value={form.responsible_name} onChange={e => set('responsible_name', e.target.value)} placeholder="Name" />
+            </div>
+            <div className="field">
+              <label className="field-label">Phone</label>
+              <input value={form.phone} onChange={e => set('phone', e.target.value)} placeholder="+353..." />
+            </div>
+            <div className="field span2">
+              <label className="field-label">Email</label>
+              <input type="email" value={form.email} onChange={e => set('email', e.target.value)} placeholder="email@..." />
             </div>
           </div>
           {err && <div style={{ color:'#dc2626', fontSize:13, marginTop:8 }}>{err}</div>}

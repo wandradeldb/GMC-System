@@ -92,11 +92,22 @@ router.patch('/projects/:pid/subcontracts/:id', (req, res) => {
   const con = db();
   const sc = con.prepare('SELECT id FROM subcontract WHERE id=? AND project_id=?').get(req.params.id, req.params.pid);
   if (!sc) throw notFound('Subcontract not found');
-  const { description, contract_value, retention_pct, start_date, end_date, status, sub_type } = req.body;
-  con.prepare(`UPDATE subcontract SET description=COALESCE(?,description), contract_value=COALESCE(?,contract_value),
+  const { description, contract_value, retention_pct, start_date, end_date, status, sub_type,
+          has_contract, has_insurance, responsible_name, phone, email,
+          pricing_lumpsum, mat_by, plant_by } = req.body;
+  con.prepare(`UPDATE subcontract SET
+    description=COALESCE(?,description), contract_value=COALESCE(?,contract_value),
     retention_pct=COALESCE(?,retention_pct), start_date=COALESCE(?,start_date), end_date=COALESCE(?,end_date),
-    status=COALESCE(?,status), sub_type=COALESCE(?,sub_type) WHERE id=?`)
-   .run(description||null, contract_value??null, retention_pct??null, start_date||null, end_date||null, status||null, sub_type||null, sc.id);
+    status=COALESCE(?,status), sub_type=COALESCE(?,sub_type),
+    has_contract=COALESCE(?,has_contract), has_insurance=COALESCE(?,has_insurance),
+    responsible_name=COALESCE(?,responsible_name), phone=COALESCE(?,phone), email=COALESCE(?,email),
+    pricing_lumpsum=COALESCE(?,pricing_lumpsum), mat_by=COALESCE(?,mat_by), plant_by=COALESCE(?,plant_by)
+    WHERE id=?`)
+   .run(description||null, contract_value??null, retention_pct??null, start_date||null, end_date||null,
+        status||null, sub_type||null,
+        has_contract??null, has_insurance??null, responsible_name||null, phone||null, email||null,
+        pricing_lumpsum??null, mat_by||null, plant_by||null,
+        sc.id);
   res.json(con.prepare('SELECT * FROM subcontract WHERE id=?').get(sc.id));
   con.close();
 });

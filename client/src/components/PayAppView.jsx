@@ -145,19 +145,24 @@ export default function PayAppView({ projectId }) {
 function NewPayAppForm({ projectId, onBack }) {
   const [sheet,         setSheet]        = useState(null);
   const [items,         setItems]        = useState([]);
+  const [history,       setHistory]      = useState({});
+  const [priorApps,     setPriorApps]    = useState([]);
   const [header,        setHeader]       = useState({ period: '', date_submitted: '', retention_pct: 3.0, prepared_by: '', notes: '' });
   const [grossOverride, setGrossOverride] = useState(''); // direct entry of Works Gross
   const [saving,        setSaving]       = useState(false);
   const [saved,         setSaved]        = useState(false);
-  const [activeTab,     setActiveTab]    = useState('summary');
+  const [activeTab,     setActiveTab]    = useState('boq');
   const [search,        setSearch]       = useState('');
+  const [schFilter,     setSchFilter]    = useState(null);
 
   useEffect(() => {
     fetch(`/api/v1/projects/${projectId}/payapps/new/boq-sheet`)
       .then(r => r.json())
       .then(d => {
         setSheet(d);
-        setItems(d.items.map(i => ({ ...i, pct_complete: i.pct_prev })));
+        setItems(d.items.map(i => ({ ...i, pct_complete: 0 }))); // incremental for this app
+        setHistory(d.history || {});
+        setPriorApps(d.prior_apps || []);
         // Pre-fill Works Gross from last certified (QS adjusts upward for new app)
         if (d.last_certified?.works_gross_cumulative) {
           setGrossOverride(String(d.last_certified.works_gross_cumulative));
@@ -170,12 +175,14 @@ function NewPayAppForm({ projectId, onBack }) {
   if (!sheet) return <div className="state-box"><div className="icon">⏳</div><p>Loading BOQ…</p></div>;
 
   const setItem = (i, val) => {
-    const n = Math.min(100, Math.max(0, parseFloat(val) || 0));
+    const row = items[i];
+    const maxPct = 100 - (row.pct_prev || 0);
+    const n = Math.min(maxPct, Math.max(0, parseFloat(val) || 0));
     setItems(rows => rows.map((r, j) => j === i ? { ...r, pct_complete: n } : r));
   };
 
-  // Live totals — use direct gross override if QS entered it, else sum from items
-  const itemsGross = items.reduce((s, i) => s + (parseFloat(i.pct_complete) || 0) / 100 * (i.contract_sum || 0), 0);
+  // Live totals — cumulative = pct_prev + incremental; use override if QS entered it
+  const itemsGross = items.reduce((s, i) => s + ((parseFloat(i.pct_prev) || 0) + (parseFloat(i.pct_complete) || 0)) / 100 * (i.contract_sum || 0), 0);
   const worksGross = grossOverride !== '' ? (parseFloat(grossOverride) || 0) : itemsGross;
   const retPct     = parseFloat(header.retention_pct) || 3;
   const retention  = worksGross * retPct / 100;
@@ -196,7 +203,7 @@ function NewPayAppForm({ projectId, onBack }) {
         prepared_by:         header.prepared_by,
         notes:               header.notes,
         works_gross_override: grossOverride !== '' ? parseFloat(grossOverride) : undefined,
-        items,
+        items: items.map(i => ({ ...i, pct_complete: (parseFloat(i.pct_prev) || 0) + (parseFloat(i.pct_complete) || 0) })),
       }),
     });
     setSaving(false); setSaved(true);
@@ -211,8 +218,8 @@ function NewPayAppForm({ projectId, onBack }) {
         <button className="btn-back" onClick={onBack}>← PayApps</button>
       </div>
 
-      {/* Header */}
-      <div className="assessment-header">
+      {/* Header — sticky below topbar */}
+      <div className="assessment-header" style={{ position:'sticky', top:0, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb', marginBottom:0 }}>
         <div className="assessment-title">
           <span className="assessment-period">PayApp #{sheet.next_app_number}</span>
           <span style={{ fontSize: 13, color: '#6b7280' }}>
@@ -242,8 +249,8 @@ function NewPayAppForm({ projectId, onBack }) {
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="das-tabs">
+      {/* Tabs — sticky below assessment header */}
+      <div className="das-tabs" style={{ position:'sticky', top:0, zIndex:8, background:'#fff', borderBottom:'1px solid #e5e7eb' }}>
         {[
           { id: 'boq',     label: `BOQ Detail (${items.length})` },
           { id: 'header',  label: 'Header / Certificate' },
@@ -255,86 +262,177 @@ function NewPayAppForm({ projectId, onBack }) {
         ))}
       </div>
 
-      <div className="das-tab-content">
-        {activeTab === 'boq' && (
-          <div>
-            <div className="section-toolbar" style={{ marginBottom: 12 }}>
-              <span className="section-stat">{items.filter(i => parseFloat(i.pct_complete) > 0).length} items with % claimed</span>
-              <input type="search" placeholder="Filter items…" value={search} onChange={e => setSearch(e.target.value)}
-                style={{ padding:'6px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:13, width:220 }} />
-            </div>
-            {schedules.map(sch => {
-              const schItems = items.map((it, idx) => ({ ...it, _idx: idx }))
-                .filter(it => it.schedule === sch &&
-                  (!search || it.description.toLowerCase().includes(search.toLowerCase()) || it.item_ref.toLowerCase().includes(search.toLowerCase())));
-              if (!schItems.length) return null;
-              const schVal = schItems.reduce((s, i) => s + (parseFloat(i.pct_complete) || 0) / 100 * (i.contract_sum || 0), 0);
-              return (
-                <div key={sch} className="schedule-block">
-                  <div className="schedule-header">
-                    <span className="schedule-title">{SCH_LABEL[sch] || `Schedule ${sch}`}</span>
-                    <span className="schedule-total" style={{ fontSize: 13 }}>Claimed: €{fmt(schVal, 0)}</span>
-                  </div>
-                  <table className="boq-table">
+      <div className="das-tab-content" style={{ padding: 0 }}>
+        {activeTab === 'boq' && (() => {
+          const SCH_TABS = [
+            { key: null,  label: 'All' },
+            { key: '1',   label: 'Prelims Fixed' },
+            { key: '1A',  label: 'Prelims Time' },
+            { key: '2',   label: 'Civil & MEICA' },
+          ];
+          const displaySchedules = schFilter ? [schFilter] : schedules;
+          const grandTotal    = items.reduce((s,i) => s + (i.contract_sum||0), 0);
+          const grandCumulate = items.reduce((s,i) => s + ((parseFloat(i.pct_prev)||0)/100)*(i.contract_sum||0), 0);
+          const grandThis     = items.reduce((s,i) => s + ((parseFloat(i.pct_complete)||0)/100)*(i.contract_sum||0), 0);
+          const COLS = 6 + priorApps.length; // ref+desc+unit+rate+total+cumulate + apps
+
+          return (
+            <div>
+              {/* Schedule filter + search */}
+              <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', flexWrap:'wrap', borderBottom:'1px solid #e5e7eb' }}>
+                {SCH_TABS.map(t => (
+                  <button key={String(t.key)} onClick={() => setSchFilter(t.key)}
+                    style={{ padding:'4px 12px', borderRadius:20, border:'1px solid', fontSize:12, cursor:'pointer', fontWeight:600,
+                      background: schFilter===t.key ? '#1e3a8a' : '#f8faff',
+                      color:      schFilter===t.key ? '#fff'    : '#374151',
+                      borderColor:schFilter===t.key ? '#1e3a8a' : '#d1d5db' }}>
+                    {t.label}
+                  </button>
+                ))}
+                <span style={{ color:'#9ca3af', fontSize:12, marginLeft:4 }}>{items.filter(i => parseFloat(i.pct_complete) > 0).length} items with %</span>
+                <input type="search" placeholder="Filter items…" value={search} onChange={e => setSearch(e.target.value)}
+                  style={{ padding:'5px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:12, width:180, marginLeft:'auto' }} />
+              </div>
+
+              {/* Scrollable table area — overflow:auto + max-height makes thead sticky work */}
+              {(() => {
+                // sticky column left offsets
+                const W = { ref:52, desc:220, unit:46, rate:82, total:90 };
+                const L = { ref:0, desc:W.ref, unit:W.ref+W.desc, rate:W.ref+W.desc+W.unit, total:W.ref+W.desc+W.unit+W.rate };
+                const stickyTh = (extra={}) => ({
+                  position:'sticky', zIndex:6, background:'#1e3a8a', ...extra,
+                });
+                const stickyTd = (left, bg) => ({
+                  position:'sticky', left, zIndex:2, background: bg,
+                });
+                let rowIdx = 0;
+                const rowBg = (ri) => ri % 2 === 0 ? '#f0f6ff' : '#ffd8bb';
+
+                const thStyle = (extra={}) => ({
+                  background:'#1e3a8a', color:'#fff', fontWeight:700,
+                  fontSize:11, letterSpacing:'.05em', textTransform:'uppercase',
+                  padding:'7px 8px', borderBottom:'2px solid #1e40af', whiteSpace:'nowrap',
+                  ...extra,
+                });
+
+                return (
+                <div style={{ overflow:'auto', maxHeight:'calc(100vh - 295px)', WebkitOverflowScrolling:'touch' }}>
+                  <table className="boq-table" style={{ minWidth: 680 + priorApps.length * 70 }}>
                     <thead>
                       <tr>
-                        <th className="col-ref">Ref</th>
-                        <th>Description</th>
-                        <th className="col-unit">Unit</th>
-                        <th className="col-num">Contract Sum</th>
-                        <th className="col-num" style={{ background: '#eff6ff' }}>% Prev App</th>
-                        <th className="col-num" style={{ background: '#f0fdf4' }}>% This App</th>
-                        <th className="col-num" style={{ background: '#f0fdf4' }}>Value Claimed (€)</th>
+                        <th style={{ ...thStyle({ position:'sticky', top:0, left:L.ref,   zIndex:7, width:W.ref,   textAlign:'left'   }) }}>Ref</th>
+                        <th style={{ ...thStyle({ position:'sticky', top:0, left:L.desc,  zIndex:7, width:W.desc,  textAlign:'left'   }) }}>Description</th>
+                        <th style={{ ...thStyle({ position:'sticky', top:0, left:L.unit,  zIndex:7, width:W.unit,  textAlign:'center' }) }}>Unit</th>
+                        <th style={{ ...thStyle({ position:'sticky', top:0, left:L.rate,  zIndex:7, width:W.rate,  textAlign:'right'  }) }}>Rate</th>
+                        <th style={{ ...thStyle({ position:'sticky', top:0, left:L.total, zIndex:7, width:W.total, textAlign:'right'  }) }}>Contract €</th>
+                        <th style={{ ...thStyle({ position:'sticky', top:0, zIndex:5, background:'#1e40af', textAlign:'right', minWidth:90 }) }}>Cumul. €</th>
+                        {priorApps.map(a => (
+                          <th key={a.app_number} style={{ ...thStyle({ position:'sticky', top:0, zIndex:5, background:'#334155', textAlign:'right', minWidth:64 }) }}>
+                            App #{a.app_number}
+                          </th>
+                        ))}
+                        <th style={{ ...thStyle({ position:'sticky', top:0, zIndex:5, background:'#166534', textAlign:'right', minWidth:76 }) }}>% This App</th>
+                        <th style={{ ...thStyle({ position:'sticky', top:0, zIndex:5, background:'#166534', textAlign:'right', minWidth:84 }) }}>Value €</th>
                       </tr>
                     </thead>
                     <tbody>
-                      {schItems.map(row => {
-                        const pct = parseFloat(row.pct_complete) || 0;
-                        const val = (pct / 100) * (row.contract_sum || 0);
-                        const delta = pct - (row.pct_prev || 0);
-                        return (
-                          <tr key={row._idx}>
-                            <td className="col-ref">{row.item_ref}</td>
-                            <td style={{ fontSize: 13 }}>{row.description}</td>
-                            <td className="col-unit">{row.unit}</td>
-                            <td className="col-num" style={{ color: '#6b7280' }}>€{fmt(row.contract_sum, 0)}</td>
-                            <td className="col-num" style={{ background: '#f8faff', color: '#6b7280' }}>
-                              {fmt(row.pct_prev, 1)}%
+                      {displaySchedules.map(sch => {
+                        const schItems = items.map((it, idx) => ({ ...it, _idx: idx }))
+                          .filter(it => it.schedule === sch &&
+                            (!search || it.description.toLowerCase().includes(search.toLowerCase()) || it.item_ref.toLowerCase().includes(search.toLowerCase())));
+                        if (!schItems.length) return null;
+                        const schContractTotal = schItems.reduce((s,i) => s + (i.contract_sum||0), 0);
+                        const schCumulate      = schItems.reduce((s,i) => s + ((parseFloat(i.pct_prev)||0)/100)*(i.contract_sum||0), 0);
+                        const schThis          = schItems.reduce((s,i) => s + ((parseFloat(i.pct_complete)||0)/100)*(i.contract_sum||0), 0);
+                        return [
+                          <tr key={`hdr-${sch}`} style={{ background:'#dbeafe' }}>
+                            <td colSpan={6 + priorApps.length + 2} style={{ padding:'5px 12px', color:'#1e3a8a', fontWeight:700, fontSize:12, letterSpacing:'.04em' }}>
+                              {SCH_LABEL[sch] || `Schedule ${sch}`}
                             </td>
-                            <td className="col-num" style={{ background: '#f0fff4' }}>
-                              <div style={{ display: 'flex', alignItems: 'center', gap: 6, justifyContent: 'flex-end' }}>
-                                <input type="number" min="0" max="100" step="0.5"
-                                  value={row.pct_complete}
-                                  onChange={e => setItem(row._idx, e.target.value)}
-                                  onKeyDown={e => {
-                                    if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    const all = [...document.querySelectorAll('.assess-input-gmc')];
-                                    const i = all.findIndex(el => el === e.target);
-                                    const dir = e.key === 'ArrowUp' ? -1 : 1;
-                                    const next = all[i + dir];
-                                    if (next) { next.focus(); next.select(); }
-                                  }}
-                                  className="assess-input assess-input-gmc"
-                                  style={{ width: 64 }} />
-                                <span style={{ fontSize: 11, color: '#6b7280' }}>%</span>
-                              </div>
+                          </tr>,
+                          ...schItems.map(row => {
+                            const bg     = rowBg(rowIdx++);
+                            const inc    = parseFloat(row.pct_complete) || 0;
+                            const prev   = parseFloat(row.pct_prev)     || 0;
+                            const val    = (inc / 100) * (row.contract_sum || 0);
+                            const cumVal = (prev / 100) * (row.contract_sum || 0);
+                            const appPcts = priorApps.map((a, ai) => {
+                              const cum     = parseFloat(history[row.boq_item_id]?.[a.app_number]) || 0;
+                              const cumPrev = ai > 0 ? (parseFloat(history[row.boq_item_id]?.[priorApps[ai-1].app_number]) || 0) : 0;
+                              return cum - cumPrev;
+                            });
+                            return (
+                              <tr key={row._idx} style={{ background: bg }}>
+                                <td style={{ ...stickyTd(L.ref,   bg), padding:'5px 8px', fontSize:12, fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>{row.item_ref}</td>
+                                <td style={{ ...stickyTd(L.desc,  bg), padding:'5px 8px', fontSize:12, color:'#111827', maxWidth:W.desc, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={row.description}>{row.description}</td>
+                                <td style={{ ...stickyTd(L.unit,  bg), padding:'5px 4px', fontSize:12, textAlign:'center', color:'#6b7280', whiteSpace:'nowrap' }}>{row.unit}</td>
+                                <td style={{ ...stickyTd(L.rate,  bg), padding:'5px 8px', fontSize:11, textAlign:'right', color:'#6b7280', whiteSpace:'nowrap' }}>{row.rate > 0 ? `€${fmt(row.rate,2)}` : '—'}</td>
+                                <td style={{ ...stickyTd(L.total, bg), padding:'5px 8px', fontSize:12, textAlign:'right', color:'#374151', whiteSpace:'nowrap' }}>{row.contract_sum > 0 ? `€${fmt(row.contract_sum,2)}` : '—'}</td>
+                                <td className="col-num" style={{ background:'#eff6ff', color: cumVal > 0 ? '#1e40af' : '#d1d5db', fontSize:12 }}>
+                                  {cumVal > 0 ? `€${fmt(cumVal,2)}` : '—'}
+                                </td>
+                                {appPcts.map((p, ai) => (
+                                  <td key={ai} className="col-num" style={{ background:'#f8faff', color: p > 0 ? '#374151' : '#d1d5db', fontSize:11 }}>
+                                    {p > 0 ? `${fmt(p,1)}%` : '—'}
+                                  </td>
+                                ))}
+                                <td className="col-num" style={{ background:'#f0fff4' }}>
+                                  <div style={{ display:'flex', alignItems:'center', gap:4, justifyContent:'flex-end' }}>
+                                    <input type="number" min="0" max={100 - prev} step="0.5"
+                                      value={row.pct_complete}
+                                      onChange={e => setItem(row._idx, e.target.value)}
+                                      onKeyDown={e => {
+                                        if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+                                        e.preventDefault(); e.stopPropagation();
+                                        const all = [...document.querySelectorAll('.assess-input-gmc')];
+                                        const i = all.findIndex(el => el === e.target);
+                                        const next = all[i + (e.key === 'ArrowUp' ? -1 : 1)];
+                                        if (next) { next.focus(); next.select(); }
+                                      }}
+                                      className="assess-input assess-input-gmc" style={{ width:54 }} />
+                                    <span style={{ fontSize:10, color:'#6b7280' }}>%</span>
+                                  </div>
+                                </td>
+                                <td className="col-num" style={{ background:'#f0fff4', color: val > 0 ? '#166534' : '#d1d5db', fontWeight: val > 0 ? 700 : 400 }}>
+                                  {val > 0 ? `€${fmt(val,2)}` : '—'}
+                                </td>
+                              </tr>
+                            );
+                          }),
+                          <tr key={`sub-${sch}`} style={{ background:'#dbeafe', fontWeight:700 }}>
+                            <td style={{ ...stickyTd(L.ref,  '#dbeafe'), padding:'5px 8px' }} />
+                            <td style={{ ...stickyTd(L.desc, '#dbeafe'), padding:'5px 8px', fontSize:12, color:'#1e40af' }}>
+                              {SCH_LABEL[sch]?.split('—')[1]?.trim() || sch} — Subtotal
                             </td>
-                            <td className="col-num" style={{ background: '#f0fff4', color: val > 0 ? '#166534' : '#d1d5db', fontWeight: val > 0 ? 700 : 400 }}>
-                              {val > 0 ? `€${fmt(val, 0)}` : '—'}
-                              {delta > 0 && <div style={{ fontSize: 10, color: '#1e40af' }}>+{fmt(delta, 1)}% this app</div>}
-                            </td>
-                          </tr>
-                        );
+                            <td style={{ ...stickyTd(L.unit, '#dbeafe') }} />
+                            <td style={{ ...stickyTd(L.rate, '#dbeafe') }} />
+                            <td style={{ ...stickyTd(L.total,'#dbeafe'), padding:'5px 8px', textAlign:'right', color:'#1e40af' }}>€{fmt(schContractTotal,2)}</td>
+                            <td className="col-num" style={{ background:'#bfdbfe', color:'#1e40af' }}>€{fmt(schCumulate,2)}</td>
+                            {priorApps.map(a => <td key={a.app_number} />)}
+                            <td />
+                            <td className="col-num" style={{ background:'#bbf7d0', color:'#166534' }}>€{fmt(schThis,2)}</td>
+                          </tr>,
+                        ];
                       })}
+                      <tr style={{ background:'#1e3a8a', color:'#fff', fontWeight:700 }}>
+                        <td style={{ ...stickyTd(L.ref,  '#1e3a8a'), padding:'6px 8px' }} />
+                        <td style={{ ...stickyTd(L.desc, '#1e3a8a'), padding:'6px 8px', fontSize:13, color:'#fff' }}>GRAND TOTAL</td>
+                        <td style={{ ...stickyTd(L.unit, '#1e3a8a') }} />
+                        <td style={{ ...stickyTd(L.rate, '#1e3a8a') }} />
+                        <td style={{ ...stickyTd(L.total,'#1e3a8a'), padding:'6px 8px', textAlign:'right', color:'#fff' }}>€{fmt(grandTotal,2)}</td>
+                        <td className="col-num" style={{ background:'#1e40af' }}>€{fmt(grandCumulate,2)}</td>
+                        {priorApps.map(a => <td key={a.app_number} />)}
+                        <td />
+                        <td className="col-num" style={{ background:'#166534' }}>€{fmt(grandThis,2)}</td>
+                      </tr>
                     </tbody>
                   </table>
                 </div>
-              );
-            })}
-          </div>
-        )}
+                );
+              })()}
+            </div>
+          );
+        })()}
 
         {activeTab === 'header' && (
           <div className="section-grid" style={{ maxWidth: 520 }}>

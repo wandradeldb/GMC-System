@@ -56,7 +56,7 @@ router.get('/projects/:pid/payapps/new/boq-sheet', (req, res) => {
   // BOQ items with prev pct from last certified payapp_items
   const items = con.prepare(`
     SELECT bi.id AS boq_item_id, bi.item_ref, bi.description, bi.schedule, bi.section,
-           bi.unit, bi.type, ROUND(bi.qty*bi.rate,2) AS contract_sum, bi.sort_order,
+           bi.unit, bi.type, bi.rate, bi.qty, ROUND(bi.qty*bi.rate,2) AS contract_sum, bi.sort_order,
            COALESCE(pi.pct_complete, 0) AS pct_prev,
            COALESCE(pi.value_claimed, 0) AS value_prev
     FROM boq_item bi
@@ -67,12 +67,28 @@ router.get('/projects/:pid/payapps/new/boq-sheet', (req, res) => {
 
   const nextAppNumber = (con.prepare('SELECT COALESCE(MAX(app_number),0)+1 AS n FROM payapp WHERE project_id=?').get(req.params.pid) || {}).n || 1;
 
+  // Historical % per item per app
+  const allApps = con.prepare('SELECT id, app_number, period FROM payapp WHERE project_id=? ORDER BY app_number').all(req.params.pid);
+  const histRows = con.prepare(`
+    SELECT pi.boq_item_id, pa.app_number, pi.pct_complete
+    FROM payapp_item pi
+    JOIN payapp pa ON pa.id = pi.payapp_id
+    WHERE pa.project_id = ?
+  `).all(req.params.pid);
+  const history = {};
+  for (const r of histRows) {
+    if (!history[r.boq_item_id]) history[r.boq_item_id] = {};
+    history[r.boq_item_id][r.app_number] = r.pct_complete;
+  }
+
   con.close();
   res.json({
     next_app_number: nextAppNumber,
     last_certified:  lastCert || null,
     previously_certified: lastCert ? lastCert.net_cumulative : 0,
     items,
+    history,
+    prior_apps: allApps,
   });
 });
 
