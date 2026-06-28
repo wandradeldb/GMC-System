@@ -1,7 +1,8 @@
 import { useState, useEffect, useCallback } from 'react';
 
 const fmt  = (n, d = 0) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
-const fmtD = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' }) : '—';
+const fmtD      = d => { if (!d) return '—'; const [y,m,dy] = String(d).split('-'); return `${dy}/${m}/${y}`; };
+const fmtPeriod = p => { if (!p) return '—'; const [y,m] = String(p).split('-'); return new Date(`${y}-${m}-01T12:00:00`).toLocaleDateString('en-IE', { month: 'short', year: 'numeric' }); };
 
 const STATUS_LABEL = { draft: 'Draft', submitted: 'Submitted', certified: 'Certified', paid: 'Paid' };
 const STATUS_COLOR = { draft: '#6b7280', submitted: '#1e40af', certified: '#166534', paid: '#7c3aed' };
@@ -112,7 +113,7 @@ export default function PayAppView({ projectId }) {
               {[...payapps].reverse().map(pa => (
                 <tr key={pa.id} style={{ cursor: 'pointer' }} onClick={() => setDetail(pa)}>
                   <td style={{ fontWeight: 700, textAlign: 'center' }}>#{pa.app_number}</td>
-                  <td>{pa.period}</td>
+                  <td>{fmtPeriod(pa.period)}</td>
                   <td className="payapp-col-hide">{fmtD(pa.date_submitted)}</td>
                   <td>
                     <span className="type-badge" style={{ background: STATUS_COLOR[pa.status] + '18', color: STATUS_COLOR[pa.status], border: `1px solid ${STATUS_COLOR[pa.status]}40` }}>
@@ -168,7 +169,10 @@ function NewPayAppForm({ projectId, onBack }) {
 
   if (!sheet) return <div className="state-box"><div className="icon">⏳</div><p>Loading BOQ…</p></div>;
 
-  const setItem = (i, val) => setItems(rows => rows.map((r, j) => j === i ? { ...r, pct_complete: val } : r));
+  const setItem = (i, val) => {
+    const n = Math.min(100, Math.max(0, parseFloat(val) || 0));
+    setItems(rows => rows.map((r, j) => j === i ? { ...r, pct_complete: n } : r));
+  };
 
   // Live totals — use direct gross override if QS entered it, else sum from items
   const itemsGross = items.reduce((s, i) => s + (parseFloat(i.pct_complete) || 0) / 100 * (i.contract_sum || 0), 0);
@@ -218,14 +222,7 @@ function NewPayAppForm({ projectId, onBack }) {
         <div className="assessment-kpis">
           <div className="assess-kpi">
             <div className="kpi-label">Works Gross (Cum.) €</div>
-            <input
-              type="number" step="0.01" min="0"
-              value={grossOverride}
-              onChange={e => setGrossOverride(e.target.value)}
-              placeholder={fmt(itemsGross, 2)}
-              style={{ fontSize: 18, fontWeight: 700, color: '#1e40af', border: '2px solid #bfdbfe', borderRadius: 6, padding: '4px 8px', width: 160, textAlign: 'right', background: '#eff6ff' }}
-            />
-            <div style={{ fontSize: 10, color: '#6b7280', marginTop: 2 }}>enter directly or leave blank to use BOQ %</div>
+            <div className="kpi-value" style={{ color: '#1e40af' }}>€{fmt(grossOverride || itemsGross, 2)}</div>
           </div>
           <div className="assess-kpi">
             <div className="kpi-label">Retention ({retPct}%)</div>
@@ -309,6 +306,16 @@ function NewPayAppForm({ projectId, onBack }) {
                                 <input type="number" min="0" max="100" step="0.5"
                                   value={row.pct_complete}
                                   onChange={e => setItem(row._idx, e.target.value)}
+                                  onKeyDown={e => {
+                                    if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+                                    e.preventDefault();
+                                    e.stopPropagation();
+                                    const all = [...document.querySelectorAll('.assess-input-gmc')];
+                                    const i = all.findIndex(el => el === e.target);
+                                    const dir = e.key === 'ArrowUp' ? -1 : 1;
+                                    const next = all[i + dir];
+                                    if (next) { next.focus(); next.select(); }
+                                  }}
                                   className="assess-input assess-input-gmc"
                                   style={{ width: 64 }} />
                                 <span style={{ fontSize: 11, color: '#6b7280' }}>%</span>
@@ -405,7 +412,7 @@ function PayAppDetail({ payapp, projectId, onBack, onStatusChange }) {
 
       <div className="assessment-header">
         <div className="assessment-title">
-          <span className="assessment-period">PayApp #{payapp.app_number} — {payapp.period}</span>
+          <span className="assessment-period">PayApp #{payapp.app_number} — {fmtPeriod(payapp.period)}</span>
           <span className="type-badge" style={{ background: STATUS_COLOR[payapp.status] + '18', color: STATUS_COLOR[payapp.status], border: `1px solid ${STATUS_COLOR[payapp.status]}40`, fontSize: 12 }}>
             {STATUS_LABEL[payapp.status]}
           </span>

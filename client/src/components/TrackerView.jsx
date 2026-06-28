@@ -102,6 +102,19 @@ function fridayRange(ref, before = 4, after = 2) {
   return result;
 }
 
+// All Fridays Jan 2026 → Dec 2027
+const ALL_TRACKER_WEEKS = (() => {
+  const weeks = [];
+  const d = new Date('2026-01-02T12:00:00');
+  while (d.getDay() !== 5) d.setDate(d.getDate() + 1);
+  const end = new Date('2027-12-31T12:00:00');
+  while (d <= end) {
+    weeks.push(d.toISOString().slice(0, 10));
+    d.setDate(d.getDate() + 7);
+  }
+  return weeks;
+})();
+
 // ── main component ───────────────────────────────────────────────────────────
 export default function TrackerView({ projectId, onSubCellClick }) {
   const [data,        setData]        = useState(null);
@@ -117,14 +130,23 @@ export default function TrackerView({ projectId, onSubCellClick }) {
 
   useEffect(() => { load(); }, [load]);
 
-  // Scroll to the rightmost column on load
+  // Scroll to show latest data (around today) on load
   useEffect(() => {
-    if (tableRef.current) tableRef.current.scrollLeft = tableRef.current.scrollWidth;
+    if (tableRef.current) {
+      const today = new Date().toISOString().slice(0, 10);
+      const idx = ALL_TRACKER_WEEKS.findIndex(w => w >= today);
+      const colW = 110; // approximate column width
+      tableRef.current.scrollLeft = Math.max(0, (idx - 3) * colW);
+    }
   }, [data?.rows?.length]);
 
   if (!data) return <div className="state-box"><div className="icon">⏳</div><p>Loading tracker…</p></div>;
 
-  const { rows, summary, sub_lines = {} } = data;
+  const { rows: dbRows, summary, sub_lines = {} } = data;
+  // Merge all pre-generated weeks with DB data; show empty cells for unsaved weeks
+  const rowMap = {};
+  dbRows.forEach((r, i) => { rowMap[r.week_ending] = { ...r, week_number: i + 1 }; });
+  const rows = ALL_TRACKER_WEEKS.map((w, i) => rowMap[w] || { week_ending: w, week_number: null, _empty: true });
   const { latest, previous, contractValue, totalBOQ } = summary;
 
   // Collect unique subs across all weeks (in order)
@@ -218,7 +240,7 @@ export default function TrackerView({ projectId, onSubCellClick }) {
         </div>
       </div>
 
-      {rows.length === 0 ? (
+      {dbRows.length === 0 ? (
         <div className="state-box">
           <div className="icon">📊</div>
           <p>No weeks entered yet. Click "+ Enter WE" to record the first week.</p>
@@ -236,9 +258,10 @@ export default function TrackerView({ projectId, onSubCellClick }) {
                   <div className="tracker-we-num">{rows.length} weeks</div>
                 </th>
                 {rows.map(r => (
-                  <th key={r.week_ending} className="tracker-col-head">
+                  <th key={r.week_ending} className="tracker-col-head"
+                    style={r._empty ? { opacity: 0.55 } : {}}>
                     <div className="tracker-we-label">WE {fmtWE(r.week_ending)}</div>
-                    <div className="tracker-we-num">Wk {r.week_number}</div>
+                    <div className="tracker-we-num">{r.week_number ? `Wk ${r.week_number}` : ''}</div>
                     <button className="tracker-edit-btn" onClick={() => openEntry(r.week_ending)}>edit</button>
                   </th>
                 ))}
@@ -418,6 +441,7 @@ export default function TrackerView({ projectId, onSubCellClick }) {
                         })()}
                       </td>
                       {rows.map(r => {
+                        if (r._empty) return <td key={r.week_ending} className="tracker-cell"><span className="zero">—</span></td>;
                         const val = r[row.key];
                         const isNeg = typeof val === 'number' && val < 0;
                         return (

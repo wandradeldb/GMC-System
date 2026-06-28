@@ -15,13 +15,13 @@ const SCHEDULE_LABELS = {
 };
 
 const NAV = [
-  { id: 'dashboard', label: 'Dashboard',      icon: '📈' },
-  { id: 'tracker', label: 'Cost Tracker',     icon: '📊' },
-  { id: 'sub',     label: 'Subcontracts',     icon: '🤝' },
-  { id: 'qscosts', label: 'QS Costs',         icon: '💰' },
-  { id: 'payapp',  label: 'Applications',     icon: '🧾' },
-  { id: 'das',     label: 'Daily Allocation', icon: '📋' },
-  { id: 'boq',     label: 'Revenue',          icon: '📄' },
+  { id: 'dashboard', label: 'Dashboard',        icon: '📈' },
+  { id: 'tracker',   label: 'Cost Tracker',     icon: '📊' },
+  { id: 'boq',       label: 'Revenue Generator',icon: '📄' },
+  { id: 'sub',       label: 'Subcontracts',     icon: '🤝' },
+  { id: 'qscosts',   label: 'QS Costs',         icon: '💰' },
+  { id: 'payapp',    label: 'Applications',     icon: '🧾' },
+  { id: 'das',       label: 'Daily Allocation', icon: '📋' },
 ];
 
 export default function App() {
@@ -70,7 +70,7 @@ export default function App() {
 
       <div className="main">
         <main className="content">
-          {project && activeNav !== 'tracker' && activeNav !== 'dashboard' && (
+          {project && ['boq-legacy'].includes(activeNav) && (
             <div className="project-card">
               <div>
                 <h1>{project.name}</h1>

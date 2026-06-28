@@ -16,6 +16,7 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
   const [selected,   setSelected]   = useState(null);
   const [assessment, setAssessment] = useState(null); // { id, ref, name, contract_value }
   const [showNew,    setShowNew]    = useState(false);
+  const [editing,    setEditing]    = useState(null); // sc object being edited
   const deepLinkDoneRef = useRef(null); // tracks which deepLinkSubName was already handled
 
   const load = useCallback(() => {
@@ -72,8 +73,17 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
           <p>No subcontracts yet. Click "New Subcontract" to begin.</p>
         </div>
       ) : (
-        <div className="sc-grid">
-          {list.map(sc => (
+        <>
+        {['main','misc'].map(type => {
+          const group = list.filter(sc => (sc.sub_type || 'main') === type);
+          if (group.length === 0) return null;
+          return (
+            <div key={type}>
+              <div style={{ fontWeight:700, fontSize:13, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.06em', margin:'18px 0 8px', paddingBottom:4, borderBottom:'1px solid #e5e7eb' }}>
+                {type === 'main' ? 'Main Subcontracts' : 'MISC'}
+              </div>
+              <div className="sc-grid">
+              {group.map(sc => (
             <div key={sc.id} className="sc-card" onClick={() => setSelected(sc.id)}
               style={{ cursor:'pointer' }} title="Open details">
               <div className="sc-card-header">
@@ -111,6 +121,12 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
                     background:'#1a1a2e', cursor:'pointer', fontSize:12, color:'#fff', fontWeight:600 }}>
                   📋 Assessment
                 </button>
+                <button onClick={(e) => { e.stopPropagation(); setEditing(sc); }}
+                  style={{ padding:'4px 10px', borderRadius:4, border:'1px solid #bfdbfe',
+                    background:'#eff6ff', cursor:'pointer', fontSize:11, color:'#1e40af',
+                    fontWeight:600, letterSpacing:'.03em' }}>
+                  edit
+                </button>
                 <button onClick={async (e) => {
                   e.stopPropagation();
                   if (!window.confirm(`Delete ${sc.ref} — ${sc.subcontractor_name}?\nThis also removes all its applications and BOQ items.`)) return;
@@ -122,8 +138,12 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
                 </button>
               </div>
             </div>
-          ))}
-        </div>
+              ))}
+              </div>
+            </div>
+          );
+        })}
+        </>
       )}
 
       {showNew && (
@@ -133,6 +153,112 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
           onCreated={(sc) => { setShowNew(false); load(); setSelected(sc.id); }}
         />
       )}
+
+      {editing && (
+        <EditSubcontractModal
+          projectId={projectId}
+          sc={editing}
+          onClose={() => setEditing(null)}
+          onSaved={() => { setEditing(null); load(); }}
+        />
+      )}
+    </div>
+  );
+}
+
+function EditSubcontractModal({ projectId, sc, onClose, onSaved }) {
+  const [form, setForm] = useState({
+    description:    sc.description    || '',
+    contract_value: sc.contract_value ?? '',
+    retention_pct:  sc.retention_pct  ?? 5,
+    start_date:     sc.start_date     || '',
+    end_date:       sc.end_date       || '',
+    status:         sc.status         || 'active',
+    sub_type:       sc.sub_type       || 'main',
+  });
+  const [saving, setSaving] = useState(false);
+  const [err,    setErr]    = useState('');
+  const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const save = async () => {
+    setSaving(true); setErr('');
+    const res = await fetch(`/api/v1/projects/${projectId}/subcontracts/${sc.id}`, {
+      method: 'PATCH',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        description:    form.description   || null,
+        contract_value: parseFloat(form.contract_value) || null,
+        retention_pct:  parseFloat(form.retention_pct)  || null,
+        start_date:     form.start_date || null,
+        end_date:       form.end_date   || null,
+        status:         form.status     || null,
+        sub_type:       form.sub_type   || 'main',
+      }),
+    });
+    setSaving(false);
+    if (res.ok) onSaved();
+    else setErr('Error saving — check server.');
+  };
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <h3>Edit {sc.ref}</h3>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body">
+          <div style={{ padding:'8px 12px', background:'#f0fdf4', borderRadius:6, fontSize:13, color:'#166534', fontWeight:600, marginBottom:12 }}>
+            {sc.subcontractor_name}
+          </div>
+          <div className="section-grid">
+            <div className="field span2">
+              <label className="field-label">Description / Scope</label>
+              <input value={form.description} onChange={e => set('description', e.target.value)} />
+            </div>
+            <div className="field">
+              <label className="field-label">Contract Value (€)</label>
+              <input type="number" step="0.01" value={form.contract_value} onChange={e => set('contract_value', e.target.value)} />
+            </div>
+            <div className="field">
+              <label className="field-label">Retention %</label>
+              <input type="number" step="0.5" min="0" max="10" value={form.retention_pct} onChange={e => set('retention_pct', e.target.value)} />
+            </div>
+            <div className="field">
+              <label className="field-label">Start Date</label>
+              <input type="date" value={form.start_date} onChange={e => set('start_date', e.target.value)} />
+            </div>
+            <div className="field">
+              <label className="field-label">End Date</label>
+              <input type="date" value={form.end_date} onChange={e => set('end_date', e.target.value)} />
+            </div>
+            <div className="field">
+              <label className="field-label">Status</label>
+              <select value={form.status} onChange={e => set('status', e.target.value)}
+                style={{ padding:'7px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:13 }}>
+                <option value="active">Active</option>
+                <option value="completed">Completed</option>
+                <option value="terminated">Terminated</option>
+              </select>
+            </div>
+            <div className="field">
+              <label className="field-label">Type</label>
+              <select value={form.sub_type} onChange={e => set('sub_type', e.target.value)}
+                style={{ padding:'7px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:13 }}>
+                <option value="main">Main</option>
+                <option value="misc">MISC</option>
+              </select>
+            </div>
+          </div>
+          {err && <div style={{ color:'#dc2626', fontSize:13, marginTop:8 }}>{err}</div>}
+        </div>
+        <div className="modal-footer">
+          <button className="btn-secondary" onClick={onClose}>Cancel</button>
+          <button className="btn-primary" onClick={save} disabled={saving}>
+            {saving ? 'Saving…' : 'Save Changes'}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

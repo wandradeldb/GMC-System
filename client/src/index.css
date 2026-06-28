@@ -48,13 +48,13 @@ body {
 .topbar-project { font-size: 13px; color: rgba(255,255,255,0.7); }
 
 .topbar-nav-btn {
-  padding: 9px 20px;
+  padding: 7px 13px;
   border: none;
   border-radius: 6px;
   cursor: pointer;
   background: transparent;
   color: #e5e7eb;
-  font-size: 16px;
+  font-size: 12px;
   font-weight: 600;
   flex-shrink: 0;
   white-space: nowrap;
@@ -436,7 +436,9 @@ body {
 .approved-by        { font-size:12px; color:#6b7280; }
 
 /* ── Assessment table inputs ── */
-.assess-input { width:80px; padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:13px; text-align:right; outline:none; }
+.assess-input { width:80px; padding:4px 6px; border:1px solid #d1d5db; border-radius:4px; font-size:13px; text-align:right; outline:none; -moz-appearance:textfield; }
+.assess-input::-webkit-inner-spin-button,
+.assess-input::-webkit-outer-spin-button { -webkit-appearance:none; margin:0; }
 .assess-input:focus       { border-color:#1d4ed8; }
 .assess-input-gmc:focus   { border-color:#16a34a; }
 .assess-input:disabled    { background:#f9fafb; border-color:transparent; color:#6b7280; }

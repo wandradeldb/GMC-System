@@ -20,6 +20,25 @@ const SECTION_COL = {
   'Commission':    'rev_commissioning',
 };
 
+// ── GET /projects/:pid/revenue/history ─── todas as WE com dados por atividade ──
+router.get('/projects/:pid/revenue/history', (req, res) => {
+  const con = db();
+  const { pid } = req.params;
+  const weeks = con.prepare(
+    'SELECT DISTINCT week_ending FROM revenue_week WHERE project_id=? ORDER BY week_ending ASC'
+  ).all(pid).map(r => r.week_ending);
+  const rows = con.prepare(
+    'SELECT activity_id, week_ending, pct_complete, revenue FROM revenue_week WHERE project_id=? ORDER BY week_ending ASC'
+  ).all(pid);
+  con.close();
+  const data = {};
+  rows.forEach(r => {
+    if (!data[r.activity_id]) data[r.activity_id] = {};
+    data[r.activity_id][r.week_ending] = { pct: r.pct_complete, rev: r.revenue };
+  });
+  res.json({ weeks, data });
+});
+
 // ── GET /projects/:pid/revenue/activities ─── lista de atividades (vista contrato) ──
 router.get('/projects/:pid/revenue/activities', (req, res) => {
   const con = db();
@@ -82,7 +101,7 @@ router.put('/projects/:pid/revenue/week/:we', (req, res) => {
     for (const it of items) {
       const a = actMap[it.activity_id];
       if (!a) continue;
-      const pct = Math.max(0, Number(it.pct_complete) || 0);
+      const pct = Math.min(100, Math.max(0, Number(it.pct_complete) || 0));
       const rev = Math.round(pct / 100 * (a.contract_value || 0) * 100) / 100;
       up.run(pid, it.activity_id, we, pct, it.sub_id || null, rev);
     }

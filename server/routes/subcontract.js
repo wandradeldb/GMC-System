@@ -92,11 +92,11 @@ router.patch('/projects/:pid/subcontracts/:id', (req, res) => {
   const con = db();
   const sc = con.prepare('SELECT id FROM subcontract WHERE id=? AND project_id=?').get(req.params.id, req.params.pid);
   if (!sc) throw notFound('Subcontract not found');
-  const { description, contract_value, retention_pct, start_date, end_date, status } = req.body;
+  const { description, contract_value, retention_pct, start_date, end_date, status, sub_type } = req.body;
   con.prepare(`UPDATE subcontract SET description=COALESCE(?,description), contract_value=COALESCE(?,contract_value),
     retention_pct=COALESCE(?,retention_pct), start_date=COALESCE(?,start_date), end_date=COALESCE(?,end_date),
-    status=COALESCE(?,status) WHERE id=?`)
-   .run(description||null, contract_value??null, retention_pct??null, start_date||null, end_date||null, status||null, sc.id);
+    status=COALESCE(?,status), sub_type=COALESCE(?,sub_type) WHERE id=?`)
+   .run(description||null, contract_value??null, retention_pct??null, start_date||null, end_date||null, status||null, sub_type||null, sc.id);
   res.json(con.prepare('SELECT * FROM subcontract WHERE id=?').get(sc.id));
   con.close();
 });

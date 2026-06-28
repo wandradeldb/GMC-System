@@ -97,8 +97,8 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
         {[
           { id:'overview',    label:`Applications (${applications.length})` },
           { id:'boq',         label:`Sub BOQ (${boq_items.length})` },
-          { id:'ces',         label:`CEs (${compensation_events.length})` },
-          { id:'payments',    label:'Payment Calendar' },
+          { id:'ces',         label:`Variations (${compensation_events.length})` },
+          { id:'payments',    label:'Tracker Invoices' },
         ].map(t => (
           <button key={t.id} className={`das-tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
             {t.label}
