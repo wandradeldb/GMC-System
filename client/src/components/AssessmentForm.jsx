@@ -1,7 +1,8 @@
+﻿import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect } from 'react';
 
 function fmt(n, d=2) {
-  if (n == null || isNaN(n)) return '—';
+  if (n == null || isNaN(n)) return 'â€”';
   return new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 }
 
@@ -20,7 +21,7 @@ export default function AssessmentForm({ projectId, subcontractId, subcontract, 
   };
 
   useEffect(() => {
-    fetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${period}`)
+    apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${period}`)
       .then(r => r.json())
       .then(d => {
         setData(d);
@@ -54,7 +55,7 @@ export default function AssessmentForm({ projectId, subcontractId, subcontract, 
       items: items.map(i => ({ sub_boq_item_id: i.sub_boq_item_id, qty_complete_sub: parseFloat(i.qty_complete_sub)||0, qty_complete_gmc: parseFloat(i.qty_complete_gmc)||0, notes: i.notes })),
       header: { ...header, status: newStatus || header.status },
     };
-    const r = await fetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${period}`, {
+    const r = await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${period}`, {
       method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
     }).then(r => r.json());
     setHeader(r.application);
@@ -65,24 +66,24 @@ export default function AssessmentForm({ projectId, subcontractId, subcontract, 
   const approve = async () => {
     const by = prompt('QS approved by (name):');
     if (!by) return;
-    const r = await fetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${data.application.id}/approve`, {
+    const r = await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${data.application.id}/approve`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ approved_by: by }),
     }).then(r => r.json());
     setHeader(r);
   };
 
   const submitInvoice = async () => {
-    await fetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${data.application.id}/invoices`, {
+    await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${data.application.id}/invoices`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ ...invForm, gross_amount: parseFloat(invForm.gross_amount)||0, retention_amount: parseFloat(invForm.retention_amount)||0 }),
     });
     setShowInv(false);
     // Reload
-    fetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${period}`)
+    apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${period}`)
       .then(r => r.json()).then(d => { setData(d); setHeader(d.application); });
   };
 
-  if (!data) return <div className="state-box"><div className="icon">⏳</div><p>Loading…</p></div>;
+  if (!data) return <div className="state-box"><div className="icon">â³</div><p>Loadingâ€¦</p></div>;
 
   const app       = header;
   const isLocked  = ['invoiced','paid'].includes(app.status);
@@ -95,7 +96,7 @@ export default function AssessmentForm({ projectId, subcontractId, subcontract, 
   return (
     <div>
       <div className="detail-nav">
-        <button className="btn-back" onClick={onBack}>← {subcontract.ref}</button>
+        <button className="btn-back" onClick={onBack}>â† {subcontract.ref}</button>
       </div>
 
       {/* Assessment header */}
@@ -109,21 +110,21 @@ export default function AssessmentForm({ projectId, subcontractId, subcontract, 
         </div>
 
         <div className="assessment-kpis">
-          <div className="assess-kpi"><div className="kpi-label">Sub Claim</div><div className="kpi-value" style={{color:'#1e40af'}}>€{fmt(totalSub)}</div></div>
-          <div className="assess-kpi"><div className="kpi-label">GMC Certified</div><div className="kpi-value" style={{color:'#166534'}}>€{fmt(totalGmc)}</div></div>
+          <div className="assess-kpi"><div className="kpi-label">Sub Claim</div><div className="kpi-value" style={{color:'#1e40af'}}>â‚¬{fmt(totalSub)}</div></div>
+          <div className="assess-kpi"><div className="kpi-label">GMC Certified</div><div className="kpi-value" style={{color:'#166534'}}>â‚¬{fmt(totalGmc)}</div></div>
           <div className="assess-kpi"><div className="kpi-label">Delta</div>
             <div className="kpi-value" style={{color: delta < 0 ? '#dc2626' : '#166534'}}>{delta>=0?'+':''}{fmt(delta)}</div></div>
-          <div className="assess-kpi"><div className="kpi-label">Net Payable</div><div className="kpi-value">€{fmt(app.net_payable)}</div></div>
+          <div className="assess-kpi"><div className="kpi-label">Net Payable</div><div className="kpi-value">â‚¬{fmt(app.net_payable)}</div></div>
         </div>
 
         <div className="assessment-actions">
           {!isLocked && (
             <>
               <button className="btn-save" onClick={() => save('assessed')} disabled={saving}>
-                {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save & Mark Assessed'}
+                {saving ? 'Savingâ€¦' : saved ? 'âœ“ Saved' : 'Save & Mark Assessed'}
               </button>
               {canApprove && (
-                <button className="btn-approve" onClick={approve}>✓ Approve</button>
+                <button className="btn-approve" onClick={approve}>âœ“ Approve</button>
               )}
             </>
           )}
@@ -131,7 +132,7 @@ export default function AssessmentForm({ projectId, subcontractId, subcontract, 
             <button className="btn-primary" onClick={() => setShowInv(true)}>Record Invoice</button>
           )}
           {app.qs_approved_by && (
-            <span className="approved-by">Approved by {app.qs_approved_by} · {app.qs_approved_date}</span>
+            <span className="approved-by">Approved by {app.qs_approved_by} Â· {app.qs_approved_date}</span>
           )}
         </div>
       </div>
@@ -145,9 +146,9 @@ export default function AssessmentForm({ projectId, subcontractId, subcontract, 
               <input value={invForm.invoice_number} onChange={e => setInvForm(f=>({...f,invoice_number:e.target.value}))} placeholder="INV-001" /></div>
             <div className="field"><label className="field-label">Invoice Date</label>
               <input type="date" value={invForm.invoice_date} onChange={e => setInvForm(f=>({...f,invoice_date:e.target.value}))} /></div>
-            <div className="field"><label className="field-label">Gross Amount (€)</label>
+            <div className="field"><label className="field-label">Gross Amount (â‚¬)</label>
               <input type="number" step="0.01" value={invForm.gross_amount} onChange={e => setInvForm(f=>({...f,gross_amount:e.target.value}))} /></div>
-            <div className="field"><label className="field-label">Retention (€)</label>
+            <div className="field"><label className="field-label">Retention (â‚¬)</label>
               <input type="number" step="0.01" value={invForm.retention_amount} onChange={e => setInvForm(f=>({...f,retention_amount:e.target.value}))} /></div>
           </div>
           <div style={{ display:'flex', gap:8, marginTop:12 }}>
@@ -162,7 +163,7 @@ export default function AssessmentForm({ projectId, subcontractId, subcontract, 
         <div className="inline-form" style={{ marginBottom:16 }}>
           <div className="modal-section-label">Invoices</div>
           <table className="boq-table">
-            <thead><tr><th>Invoice No.</th><th>Date</th><th className="col-num">Gross (€)</th><th className="col-num">Retention (€)</th><th className="col-num">Net (€)</th><th>Sent Finance</th><th>Payment Run</th><th>Status</th></tr></thead>
+            <thead><tr><th>Invoice No.</th><th>Date</th><th className="col-num">Gross (â‚¬)</th><th className="col-num">Retention (â‚¬)</th><th className="col-num">Net (â‚¬)</th><th>Sent Finance</th><th>Payment Run</th><th>Status</th></tr></thead>
             <tbody>
               {data.invoices.map(inv => (
                 <tr key={inv.id}>
@@ -171,8 +172,8 @@ export default function AssessmentForm({ projectId, subcontractId, subcontract, 
                   <td className="col-num">{fmt(inv.gross_amount)}</td>
                   <td className="col-num" style={{color:'#7c3aed'}}>{fmt(inv.retention_amount)}</td>
                   <td className="col-num" style={{fontWeight:700}}>{fmt(inv.net_amount)}</td>
-                  <td style={{fontSize:12}}>{inv.sent_finance_date || '—'}</td>
-                  <td style={{fontSize:12}}>{inv.run_ref || '—'}</td>
+                  <td style={{fontSize:12}}>{inv.sent_finance_date || 'â€”'}</td>
+                  <td style={{fontSize:12}}>{inv.run_ref || 'â€”'}</td>
                   <td><span className="status-badge" style={{background:'#ede9fe',color:'#7c3aed'}}>{inv.status}</span></td>
                 </tr>
               ))}
@@ -192,7 +193,7 @@ export default function AssessmentForm({ projectId, subcontractId, subcontract, 
               <div className="schedule-header">
                 <span className="schedule-title">{sec}</span>
                 <span className="schedule-total" style={{ fontSize:13 }}>
-                  Sub: €{fmt(secSub)} · GMC: €{fmt(secGmc)}
+                  Sub: â‚¬{fmt(secSub)} Â· GMC: â‚¬{fmt(secGmc)}
                 </span>
               </div>
               <table className="boq-table">
@@ -203,10 +204,10 @@ export default function AssessmentForm({ projectId, subcontractId, subcontract, 
                     <th className="col-unit">Unit</th>
                     <th className="col-num">Contracted</th>
                     <th className="col-num" style={{background:'#eff6ff'}}>Sub Qty</th>
-                    <th className="col-num" style={{background:'#eff6ff'}}>Sub Value (€)</th>
+                    <th className="col-num" style={{background:'#eff6ff'}}>Sub Value (â‚¬)</th>
                     <th className="col-num" style={{background:'#f0fdf4'}}>GMC Qty</th>
-                    <th className="col-num" style={{background:'#f0fdf4'}}>GMC Value (€)</th>
-                    <th className="col-num">Rate (€)</th>
+                    <th className="col-num" style={{background:'#f0fdf4'}}>GMC Value (â‚¬)</th>
+                    <th className="col-num">Rate (â‚¬)</th>
                     <th>Notes</th>
                   </tr>
                 </thead>

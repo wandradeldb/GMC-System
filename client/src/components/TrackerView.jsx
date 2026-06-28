@@ -1,25 +1,26 @@
+﻿import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import ProgressSheet from './ProgressSheet.jsx';
 
-// ── helpers ─────────────────────────────────────────────────────────────────
+// â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const fmt = (n, d = 0) => {
-  if (n == null || isNaN(n)) return '—';
+  if (n == null || isNaN(n)) return 'â€”';
   return new Intl.NumberFormat('en-IE', {
     minimumFractionDigits: d,
     maximumFractionDigits: d,
   }).format(n);
 };
-const fmtPct = n => (n == null ? '—' : `${Number(n).toFixed(1)}%`);
+const fmtPct = n => (n == null ? 'â€”' : `${Number(n).toFixed(1)}%`);
 const fmtWE  = we => {
-  if (!we) return '—';
+  if (!we) return 'â€”';
   const d = new Date(we + 'T12:00:00');
   return d.toLocaleDateString('en-IE', { day: 'numeric', month: 'short' });
 };
 
-// ── row definitions ──────────────────────────────────────────────────────────
+// â”€â”€ row definitions â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const REV_ROWS = [
-  { key: 'rev_prelims_fixed', label: 'Prelims — Fixed',   group: 'rev' },
-  { key: 'rev_prelims_time',  label: 'Prelims — Time',    group: 'rev' },
+  { key: 'rev_prelims_fixed', label: 'Prelims â€” Fixed',   group: 'rev' },
+  { key: 'rev_prelims_time',  label: 'Prelims â€” Time',    group: 'rev' },
   { key: 'rev_ae',            label: 'A&E / Design',      group: 'rev' },
   { key: 'rev_civil',         label: 'Civil',             group: 'rev' },
   { key: 'rev_meica',         label: 'MEICA',             group: 'rev' },
@@ -54,7 +55,7 @@ const EFA_ROWS = [
 
 const ALL_ROWS = [...REV_ROWS, ...COST_ROWS, ...MARGIN_ROWS, ...EFA_ROWS];
 
-// ── group styling ────────────────────────────────────────────────────────────
+// â”€â”€ group styling â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const GROUP_STYLE = {
   'rev':        { bg: '#f8faff' },
   'rev-total':  { bg: '#dbeafe', fontWeight: 700 },
@@ -72,10 +73,10 @@ const SECTION_HEADERS = [
   { before: 'rev_prelims_fixed', label: 'REVENUE', color: '#1e40af', bg: '#1e40af' },
   { before: 'cost_subs',         label: 'COST',    color: '#92400e', bg: '#b45309' },
   { before: 'margin_week',       label: 'MARGIN',  color: '#166534', bg: '#16a34a' },
-  { before: 'efa_revenue',       label: 'EFA — ESTIMATED FINAL ACCOUNT', color: '#7c3aed', bg: '#7c3aed' },
+  { before: 'efa_revenue',       label: 'EFA â€” ESTIMATED FINAL ACCOUNT', color: '#7c3aed', bg: '#7c3aed' },
 ];
 
-// ── nextFriday ───────────────────────────────────────────────────────────────
+// â”€â”€ nextFriday â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function nextFriday(from) {
   const d = from ? new Date(from + 'T12:00:00') : new Date();
   const diff = (5 - d.getDay() + 7) % 7 || 7;
@@ -102,7 +103,7 @@ function fridayRange(ref, before = 4, after = 2) {
   return result;
 }
 
-// All Fridays Jan 2026 → Dec 2027
+// All Fridays Jan 2026 â†’ Dec 2027
 const ALL_TRACKER_WEEKS = (() => {
   const weeks = [];
   const d = new Date('2026-01-02T12:00:00');
@@ -115,7 +116,7 @@ const ALL_TRACKER_WEEKS = (() => {
   return weeks;
 })();
 
-// ── main component ───────────────────────────────────────────────────────────
+// â”€â”€ main component â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 export default function TrackerView({ projectId, onSubCellClick }) {
   const [data,        setData]        = useState(null);
   const [showEntry,   setShowEntry]   = useState(false);
@@ -124,7 +125,7 @@ export default function TrackerView({ projectId, onSubCellClick }) {
   const tableRef = useRef(null);
 
   const load = useCallback(() => {
-    fetch(`/api/v1/projects/${projectId}/tracker`)
+    apiFetch(`/api/v1/projects/${projectId}/tracker`)
       .then(r => r.json()).then(setData);
   }, [projectId]);
 
@@ -140,7 +141,7 @@ export default function TrackerView({ projectId, onSubCellClick }) {
     }
   }, [data?.rows?.length]);
 
-  if (!data) return <div className="state-box"><div className="icon">⏳</div><p>Loading tracker…</p></div>;
+  if (!data) return <div className="state-box"><div className="icon">â³</div><p>Loading trackerâ€¦</p></div>;
 
   const { rows: dbRows, summary, sub_lines = {} } = data;
   // Merge all pre-generated weeks with DB data; show empty cells for unsaved weeks
@@ -206,23 +207,23 @@ export default function TrackerView({ projectId, onSubCellClick }) {
 
   return (
     <div className="tracker-container">
-      {/* ── Project Summary ──────────────────────────────────────── */}
+      {/* â”€â”€ Project Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="tracker-summary">
-        <SummaryCard label="Contract Value"   value={`€${fmt(contractValue, 0)}`} color="#1a1a2e" />
-        <SummaryCard label="BOQ Total"        value={`€${fmt(totalBOQ, 0)}`}      sub="120 items"         color="#374151" />
+        <SummaryCard label="Contract Value"   value={`â‚¬${fmt(contractValue, 0)}`} color="#1a1a2e" />
+        <SummaryCard label="BOQ Total"        value={`â‚¬${fmt(totalBOQ, 0)}`}      sub="120 items"         color="#374151" />
         <div className="summary-divider" />
-        <SummaryCard label="This Week"        value={`€${fmt(latest?.rev_total_week, 0)}`}   sub={`WE ${fmtWE(latest?.week_ending)}`}      color="#1e40af" />
-        <SummaryCard label="Previous Week"    value={`€${fmt(previous?.rev_total_week, 0)}`} sub={`WE ${fmtWE(previous?.week_ending)}`}    color="#374151" />
-        <SummaryCard label="Revenue Cumulative" value={`€${fmt(latest?.rev_cumulative, 0)}`} sub={latest && totalBOQ > 0 ? fmtPct(latest.rev_cumulative / totalBOQ * 100) + ' complete' : '—'} color="#166534" />
+        <SummaryCard label="This Week"        value={`â‚¬${fmt(latest?.rev_total_week, 0)}`}   sub={`WE ${fmtWE(latest?.week_ending)}`}      color="#1e40af" />
+        <SummaryCard label="Previous Week"    value={`â‚¬${fmt(previous?.rev_total_week, 0)}`} sub={`WE ${fmtWE(previous?.week_ending)}`}    color="#374151" />
+        <SummaryCard label="Revenue Cumulative" value={`â‚¬${fmt(latest?.rev_cumulative, 0)}`} sub={latest && totalBOQ > 0 ? fmtPct(latest.rev_cumulative / totalBOQ * 100) + ' complete' : 'â€”'} color="#166534" />
         <div className="summary-divider" />
-        <SummaryCard label="Margin This Week" value={`€${fmt(latest?.margin_week, 0)}`}        sub="week contribution"    color={latest?.margin_week >= 0 ? '#166534' : '#dc2626'} />
-        <SummaryCard label="Margin Cumulative" value={`€${fmt(latest?.margin_cumulative, 0)}`} sub={fmtPct(latest?.margin_pct)}              color={latest?.margin_pct >= 0 ? '#166534' : '#dc2626'} />
+        <SummaryCard label="Margin This Week" value={`â‚¬${fmt(latest?.margin_week, 0)}`}        sub="week contribution"    color={latest?.margin_week >= 0 ? '#166534' : '#dc2626'} />
+        <SummaryCard label="Margin Cumulative" value={`â‚¬${fmt(latest?.margin_cumulative, 0)}`} sub={fmtPct(latest?.margin_pct)}              color={latest?.margin_pct >= 0 ? '#166534' : '#dc2626'} />
         <div className="summary-divider" />
-        <SummaryCard label="EFA Revenue"      value={`€${fmt(latest?.efa_revenue, 0)}`}      sub="estimated final"       color="#7c3aed" />
+        <SummaryCard label="EFA Revenue"      value={`â‚¬${fmt(latest?.efa_revenue, 0)}`}      sub="estimated final"       color="#7c3aed" />
         <SummaryCard label="EFA Margin %"     value={fmtPct(latest?.efa_margin_pct)}         sub={`target ${fmtPct(latest?.target_margin_pct)}`} color={latest?.efa_margin_pct >= (latest?.target_margin_pct || 8) ? '#166534' : '#dc2626'} />
       </div>
 
-      {/* ── Toolbar ──────────────────────────────────────────────── */}
+      {/* â”€â”€ Toolbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
       <div className="tracker-toolbar">
         <h2 className="sc-title">Weekly Cost Tracker</h2>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -230,29 +231,29 @@ export default function TrackerView({ projectId, onSubCellClick }) {
             style={{ padding:'7px 10px', borderRadius:8, border:'1px solid #d1d5db', fontSize:13, background:'#fff', cursor:'pointer' }}>
             {weOptions.map(w => (
               <option key={w} value={w}>
-                WE {fmtWE(w)}{existingWEs.has(w) ? ' ✎' : ' — new'}
+                WE {fmtWE(w)}{existingWEs.has(w) ? ' âœŽ' : ' â€” new'}
               </option>
             ))}
           </select>
           <button className="btn-primary" onClick={() => openEntry(activeWE)}>
-            {existingWEs.has(activeWE) ? '✎ Edit WE' : '+ Enter WE'}
+            {existingWEs.has(activeWE) ? 'âœŽ Edit WE' : '+ Enter WE'}
           </button>
         </div>
       </div>
 
       {dbRows.length === 0 ? (
         <div className="state-box">
-          <div className="icon">📊</div>
+          <div className="icon">ðŸ“Š</div>
           <p>No weeks entered yet. Click "+ Enter WE" to record the first week.</p>
         </div>
       ) : (
-        /* ── Tracker Matrix ───────────────────────────────────────── */
+        /* â”€â”€ Tracker Matrix â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
         <div className="tracker-scroll-wrap" ref={tableRef}>
           <table className="tracker-table">
             <thead>
               <tr>
                 <th className="tracker-row-label-head">Metric</th>
-                {/* Cumulative column — sticky after label */}
+                {/* Cumulative column â€” sticky after label */}
                 <th className="tracker-col-head tracker-cum-head">
                   <div className="tracker-we-label">CUMULATIVE</div>
                   <div className="tracker-we-num">{rows.length} weeks</div>
@@ -283,7 +284,7 @@ export default function TrackerView({ projectId, onSubCellClick }) {
                       </tr>
                     )}
 
-                    {/* ── Sub breakdown rows — injected before cost_subs ── */}
+                    {/* â”€â”€ Sub breakdown rows â€” injected before cost_subs â”€â”€ */}
                     {row.key === 'cost_subs' && subList.length > 0 && (
                       <>
                         {subList.map((sub, si) => {
@@ -291,7 +292,7 @@ export default function TrackerView({ projectId, onSubCellClick }) {
                           const cum = subCumTotals[sub.sub_name];
                           return (
                             <Fragment key={sub.sub_name}>
-                              {/* Sub name header — primeira célula sticky */}
+                              {/* Sub name header â€” primeira cÃ©lula sticky */}
                               <tr key={`sub-hdr-${sub.sub_name}`}>
                                 <td className="tracker-row-label"
                                   style={{ background: pal.hdr, color:'#fff', fontWeight:700, fontSize:10, letterSpacing:'0.08em', padding:'2px 20px', textTransform:'uppercase', zIndex:2 }}>
@@ -300,19 +301,19 @@ export default function TrackerView({ projectId, onSubCellClick }) {
                                 <td style={{ background: pal.hdr, position:'sticky', left:200, zIndex:1 }} />
                                 {rows.map(r => <td key={r.week_ending} style={{ background: pal.hdr }} />)}
                               </tr>
-                              {/* Costs — Payment */}
+                              {/* Costs â€” Payment */}
                               <tr key={`sub-cp-${sub.sub_name}`} style={{ background: pal.bg }}>
-                                <td className="tracker-row-label" style={{ background: pal.bg, paddingLeft:28, fontSize:12 }}>Costs — Payment</td>
+                                <td className="tracker-row-label" style={{ background: pal.bg, paddingLeft:28, fontSize:12 }}>Costs â€” Payment</td>
                                 <td className="tracker-cell tracker-cum-cell" style={{ fontWeight:700, cursor: cum.cost_payment && onSubCellClick ? 'pointer' : 'default' }}
                                   onClick={() => cum.cost_payment && onSubCellClick && onSubCellClick(sub.sub_name)}>
-                                  {cum.cost_payment ? <span style={{ color: onSubCellClick ? '#1d4ed8' : undefined }}>{`€${fmt(cum.cost_payment,0)}`}</span> : <span className="zero">—</span>}
+                                  {cum.cost_payment ? <span style={{ color: onSubCellClick ? '#1d4ed8' : undefined }}>{`â‚¬${fmt(cum.cost_payment,0)}`}</span> : <span className="zero">â€”</span>}
                                 </td>
                                 {rows.map(r => {
                                   const sl = (sub_lines[r.week_ending] || []).find(s => s.sub_name === sub.sub_name);
                                   const v = sl?.cost_payment || 0;
                                   return <td key={r.week_ending} className="tracker-cell" style={{ borderTop:`1px solid ${pal.border}`, cursor: v && onSubCellClick ? 'pointer' : 'default' }}
                                     onClick={() => v && onSubCellClick && onSubCellClick(sub.sub_name)}>
-                                    {v ? <span style={{ color: onSubCellClick ? '#1d4ed8' : undefined, fontWeight: onSubCellClick ? 600 : undefined }}>{`€${fmt(v,0)}`}</span> : <span className="zero">—</span>}
+                                    {v ? <span style={{ color: onSubCellClick ? '#1d4ed8' : undefined, fontWeight: onSubCellClick ? 600 : undefined }}>{`â‚¬${fmt(v,0)}`}</span> : <span className="zero">â€”</span>}
                                   </td>;
                                 })}
                               </tr>
@@ -320,13 +321,13 @@ export default function TrackerView({ projectId, onSubCellClick }) {
                               <tr key={`sub-mat-${sub.sub_name}`} style={{ background: pal.bg }}>
                                 <td className="tracker-row-label" style={{ background: pal.bg, paddingLeft:28, fontSize:12 }}>Material &amp; Disposal</td>
                                 <td className="tracker-cell tracker-cum-cell" style={{ fontWeight:700 }}>
-                                  {cum.cost_material ? `€${fmt(cum.cost_material,0)}` : <span className="zero">—</span>}
+                                  {cum.cost_material ? `â‚¬${fmt(cum.cost_material,0)}` : <span className="zero">â€”</span>}
                                 </td>
                                 {rows.map(r => {
                                   const sl = (sub_lines[r.week_ending] || []).find(s => s.sub_name === sub.sub_name);
                                   const v = sl?.cost_material || 0;
                                   return <td key={r.week_ending} className="tracker-cell" style={{ borderTop:`1px solid ${pal.border}` }}>
-                                    {v ? `€${fmt(v,0)}` : <span className="zero">—</span>}
+                                    {v ? `â‚¬${fmt(v,0)}` : <span className="zero">â€”</span>}
                                   </td>;
                                 })}
                               </tr>
@@ -334,28 +335,28 @@ export default function TrackerView({ projectId, onSubCellClick }) {
                               <tr key={`sub-rev-${sub.sub_name}`} style={{ background: pal.bg }}>
                                 <td className="tracker-row-label" style={{ background: pal.bg, paddingLeft:28, fontSize:12, color:'#16a34a', fontWeight:600 }}>Revenue Generated</td>
                                 <td className="tracker-cell tracker-cum-cell" style={{ fontWeight:700, color:'#16a34a' }}>
-                                  {cum.revenue_generated ? `€${fmt(cum.revenue_generated,0)}` : <span className="zero">—</span>}
+                                  {cum.revenue_generated ? `â‚¬${fmt(cum.revenue_generated,0)}` : <span className="zero">â€”</span>}
                                 </td>
                                 {rows.map(r => {
                                   const sl = (sub_lines[r.week_ending] || []).find(s => s.sub_name === sub.sub_name);
                                   const v = sl?.revenue_generated || 0;
                                   return <td key={r.week_ending} className="tracker-cell" style={{ borderTop:`1px solid ${pal.border}`, color:'#16a34a' }}>
-                                    {v ? `€${fmt(v,0)}` : <span className="zero">—</span>}
+                                    {v ? `â‚¬${fmt(v,0)}` : <span className="zero">â€”</span>}
                                   </td>;
                                 })}
                               </tr>
-                              {/* Planned Cost (forecast) — só aparece se houver valores */}
+                              {/* Planned Cost (forecast) â€” sÃ³ aparece se houver valores */}
                               {cum.planned_cost > 0 && (
                                 <tr key={`sub-plan-${sub.sub_name}`} style={{ background: pal.bg, opacity: 0.75 }}>
                                   <td className="tracker-row-label" style={{ background: pal.bg, paddingLeft:28, fontSize:11, color:'#6b7280', fontStyle:'italic' }}>Planned (forecast)</td>
                                   <td className="tracker-cell tracker-cum-cell" style={{ fontWeight:700, color:'#6b7280', fontStyle:'italic' }}>
-                                    {cum.planned_cost ? `€${fmt(cum.planned_cost,0)}` : <span className="zero">—</span>}
+                                    {cum.planned_cost ? `â‚¬${fmt(cum.planned_cost,0)}` : <span className="zero">â€”</span>}
                                   </td>
                                   {rows.map(r => {
                                     const sl = (sub_lines[r.week_ending] || []).find(s => s.sub_name === sub.sub_name);
                                     const v = sl?.planned_cost || 0;
                                     return <td key={r.week_ending} className="tracker-cell" style={{ borderTop:`1px dashed ${pal.border}`, color:'#6b7280', fontStyle:'italic' }}>
-                                      {v ? `€${fmt(v,0)}` : <span className="zero">—</span>}
+                                      {v ? `â‚¬${fmt(v,0)}` : <span className="zero">â€”</span>}
                                     </td>;
                                   })}
                                 </tr>
@@ -364,22 +365,22 @@ export default function TrackerView({ projectId, onSubCellClick }) {
                           );
                         })}
 
-                        {/* GMC OP — Plant (unallocated) */}
+                        {/* GMC OP â€” Plant (unallocated) */}
                         <tr key="gmc-op-hdr">
                           <td colSpan={colSpan}
                             style={{ background:'#475569', color:'#fff', fontWeight:700, fontSize:10, letterSpacing:'0.08em', padding:'2px 20px', textTransform:'uppercase' }}>
-                            GMC OP — Plant (Unallocated)
+                            GMC OP â€” Plant (Unallocated)
                           </td>
                         </tr>
                         <tr key="gmc-op" style={{ background:'#f8fafc' }}>
                           <td className="tracker-row-label" style={{ background:'#f8fafc', paddingLeft:28, fontSize:12 }}>Plant Cost</td>
                           <td className="tracker-cell tracker-cum-cell" style={{ fontWeight:700 }}>
-                            {gmcOpCum ? `€${fmt(gmcOpCum,0)}` : <span className="zero">—</span>}
+                            {gmcOpCum ? `â‚¬${fmt(gmcOpCum,0)}` : <span className="zero">â€”</span>}
                           </td>
                           {rows.map(r => {
                             const v = sub_lines[r.week_ending]?.__gmc_op__?.gmc_op_plant || 0;
                             return <td key={r.week_ending} className="tracker-cell">
-                              {v ? `€${fmt(v,0)}` : <span className="zero">—</span>}
+                              {v ? `â‚¬${fmt(v,0)}` : <span className="zero">â€”</span>}
                             </td>;
                           })}
                         </tr>
@@ -392,26 +393,26 @@ export default function TrackerView({ projectId, onSubCellClick }) {
                           </td>
                         </tr>
                         <tr key="misc-cost" style={{ background:'#fafaf9' }}>
-                          <td className="tracker-row-label" style={{ background:'#fafaf9', paddingLeft:28, fontSize:12 }}>Misc Subbies — Cost</td>
+                          <td className="tracker-row-label" style={{ background:'#fafaf9', paddingLeft:28, fontSize:12 }}>Misc Subbies â€” Cost</td>
                           <td className="tracker-cell tracker-cum-cell" style={{ fontWeight:700 }}>
-                            {miscCCum ? `€${fmt(miscCCum,0)}` : <span className="zero">—</span>}
+                            {miscCCum ? `â‚¬${fmt(miscCCum,0)}` : <span className="zero">â€”</span>}
                           </td>
                           {rows.map(r => {
                             const v = sub_lines[r.week_ending]?.__misc__?.misc_subbies_cost || 0;
                             return <td key={r.week_ending} className="tracker-cell">
-                              {v ? `€${fmt(v,0)}` : <span className="zero">—</span>}
+                              {v ? `â‚¬${fmt(v,0)}` : <span className="zero">â€”</span>}
                             </td>;
                           })}
                         </tr>
                         <tr key="misc-rev" style={{ background:'#fafaf9' }}>
-                          <td className="tracker-row-label" style={{ background:'#fafaf9', paddingLeft:28, fontSize:12, color:'#16a34a', fontWeight:600 }}>Misc Subbies — Revenue</td>
+                          <td className="tracker-row-label" style={{ background:'#fafaf9', paddingLeft:28, fontSize:12, color:'#16a34a', fontWeight:600 }}>Misc Subbies â€” Revenue</td>
                           <td className="tracker-cell tracker-cum-cell" style={{ fontWeight:700, color:'#16a34a' }}>
-                            {miscRCum ? `€${fmt(miscRCum,0)}` : <span className="zero">—</span>}
+                            {miscRCum ? `â‚¬${fmt(miscRCum,0)}` : <span className="zero">â€”</span>}
                           </td>
                           {rows.map(r => {
                             const v = sub_lines[r.week_ending]?.__misc__?.misc_subbies_revenue || 0;
                             return <td key={r.week_ending} className="tracker-cell" style={{ color:'#16a34a' }}>
-                              {v ? `€${fmt(v,0)}` : <span className="zero">—</span>}
+                              {v ? `â‚¬${fmt(v,0)}` : <span className="zero">â€”</span>}
                             </td>;
                           })}
                         </tr>
@@ -430,24 +431,24 @@ export default function TrackerView({ projectId, onSubCellClick }) {
                       <td className="tracker-row-label" style={{ background: gs.bg || '#fff', fontStyle: gs.fontStyle, fontWeight: gs.fontWeight || 500 }}>
                         {row.label}
                       </td>
-                      {/* Cumulative / EFA column — sticky after label */}
+                      {/* Cumulative / EFA column â€” sticky after label */}
                       <td className="tracker-cell tracker-cum-cell"
                         style={{ fontWeight: 700, color: gs.color }}>
                         {(() => {
                           const v = latest?.[row.key];
-                          if (v == null) return '—';
+                          if (v == null) return 'â€”';
                           if (row.pct) return fmtPct(v);
-                          return v !== 0 ? `€${fmt(v, 0)}` : <span className="zero">—</span>;
+                          return v !== 0 ? `â‚¬${fmt(v, 0)}` : <span className="zero">â€”</span>;
                         })()}
                       </td>
                       {rows.map(r => {
-                        if (r._empty) return <td key={r.week_ending} className="tracker-cell"><span className="zero">—</span></td>;
+                        if (r._empty) return <td key={r.week_ending} className="tracker-cell"><span className="zero">â€”</span></td>;
                         const val = r[row.key];
                         const isNeg = typeof val === 'number' && val < 0;
                         return (
                           <td key={r.week_ending} className="tracker-cell"
                             style={{ fontWeight: gs.fontWeight, fontStyle: gs.fontStyle, color: isNeg ? '#dc2626' : gs.color }}>
-                            {row.pct ? fmtPct(val) : (val != null && val !== 0 ? `€${fmt(val, 0)}` : <span className="zero">—</span>)}
+                            {row.pct ? fmtPct(val) : (val != null && val !== 0 ? `â‚¬${fmt(val, 0)}` : <span className="zero">â€”</span>)}
                           </td>
                         );
                       })}

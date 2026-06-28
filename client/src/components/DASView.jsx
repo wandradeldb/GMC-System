@@ -1,3 +1,4 @@
+﻿import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback } from 'react';
 import DASForm from './DASForm.jsx';
 
@@ -22,7 +23,7 @@ export default function DASView({ projectId }) {
   const [view, setView]                 = useState('form'); // 'form' | 'list'
 
   const loadEntries = useCallback(() => {
-    fetch(`/api/v1/projects/${projectId}/das`)
+    apiFetch(`/api/v1/projects/${projectId}/das`)
       .then(r => r.json())
       .then(setEntries);
   }, [projectId]);
@@ -39,7 +40,7 @@ export default function DASView({ projectId }) {
             const d = new Date(selectedDate + 'T12:00:00');
             d.setDate(d.getDate() - 1);
             setSelectedDate(toISODate(d));
-          }}>‹</button>
+          }}>â€¹</button>
           <input
             type="date"
             value={selectedDate}
@@ -50,7 +51,7 @@ export default function DASView({ projectId }) {
             const d = new Date(selectedDate + 'T12:00:00');
             d.setDate(d.getDate() + 1);
             setSelectedDate(toISODate(d));
-          }}>›</button>
+          }}>â€º</button>
           <button className="btn-ghost" onClick={() => setSelectedDate(toISODate(new Date()))}>Today</button>
         </div>
 
@@ -84,7 +85,7 @@ function DASList({ entries, onSelect }) {
   const statusColor = s => s === 'submitted' ? '#166534' : '#92400e';
 
   if (!entries.length) return (
-    <div className="state-box"><div className="icon">📋</div><p>No DAS entries yet.</p></div>
+    <div className="state-box"><div className="icon">ðŸ“‹</div><p>No DAS entries yet.</p></div>
   );
 
   return (
@@ -103,7 +104,7 @@ function DASList({ entries, onSelect }) {
           <tr key={e.id} style={{cursor:'pointer'}} onClick={() => onSelect(e.entry_date)}>
             <td style={{fontWeight:600}}>{fmt(e.entry_date)}</td>
             <td>{e.site_agent}</td>
-            <td>{e.weather || '—'}</td>
+            <td>{e.weather || 'â€”'}</td>
             <td style={{textAlign:'center'}}>{e.labour_count}</td>
             <td style={{textAlign:'center'}}>{e.plant_count}</td>
             <td style={{textAlign:'center'}}>{e.activity_count}</td>

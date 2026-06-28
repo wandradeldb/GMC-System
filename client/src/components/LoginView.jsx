@@ -1,3 +1,4 @@
+﻿import { apiFetch } from '../apiFetch.js';
 import { useState } from 'react';
 
 export default function LoginView({ onLogin }) {
@@ -11,7 +12,7 @@ export default function LoginView({ onLogin }) {
     setError('');
     setLoading(true);
     try {
-      const r = await fetch('/api/v1/auth/login', {
+      const r = await apiFetch('/api/v1/auth/login', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ username, password }),
@@ -53,7 +54,7 @@ export default function LoginView({ onLogin }) {
           />
           {error && <div style={{ color: '#dc2626', fontSize: 13 }}>{error}</div>}
           <button type="submit" className="login-btn" disabled={loading}>
-            {loading ? 'Signing in…' : 'Sign in'}
+            {loading ? 'Signing inâ€¦' : 'Sign in'}
           </button>
         </form>
       </div>

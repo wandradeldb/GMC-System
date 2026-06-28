@@ -1,3 +1,4 @@
+﻿import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useRef } from 'react';
 
 function SupplierSearch({ onSelect }) {
@@ -11,7 +12,7 @@ function SupplierSearch({ onSelect }) {
     if (query.length < 2) { setResults([]); setOpen(false); return; }
     clearTimeout(timer.current);
     timer.current = setTimeout(() => {
-      fetch(`/api/v1/subcontractors?q=${encodeURIComponent(query)}`)
+      apiFetch(`/api/v1/subcontractors?q=${encodeURIComponent(query)}`)
         .then(r => r.json())
         .then(data => { setResults(data); setOpen(true); });
     }, 220);
@@ -29,7 +30,7 @@ function SupplierSearch({ onSelect }) {
       <input
         value={query}
         onChange={e => { setQuery(e.target.value); setSelected(null); onSelect(null); }}
-        placeholder="Type supplier name or code…"
+        placeholder="Type supplier name or codeâ€¦"
         style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
         onFocus={() => results.length && setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
@@ -50,7 +51,7 @@ function SupplierSearch({ onSelect }) {
               <div style={{ fontWeight: 600 }}>{s.name}</div>
               <div style={{ fontSize: 11, color: '#6b7280' }}>
                 {s.code && <span style={{ fontFamily: 'monospace', marginRight: 8 }}>{s.code}</span>}
-                {s.balance > 0 && <span style={{ color: '#166534' }}>Balance: €{s.balance.toLocaleString('en-IE', { minimumFractionDigits: 2 })}</span>}
+                {s.balance > 0 && <span style={{ color: '#166534' }}>Balance: â‚¬{s.balance.toLocaleString('en-IE', { minimumFractionDigits: 2 })}</span>}
                 {s.email && <span style={{ marginLeft: 8 }}>{s.email}</span>}
               </div>
             </div>
@@ -80,7 +81,7 @@ export default function NewSubcontractModal({ projectId, onClose, onCreated }) {
     if (!supplier) { setErr('Select a supplier first.'); return; }
     if (!form.ref) { setErr('Reference is required.'); return; }
     setSaving(true); setErr('');
-    const sc = await fetch(`/api/v1/projects/${projectId}/subcontracts`, {
+    const sc = await apiFetch(`/api/v1/projects/${projectId}/subcontracts`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -102,7 +103,7 @@ export default function NewSubcontractModal({ projectId, onClose, onCreated }) {
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3>New Subcontract</h3>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <button className="modal-close" onClick={onClose}>âœ•</button>
         </div>
 
         <div className="modal-body">
@@ -110,7 +111,7 @@ export default function NewSubcontractModal({ projectId, onClose, onCreated }) {
           <SupplierSearch onSelect={selectSupplier} />
           {supplier && (
             <div style={{ marginTop: 8, padding: '8px 12px', background: '#f0fdf4', borderRadius: 6, fontSize: 13, color: '#166534', fontWeight: 600 }}>
-              ✓ {supplier.name} {supplier.code ? `[${supplier.code}]` : ''}
+              âœ“ {supplier.name} {supplier.code ? `[${supplier.code}]` : ''}
             </div>
           )}
 
@@ -127,10 +128,10 @@ export default function NewSubcontractModal({ projectId, onClose, onCreated }) {
             </div>
             <div className="field span2">
               <label className="field-label">Description / Scope *</label>
-              <input value={form.description} onChange={e => set('description', e.target.value)} placeholder="Civil works — tank excavation and construction" />
+              <input value={form.description} onChange={e => set('description', e.target.value)} placeholder="Civil works â€” tank excavation and construction" />
             </div>
             <div className="field">
-              <label className="field-label">Contract Value (€)</label>
+              <label className="field-label">Contract Value (â‚¬)</label>
               <input type="number" step="0.01" value={form.contract_value} onChange={e => set('contract_value', e.target.value)} />
             </div>
             <div className="field">
@@ -148,7 +149,7 @@ export default function NewSubcontractModal({ projectId, onClose, onCreated }) {
         <div className="modal-footer">
           <button className="btn-ghost" onClick={onClose}>Cancel</button>
           <button className="btn-primary" onClick={submit} disabled={saving || !supplier}>
-            {saving ? 'Creating…' : 'Create Subcontract'}
+            {saving ? 'Creatingâ€¦' : 'Create Subcontract'}
           </button>
         </div>
       </div>

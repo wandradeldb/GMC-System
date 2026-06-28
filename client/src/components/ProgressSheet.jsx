@@ -1,9 +1,10 @@
+﻿import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect } from 'react';
 
-const fmt = (n, d = 2) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
+const fmt = (n, d = 2) => n == null ? 'â€”' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtWE = we => we ? new Date(we + 'T12:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
 
-const SCH_LABEL = { '1': 'Sch 1 — Prelims Fixed', '1A': 'Sch 1A — Prelims Time', '2': 'Sch 2 — WW Pump Stations' };
+const SCH_LABEL = { '1': 'Sch 1 â€” Prelims Fixed', '1A': 'Sch 1A â€” Prelims Time', '2': 'Sch 2 â€” WW Pump Stations' };
 
 export default function ProgressSheet({ projectId, weekEnding, onBack }) {
   const [sheet,    setSheet]    = useState(null);
@@ -18,14 +19,14 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
   const [search,   setSearch]   = useState('');
 
   useEffect(() => {
-    fetch(`/api/v1/projects/${projectId}/tracker/${weekEnding}/progress-sheet`)
+    apiFetch(`/api/v1/projects/${projectId}/tracker/${weekEnding}/progress-sheet`)
       .then(r => r.json())
       .then(d => {
         setSheet(d);
         setItems(d.items.map(i => ({ ...i })));
       });
     // Load existing tracker row for costs/EFA
-    fetch(`/api/v1/projects/${projectId}/tracker/${weekEnding}`)
+    apiFetch(`/api/v1/projects/${projectId}/tracker/${weekEnding}`)
       .then(r => r.json())
       .then(d => {
         if (d.tracker) {
@@ -41,7 +42,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
 
   const save = async () => {
     setSaving(true);
-    await fetch(`/api/v1/projects/${projectId}/tracker/${weekEnding}`, {
+    await apiFetch(`/api/v1/projects/${projectId}/tracker/${weekEnding}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ boq_progress: items, costs, efa, entered_by: enteredBy, notes }),
@@ -50,7 +51,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
     setTimeout(() => setSaved(false), 2500);
   };
 
-  if (!sheet) return <div className="state-box"><div className="icon">⏳</div><p>Loading…</p></div>;
+  if (!sheet) return <div className="state-box"><div className="icon">â³</div><p>Loadingâ€¦</p></div>;
 
   // Live revenue preview
   const liveRev = items.reduce((s, i) => {
@@ -67,14 +68,14 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
   return (
     <div>
       <div className="detail-nav" style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
-        <button className="btn-back" onClick={onBack}>← Tracker</button>
+        <button className="btn-back" onClick={onBack}>â† Tracker</button>
         <button onClick={async () => {
           if (!window.confirm(`Apagar semana WE ${weekEnding} e todos os dados de progresso desta semana?`)) return;
-          await fetch(`/api/v1/projects/${projectId}/tracker/${weekEnding}`, { method:'DELETE' });
+          await apiFetch(`/api/v1/projects/${projectId}/tracker/${weekEnding}`, { method:'DELETE' });
           onBack();
         }} style={{ padding:'5px 12px', borderRadius:6, border:'1px solid #fca5a5',
           background:'#fff5f5', cursor:'pointer', fontSize:12, color:'#dc2626', fontWeight:600 }}>
-          ✕ Apagar Semana
+          âœ• Apagar Semana
         </button>
       </div>
 
@@ -89,16 +90,16 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
         <div className="assessment-kpis">
           <div className="assess-kpi">
             <div className="kpi-label">Revenue This WE</div>
-            <div className="kpi-value" style={{ color: '#1e40af' }}>€{fmt(liveRev, 0)}</div>
+            <div className="kpi-value" style={{ color: '#1e40af' }}>â‚¬{fmt(liveRev, 0)}</div>
           </div>
           <div className="assess-kpi">
             <div className="kpi-label">Manual Cost</div>
-            <div className="kpi-value" style={{ color: '#92400e' }}>€{fmt(liveCost, 0)}</div>
+            <div className="kpi-value" style={{ color: '#92400e' }}>â‚¬{fmt(liveCost, 0)}</div>
           </div>
           <div className="assess-kpi">
             <div className="kpi-label">Margin (preview)</div>
             <div className="kpi-value" style={{ color: liveRev - liveCost >= 0 ? '#166534' : '#dc2626' }}>
-              €{fmt(liveRev - liveCost, 0)}
+              â‚¬{fmt(liveRev - liveCost, 0)}
             </div>
           </div>
         </div>
@@ -106,7 +107,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
           <input value={enteredBy} onChange={e => setEnteredBy(e.target.value)}
             placeholder="Entered by" style={{ padding:'7px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:13, width:160 }} />
           <button className="btn-save" onClick={save} disabled={saving}>
-            {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save & Recalculate'}
+            {saving ? 'Savingâ€¦' : saved ? 'âœ“ Saved' : 'Save & Recalculate'}
           </button>
         </div>
       </div>
@@ -130,7 +131,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
           <div>
             <div className="section-toolbar" style={{ marginBottom: 12 }}>
               <span className="section-stat">{items.filter(i => parseFloat(i.pct_complete_this) > 0).length} items with progress</span>
-              <input type="search" placeholder="Filter items…" value={search} onChange={e => setSearch(e.target.value)} style={{ padding:'6px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:13, width:220 }} />
+              <input type="search" placeholder="Filter itemsâ€¦" value={search} onChange={e => setSearch(e.target.value)} style={{ padding:'6px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:13, width:220 }} />
             </div>
             {schedules.map(sch => {
               const schItems = items.map((it, idx) => ({...it, _idx: idx})).filter(it => it.schedule === sch &&
@@ -141,7 +142,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
                 <div key={sch} className="schedule-block">
                   <div className="schedule-header">
                     <span className="schedule-title">{SCH_LABEL[sch] || `Schedule ${sch}`}</span>
-                    <span className="schedule-total" style={{ fontSize: 13 }}>WE Revenue: €{fmt(schRev, 0)}</span>
+                    <span className="schedule-total" style={{ fontSize: 13 }}>WE Revenue: â‚¬{fmt(schRev, 0)}</span>
                   </div>
                   <table className="boq-table">
                     <thead>
@@ -152,7 +153,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
                         <th className="col-num">Contract Sum</th>
                         <th className="col-num" style={{ background: '#eff6ff' }}>% Prev</th>
                         <th className="col-num" style={{ background: '#f0fdf4' }}>% This WE</th>
-                        <th className="col-num" style={{ background: '#f0fdf4' }}>WE Revenue (€)</th>
+                        <th className="col-num" style={{ background: '#f0fdf4' }}>WE Revenue (â‚¬)</th>
                         <th>Notes</th>
                       </tr>
                     </thead>
@@ -165,7 +166,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
                             <td className="col-ref">{row.item_ref}</td>
                             <td style={{ fontSize: 13 }}>{row.description}</td>
                             <td className="col-unit">{row.unit}</td>
-                            <td className="col-num" style={{ color: '#6b7280' }}>€{fmt(row.contract_sum, 0)}</td>
+                            <td className="col-num" style={{ color: '#6b7280' }}>â‚¬{fmt(row.contract_sum, 0)}</td>
                             <td className="col-num" style={{ background: '#f8faff', color: '#6b7280' }}>
                               {fmt(row.pct_complete_prev, 1)}%
                             </td>
@@ -182,12 +183,12 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
                               </div>
                             </td>
                             <td className="col-num" style={{ background: '#f0fff4', color: '#166534', fontWeight: weRev > 0 ? 700 : 400 }}>
-                              {weRev > 0 ? `€${fmt(weRev, 0)}` : <span className="zero">—</span>}
+                              {weRev > 0 ? `â‚¬${fmt(weRev, 0)}` : <span className="zero">â€”</span>}
                             </td>
                             <td>
                               <input value={row.progress_notes || ''} onChange={e => setItem(row._idx, 'progress_notes', e.target.value)}
                                 style={{ width: '100%', fontSize: 12, border: '1px solid #e5e7eb', borderRadius: 4, padding: '3px 6px' }}
-                                placeholder="Notes…" />
+                                placeholder="Notesâ€¦" />
                             </td>
                           </tr>
                         );
@@ -203,9 +204,9 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
         {activeTab === 'costs' && (
           <div className="section-grid" style={{ maxWidth: 480 }}>
             {[
-              { key: 'cost_materials', label: 'Materials Cost (€)', placeholder: '0.00' },
-              { key: 'cost_plant',     label: 'Plant Cost (€)',     placeholder: '0.00' },
-              { key: 'ohp_allowance',  label: 'OH&P Allowance (€)', placeholder: '0.00' },
+              { key: 'cost_materials', label: 'Materials Cost (â‚¬)', placeholder: '0.00' },
+              { key: 'cost_plant',     label: 'Plant Cost (â‚¬)',     placeholder: '0.00' },
+              { key: 'ohp_allowance',  label: 'OH&P Allowance (â‚¬)', placeholder: '0.00' },
             ].map(f => (
               <div key={f.key} className="field">
                 <label className="field-label">{f.label}</label>
@@ -227,8 +228,8 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
         {activeTab === 'efa' && (
           <div className="section-grid" style={{ maxWidth: 480 }}>
             {[
-              { key: 'efa_revenue',      label: 'EFA Revenue (€)',      state: efa, set: setEfa },
-              { key: 'efa_cost',         label: 'EFA Cost (€)',          state: efa, set: setEfa },
+              { key: 'efa_revenue',      label: 'EFA Revenue (â‚¬)',      state: efa, set: setEfa },
+              { key: 'efa_cost',         label: 'EFA Cost (â‚¬)',          state: efa, set: setEfa },
               { key: 'target_margin_pct', label: 'Target Margin (%)',    state: efa, set: setEfa },
             ].map(f => (
               <div key={f.key} className="field">
@@ -241,7 +242,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
             <div className="field span2">
               <label className="field-label">EFA Margin (computed)</label>
               <div style={{ fontWeight: 700, fontSize: 16, color: (parseFloat(efa.efa_revenue)||0) - (parseFloat(efa.efa_cost)||0) >= 0 ? '#166534' : '#dc2626', paddingTop: 4 }}>
-                €{fmt((parseFloat(efa.efa_revenue)||0) - (parseFloat(efa.efa_cost)||0), 0)}
+                â‚¬{fmt((parseFloat(efa.efa_revenue)||0) - (parseFloat(efa.efa_cost)||0), 0)}
                 {' '}
                 ({efa.efa_revenue > 0 ? (((parseFloat(efa.efa_revenue)||0) - (parseFloat(efa.efa_cost)||0)) / (parseFloat(efa.efa_revenue)||1) * 100).toFixed(1) : '0.0'}%)
               </div>
@@ -253,7 +254,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
           <div className="field">
             <label className="field-label">Week Notes / Commentary</label>
             <textarea rows={6} value={notes} onChange={e => setNotes(e.target.value)}
-              placeholder="Site progress, issues, key events this week…"
+              placeholder="Site progress, issues, key events this weekâ€¦"
               style={{ width: '100%', maxWidth: 640 }} />
           </div>
         )}

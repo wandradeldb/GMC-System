@@ -1,3 +1,4 @@
+﻿import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import SubcontractDetail from './SubcontractDetail.jsx';
 import NewSubcontractModal from './NewSubcontractModal.jsx';
@@ -7,7 +8,7 @@ const STATUS_COLOR = { active:'#166534', completed:'#1e40af', terminated:'#991b1
 const STATUS_BG    = { active:'#dcfce7', completed:'#dbeafe', terminated:'#fee2e2' };
 
 function fmt(n) {
-  if (n == null) return '—';
+  if (n == null) return 'â€”';
   return new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2 }).format(n);
 }
 
@@ -20,7 +21,7 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
   const deepLinkDoneRef = useRef(null); // tracks which deepLinkSubName was already handled
 
   const load = useCallback(() => {
-    fetch(`/api/v1/projects/${projectId}/subcontracts`).then(r => r.json()).then(setList);
+    apiFetch(`/api/v1/projects/${projectId}/subcontracts`).then(r => r.json()).then(setList);
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
@@ -69,7 +70,7 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
 
       {list.length === 0 ? (
         <div className="state-box">
-          <div className="icon">🤝</div>
+          <div className="icon">ðŸ¤</div>
           <p>No subcontracts yet. Click "New Subcontract" to begin.</p>
         </div>
       ) : (
@@ -98,11 +99,11 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
               <div className="sc-card-stats">
                 <div className="sc-stat">
                   <span className="sc-stat-label">Contract Value</span>
-                  <span className="sc-stat-value">€{fmt(sc.contract_value)}</span>
+                  <span className="sc-stat-value">â‚¬{fmt(sc.contract_value)}</span>
                 </div>
                 <div className="sc-stat">
                   <span className="sc-stat-label">Certified</span>
-                  <span className="sc-stat-value certified">€{fmt(sc.total_certified)}</span>
+                  <span className="sc-stat-value certified">â‚¬{fmt(sc.total_certified)}</span>
                 </div>
                 <div className="sc-stat">
                   <span className="sc-stat-label">Applications</span>
@@ -119,7 +120,7 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
                 <button onClick={(e) => { e.stopPropagation(); setAssessment({ id: sc.id, ref: sc.ref, name: sc.subcontractor_name, contract_value: sc.contract_value }); }}
                   style={{ flex:1, padding:'5px 0', borderRadius:6, border:'none',
                     background:'#1a1a2e', cursor:'pointer', fontSize:12, color:'#fff', fontWeight:600 }}>
-                  📋 Assessment
+                  ðŸ“‹ Assessment
                 </button>
                 <button onClick={(e) => { e.stopPropagation(); setEditing(sc); }}
                   style={{ padding:'4px 10px', borderRadius:4, border:'1px solid #bfdbfe',
@@ -129,12 +130,12 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
                 </button>
                 <button onClick={async (e) => {
                   e.stopPropagation();
-                  if (!window.confirm(`Delete ${sc.ref} — ${sc.subcontractor_name}?\nThis also removes all its applications and BOQ items.`)) return;
-                  await fetch(`/api/v1/projects/${projectId}/subcontracts/${sc.id}`, { method:'DELETE' });
+                  if (!window.confirm(`Delete ${sc.ref} â€” ${sc.subcontractor_name}?\nThis also removes all its applications and BOQ items.`)) return;
+                  await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${sc.id}`, { method:'DELETE' });
                   load();
                 }} style={{ padding:'5px 8px', borderRadius:6, border:'1px solid #fca5a5',
                     background:'#fff5f5', cursor:'pointer', fontSize:12, color:'#dc2626' }}>
-                  ✕
+                  âœ•
                 </button>
               </div>
             </div>
@@ -190,7 +191,7 @@ function EditSubcontractModal({ projectId, sc, onClose, onSaved }) {
 
   const save = async () => {
     setSaving(true); setErr('');
-    const res = await fetch(`/api/v1/projects/${projectId}/subcontracts/${sc.id}`, {
+    const res = await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${sc.id}`, {
       method: 'PATCH',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
@@ -213,7 +214,7 @@ function EditSubcontractModal({ projectId, sc, onClose, onSaved }) {
     });
     setSaving(false);
     if (res.ok) onSaved();
-    else setErr('Error saving — check server.');
+    else setErr('Error saving â€” check server.');
   };
 
   return (
@@ -221,7 +222,7 @@ function EditSubcontractModal({ projectId, sc, onClose, onSaved }) {
       <div className="modal" onClick={e => e.stopPropagation()}>
         <div className="modal-header">
           <h3>Edit {sc.ref}</h3>
-          <button className="modal-close" onClick={onClose}>✕</button>
+          <button className="modal-close" onClick={onClose}>âœ•</button>
         </div>
         <div className="modal-body">
           <div style={{ padding:'8px 12px', background:'#f0fdf4', borderRadius:6, fontSize:13, color:'#166534', fontWeight:600, marginBottom:12 }}>
@@ -233,7 +234,7 @@ function EditSubcontractModal({ projectId, sc, onClose, onSaved }) {
               <input value={form.description} onChange={e => set('description', e.target.value)} />
             </div>
             <div className="field">
-              <label className="field-label">Contract Value (€)</label>
+              <label className="field-label">Contract Value (â‚¬)</label>
               <input type="number" step="0.01" value={form.contract_value} onChange={e => set('contract_value', e.target.value)} />
             </div>
             <div className="field">
@@ -334,7 +335,7 @@ function EditSubcontractModal({ projectId, sc, onClose, onSaved }) {
         <div className="modal-footer">
           <button className="btn-secondary" onClick={onClose}>Cancel</button>
           <button className="btn-primary" onClick={save} disabled={saving}>
-            {saving ? 'Saving…' : 'Save Changes'}
+            {saving ? 'Savingâ€¦' : 'Save Changes'}
           </button>
         </div>
       </div>

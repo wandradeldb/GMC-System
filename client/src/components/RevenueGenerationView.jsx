@@ -1,7 +1,8 @@
+﻿import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback } from 'react';
 
-const fmt  = (n, d = 2) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
-const fmtE = (n, d = 0) => `€${fmt(n, d)}`;
+const fmt  = (n, d = 2) => n == null ? 'â€”' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
+const fmtE = (n, d = 0) => `â‚¬${fmt(n, d)}`;
 const fmtWE     = iso => { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}` : iso; };
 const fmtDate   = iso => { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : iso; };
 const MONTHS    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -29,7 +30,7 @@ function todayFriday() {
 const ALL_WEEKS = (() => {
   const weeks = [];
   let d = new Date('2026-01-02T12:00:00');
-  // avançar até à próxima sexta
+  // avanÃ§ar atÃ© Ã  prÃ³xima sexta
   while (d.getDay() !== 5) d.setDate(d.getDate() + 1);
   const end = new Date('2027-12-31T12:00:00');
   while (d <= end) {
@@ -71,19 +72,19 @@ export default function RevenueGenerationView({ projectId }) {
   const [savedMsg, setSavedMsg] = useState('');
 
   useEffect(() => {
-    fetch(`/api/v1/projects/${projectId}/subcontracts`).then(r => r.json()).then(setSubs).catch(() => {});
+    apiFetch(`/api/v1/projects/${projectId}/subcontracts`).then(r => r.json()).then(setSubs).catch(() => {});
   }, [projectId]);
 
   const loadData = useCallback(() => {
     setLoading(true);
     Promise.all([
-      fetch(`/api/v1/projects/${projectId}/revenue/week/${weekEnding}`).then(r => r.json()),
-      fetch(`/api/v1/projects/${projectId}/revenue/history`).then(r => r.json()),
+      apiFetch(`/api/v1/projects/${projectId}/revenue/week/${weekEnding}`).then(r => r.json()),
+      apiFetch(`/api/v1/projects/${projectId}/revenue/history`).then(r => r.json()),
     ]).then(([weekData, histData]) => {
       const acts = weekData.activities || [];
       setActs(acts);
 
-      // Inicializar edits com TODOS os valores de histórico para TODAS as semanas
+      // Inicializar edits com TODOS os valores de histÃ³rico para TODAS as semanas
       const m = {};
       const sm = {};
       acts.forEach(a => {
@@ -135,15 +136,15 @@ export default function RevenueGenerationView({ projectId }) {
       pct_complete: Math.min(100, pctOf(a, weekEnding)),
       sub_id: subEdits[a.id] || null,
     }));
-    const res = await fetch(`/api/v1/projects/${projectId}/revenue/week/${weekEnding}`,
+    const res = await apiFetch(`/api/v1/projects/${projectId}/revenue/week/${weekEnding}`,
       { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) });
     const j = await res.json();
     setSaving(false);
-    if (j.ok) { setSavedMsg(`Saved ${fmtWE(weekEnding)} — ${fmtE(j.rev_total_week, 2)}`); loadData(); }
+    if (j.ok) { setSavedMsg(`Saved ${fmtWE(weekEnding)} â€” ${fmtE(j.rev_total_week, 2)}`); loadData(); }
     else setSavedMsg(j.error || 'Error saving');
   };
 
-  if (loading) return <div className="state-box"><div className="icon">⏳</div><p>Loading…</p></div>;
+  if (loading) return <div className="state-box"><div className="icon">â³</div><p>Loadingâ€¦</p></div>;
 
   const q = search.toLowerCase();
   const visible = activities.filter(a => secOn.has(a.section) &&
@@ -188,7 +189,7 @@ export default function RevenueGenerationView({ projectId }) {
 
   return (
     <div>
-      {/* ── Controls sticky ─── */}
+      {/* â”€â”€ Controls sticky â”€â”€â”€ */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 20,
         background: '#f8fafc', paddingBottom: 6, paddingTop: 4,
@@ -215,7 +216,7 @@ export default function RevenueGenerationView({ projectId }) {
             </label>
           )}
 
-          <input type="search" placeholder="Search activities…" value={search} onChange={e => setSearch(e.target.value)}
+          <input type="search" placeholder="Search activitiesâ€¦" value={search} onChange={e => setSearch(e.target.value)}
             style={{ flex: 1, minWidth: 140, padding: '6px 10px', borderRadius: 5, border: '1px solid #d1d5db', fontSize: 12 }} />
 
           {mode === 'revenue' && (
@@ -228,7 +229,7 @@ export default function RevenueGenerationView({ projectId }) {
               </div>
               <button onClick={save} disabled={saving} className="btn-primary"
                 style={{ padding: '8px 18px', fontSize: 13, whiteSpace: 'nowrap' }}>
-                {saving ? 'Saving…' : `Save ${fmtWE(weekEnding)}`}
+                {saving ? 'Savingâ€¦' : `Save ${fmtWE(weekEnding)}`}
               </button>
             </div>
           )}
@@ -245,7 +246,7 @@ export default function RevenueGenerationView({ projectId }) {
           ))}
           <button onClick={() => { setSecOn(new Set(SECTIONS)); setSearch(''); }}
             style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid #d1d5db', background: '#f9fafb', cursor: 'pointer', fontSize: 11, color: '#6b7280' }}>
-            ✕ Clear
+            âœ• Clear
           </button>
         </div>
       </div>
@@ -256,7 +257,7 @@ export default function RevenueGenerationView({ projectId }) {
         </div>
       )}
 
-      {/* ── Tabela ─── */}
+      {/* â”€â”€ Tabela â”€â”€â”€ */}
       <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 235px)' }}>
         <table style={{
           borderCollapse: 'collapse',
@@ -288,12 +289,12 @@ export default function RevenueGenerationView({ projectId }) {
                 <th style={{ position:'sticky', top:0, zIndex:10, background:'#1e293b', color:'#fff', padding:'3px 4px', fontSize:8, fontWeight:700, textAlign:'right' }}>Qty</th>
                 <th style={{ position:'sticky', top:0, zIndex:10, background:'#1e293b', color:'#fff', padding:'3px 4px', fontSize:8, fontWeight:700 }}>Unit</th>
                 <th style={{ position:'sticky', top:0, zIndex:10, background:'#1e293b', color:'#fff', padding:'3px 4px', fontSize:8, fontWeight:700, textAlign:'right' }}>Rate</th>
-                <th style={{ position:'sticky', top:0, zIndex:10, background:'#1e293b', color:'#fff', padding:'3px 4px', fontSize:8, fontWeight:700, textAlign:'right' }}>Contract €</th>
+                <th style={{ position:'sticky', top:0, zIndex:10, background:'#1e293b', color:'#fff', padding:'3px 4px', fontSize:8, fontWeight:700, textAlign:'right' }}>Contract â‚¬</th>
               </>}
               {mode === 'revenue' && <>
-                <th style={thFixed(SL.cv,    { width: CW.cv,    textAlign:'right' })}>Contract €</th>
-                <th style={thFixed(SL.cumul, { width: CW.cumul, textAlign:'right' })}>Cumul. €</th>
-                <th style={thFixed(SL.rem,   { width: CW.rem,   textAlign:'right' })}>Remain. €</th>
+                <th style={thFixed(SL.cv,    { width: CW.cv,    textAlign:'right' })}>Contract â‚¬</th>
+                <th style={thFixed(SL.cumul, { width: CW.cumul, textAlign:'right' })}>Cumul. â‚¬</th>
+                <th style={thFixed(SL.rem,   { width: CW.rem,   textAlign:'right' })}>Remain. â‚¬</th>
                 <th style={thFixed(SL.sub,   { width: CW.sub,   borderRight:'3px solid #60a5fa' })}>Subcontractor</th>
                 {ALL_WEEKS.map(w => (
                   <th key={w} style={thWE(w)}>
@@ -373,19 +374,19 @@ export default function RevenueGenerationView({ projectId }) {
                       {mode === 'contract' && <>
                         <td style={{ textAlign:'right', padding:'2px 4px', color:'#111', fontSize:10 }}>{fmt(a.qty, 2)}</td>
                         <td style={{ padding:'2px 4px', color:'#6b7280', fontSize:10 }}>{a.unit}</td>
-                        <td style={{ textAlign:'right', padding:'2px 4px', color:'#111', fontSize:10 }}>€{fmt(a.rate, 2)}</td>
-                        <td style={{ textAlign:'right', padding:'2px 4px', fontWeight:600, color:'#111', fontSize:10 }}>€{fmt(a.contract_value, 2)}</td>
+                        <td style={{ textAlign:'right', padding:'2px 4px', color:'#111', fontSize:10 }}>â‚¬{fmt(a.rate, 2)}</td>
+                        <td style={{ textAlign:'right', padding:'2px 4px', fontWeight:600, color:'#111', fontSize:10 }}>â‚¬{fmt(a.contract_value, 2)}</td>
                       </>}
 
                       {mode === 'revenue' && <>
-                        <td style={tdFixed(SL.cv,    rowBg, { width:CW.cv,    textAlign:'right', fontWeight:600 })}>€{fmt(a.contract_value, 0)}</td>
-                        <td style={tdFixed(SL.cumul, rowBg, { width:CW.cumul, textAlign:'right', fontWeight:700, color:'#1e40af' })}>€{fmt(cumul, 0)}</td>
-                        <td style={tdFixed(SL.rem,   rowBg, { width:CW.rem,   textAlign:'right', color: remaining === 0 ? '#16a34a' : '#374151', fontWeight: remaining === 0 ? 700 : 400 })}>€{fmt(remaining, 0)}</td>
+                        <td style={tdFixed(SL.cv,    rowBg, { width:CW.cv,    textAlign:'right', fontWeight:600 })}>â‚¬{fmt(a.contract_value, 0)}</td>
+                        <td style={tdFixed(SL.cumul, rowBg, { width:CW.cumul, textAlign:'right', fontWeight:700, color:'#1e40af' })}>â‚¬{fmt(cumul, 0)}</td>
+                        <td style={tdFixed(SL.rem,   rowBg, { width:CW.rem,   textAlign:'right', color: remaining === 0 ? '#16a34a' : '#374151', fontWeight: remaining === 0 ? 700 : 400 })}>â‚¬{fmt(remaining, 0)}</td>
                         <td style={tdFixed(SL.sub,   rowBg, { width:CW.sub,   padding:'2px 3px', borderRight:'3px solid #60a5fa' })}>
                           <select value={subEdits[a.id] ?? ''} onChange={e => setSub(a.id, e.target.value)}
                             style={{ width:'100%', padding:'1px 2px', fontSize:9, borderRadius:3, border:'1px solid #d1d5db', background:'#fff' }}>
                             <option value="">GMC (none)</option>
-                            {subs.map(s => <option key={s.id} value={s.id}>{s.ref} — {s.subcontractor_name}</option>)}
+                            {subs.map(s => <option key={s.id} value={s.id}>{s.ref} â€” {s.subcontractor_name}</option>)}
                           </select>
                         </td>
 
@@ -408,7 +409,7 @@ export default function RevenueGenerationView({ projectId }) {
                               borderLeft: isCur ? '2px solid #4ade80' : '1px solid #e2e8f0',
                               width: CW.we,
                             }}>
-                              {/* Valor €: mostra calculado em tempo real se isCur, senão o salvo */}
+                              {/* Valor â‚¬: mostra calculado em tempo real se isCur, senÃ£o o salvo */}
                               {isCur ? (
                                 <div style={{ fontSize: 9, fontWeight: 700, color: '#166534', marginBottom: 1 }}>
                                   {fmtE(rev, 0)}
@@ -422,7 +423,7 @@ export default function RevenueGenerationView({ projectId }) {
                               {/* Input % or 100% lock */}
                               {at100 ? (
                                 <div style={{ fontSize: 7, color: '#f59e0b', fontWeight: 700, textAlign: 'center', lineHeight: 1.2, padding: '2px 0' }}>
-                                  ⚠ 100%
+                                  âš  100%
                                 </div>
                               ) : (
                                 <input
@@ -452,7 +453,7 @@ export default function RevenueGenerationView({ projectId }) {
                                 />
                               )}
 
-                              {/* % salvo em baixo (só para não-atual com dados) */}
+                              {/* % salvo em baixo (sÃ³ para nÃ£o-atual com dados) */}
                               {!isCur && !at100 && hasSaved && (
                                 <div style={{ fontSize: 7, color: '#94a3b8', marginTop: 1 }}>
                                   {savedPct}%
