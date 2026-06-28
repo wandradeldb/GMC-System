@@ -62,7 +62,7 @@ function SupplierSearch({ onSelect }) {
 }
 
 export default function NewSubcontractModal({ projectId, onClose, onCreated }) {
-  const [supplier, setSupplier] = useState(null); // selected from search
+  const [supplier, setSupplier] = useState(null);
   const [form, setForm] = useState({
     ref: '', description: '', contract_value: '', retention_pct: '5',
     start_date: '', end_date: '',
@@ -70,6 +70,11 @@ export default function NewSubcontractModal({ projectId, onClose, onCreated }) {
   const [saving, setSaving] = useState(false);
   const [err, setErr] = useState('');
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+
+  const selectSupplier = (s) => {
+    setSupplier(s);
+    if (s?.code) set('ref', s.code);
+  };
 
   const submit = async () => {
     if (!supplier) { setErr('Select a supplier first.'); return; }
@@ -102,7 +107,7 @@ export default function NewSubcontractModal({ projectId, onClose, onCreated }) {
 
         <div className="modal-body">
           <div className="modal-section-label" style={{ marginBottom: 8 }}>Subcontractor</div>
-          <SupplierSearch onSelect={setSupplier} />
+          <SupplierSearch onSelect={selectSupplier} />
           {supplier && (
             <div style={{ marginTop: 8, padding: '8px 12px', background: '#f0fdf4', borderRadius: 6, fontSize: 13, color: '#166534', fontWeight: 600 }}>
               ✓ {supplier.name} {supplier.code ? `[${supplier.code}]` : ''}
@@ -114,7 +119,7 @@ export default function NewSubcontractModal({ projectId, onClose, onCreated }) {
           <div className="section-grid">
             <div className="field">
               <label className="field-label">Reference *</label>
-              <input value={form.ref} onChange={e => set('ref', e.target.value)} placeholder="SC-001" />
+              <input value={form.ref} onChange={e => set('ref', e.target.value)} placeholder="Auto-filled from supplier code" />
             </div>
             <div className="field">
               <label className="field-label">Retention %</label>
