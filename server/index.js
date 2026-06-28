@@ -1,18 +1,20 @@
 const express = require('express');
 const cors    = require('cors');
 const path    = require('path');
-const boqRouter = require('./routes/boq');
-const dasRouter = require('./routes/das');
-const subRouter     = require('./routes/subcontract');
-const trackerRouter = require('./routes/tracker');
-const payappRouter  = require('./routes/payapp');
-const importRouter  = require('./routes/import');
-const qsCostsRouter    = require('./routes/qscosts');
+const fs      = require('fs');
+
+const { requireAuth } = require('./routes/auth');
+const authRouter          = require('./routes/auth');
+const boqRouter           = require('./routes/boq');
+const dasRouter           = require('./routes/das');
+const subRouter           = require('./routes/subcontract');
+const trackerRouter       = require('./routes/tracker');
+const payappRouter        = require('./routes/payapp');
+const importRouter        = require('./routes/import');
+const qsCostsRouter       = require('./routes/qscosts');
 const assessmentRouter    = require('./routes/assessment');
 const subAssessmentRouter = require('./routes/subassessment');
 const revenueRouter       = require('./routes/revenue');
-
-const fs   = require('fs');
 
 const app      = express();
 const PORT     = process.env.PORT || 3001;
@@ -26,21 +28,25 @@ if (isProd) {
 }
 app.use(express.json());
 
-app.use('/api/v1', boqRouter);
-app.use('/api/v1', dasRouter);
-app.use('/api/v1', subRouter);
-app.use('/api/v1', trackerRouter);
-app.use('/api/v1', payappRouter);
-app.use('/api/v1', importRouter);
-app.use('/api/v1', qsCostsRouter);
-app.use('/api/v1', assessmentRouter);
-app.use('/api/v1', subAssessmentRouter);
-app.use('/api/v1', revenueRouter);
+// Auth routes — public (login endpoint)
+app.use('/api/v1', authRouter);
+
+// All other API routes — protected
+app.use('/api/v1', requireAuth, boqRouter);
+app.use('/api/v1', requireAuth, dasRouter);
+app.use('/api/v1', requireAuth, subRouter);
+app.use('/api/v1', requireAuth, trackerRouter);
+app.use('/api/v1', requireAuth, payappRouter);
+app.use('/api/v1', requireAuth, importRouter);
+app.use('/api/v1', requireAuth, qsCostsRouter);
+app.use('/api/v1', requireAuth, assessmentRouter);
+app.use('/api/v1', requireAuth, subAssessmentRouter);
+app.use('/api/v1', requireAuth, revenueRouter);
 
 app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
 
 if (isProd) {
-  app.get('*', (_req, res) => res.sendFile(path.join(__dirname, '../client/dist/index.html')));
+  app.get('*', (_req, res) => res.sendFile(path.join(DIST_DIR, 'index.html')));
 } else {
   app.use((_req, res) => res.status(404).json({ error: 'Not found', code: 'NOT_FOUND' }));
 }

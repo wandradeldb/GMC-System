@@ -7,6 +7,7 @@ import PayAppView from './components/PayAppView.jsx';
 import QSCostsView from './components/QSCostsView.jsx';
 import DashboardView from './components/DashboardView.jsx';
 import RevenueGenerationView from './components/RevenueGenerationView.jsx';
+import LoginView from './components/LoginView.jsx';
 
 const SCHEDULE_LABELS = {
   '1':  'Sch 1 — Preliminaries Fixed',
@@ -24,22 +25,40 @@ const NAV = [
   { id: 'das',       label: 'Daily Allocation', icon: '📋' },
 ];
 
+function getToken() { return localStorage.getItem('gmc_token'); }
+function authHeaders() { return { Authorization: `Bearer ${getToken()}` }; }
+
 export default function App() {
-  const [project,  setProject]  = useState(null);
-  const [summary,  setSummary]  = useState([]);
+  const [token,     setToken]    = useState(getToken);
+  const [project,   setProject]  = useState(null);
+  const [summary,   setSummary]  = useState([]);
   const [activeNav, setActiveNav]   = useState('dashboard');
   const [activeSchedule, setActiveSchedule] = useState('all');
-  const [subDeepLink, setSubDeepLink] = useState(null); // { subName } — from tracker click
+  const [subDeepLink, setSubDeepLink] = useState(null);
+
+  function handleLogin(tok) {
+    setToken(tok);
+  }
+
+  function handleLogout() {
+    localStorage.removeItem('gmc_token');
+    localStorage.removeItem('gmc_user');
+    setToken(null);
+    setProject(null);
+  }
 
   useEffect(() => {
+    if (!token) return;
     Promise.all([
-      fetch('/api/v1/projects/1').then(r => r.json()),
-      fetch('/api/v1/projects/1/boq').then(r => r.json()),
+      fetch('/api/v1/projects/1', { headers: authHeaders() }).then(r => r.json()),
+      fetch('/api/v1/projects/1/boq', { headers: authHeaders() }).then(r => r.json()),
     ]).then(([proj, boq]) => {
       setProject(proj);
       setSummary(boq.summary || []);
     });
-  }, []);
+  }, [token]);
+
+  if (!token) return <LoginView onLogin={handleLogin} />;
 
   const fmt = n => new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2 }).format(n);
   const scheduleTotal = sch =>
@@ -66,6 +85,7 @@ export default function App() {
             </button>
           ))}
         </div>
+        <button className="topbar-logout-btn" onClick={handleLogout} title="Sign out">⏻</button>
       </header>
 
       <div className="main">
