@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import PaymentCalendar from './PaymentCalendar.jsx';
 
 const STATUS_STEPS = ['draft','assessed','approved','invoiced','paid'];
@@ -114,7 +114,7 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
             retention_pct={sc.retention_pct}
           />
         )}
-        {tab === 'boq' && <BOQTab boqItems={boq_items} boqCertified={boqCertified} />}
+        {tab === 'boq' && <BOQTab boqItems={boq_items} boqCertified={boqCertified} projectId={projectId} subcontractId={subcontractId} onRefresh={load} />}
         {tab === 'ces'  && <CETab ces={compensation_events} subcontractId={sc.id} projectId={projectId} onRefresh={load} />}
         {tab === 'payments' && <PaymentCalendar projectId={projectId} />}
       </div>
@@ -182,8 +182,10 @@ function ApplicationsTab({ applications, onOpen, retention_pct }) {
 }
 
 /* ── BOQ Tab ────────────────────────────────────────────────────────────── */
-function BOQTab({ boqItems, boqCertified }) {
-  // Merge boqCertified data (value_certified, value_remaining, pct_certified) by id
+function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh }) {
+  const [importing, setImporting] = useState(false);
+  const [importMsg, setImportMsg] = useState('');
+
   const certMap = {};
   boqCertified.forEach(c => { certMap[c.id] = c; });
 
@@ -191,12 +193,43 @@ function BOQTab({ boqItems, boqCertified }) {
   const totalCertified = boqCertified.reduce((s, i) => s + (i.value_certified || 0), 0);
   const totalRemaining = boqCertified.reduce((s, i) => s + (i.value_remaining || 0), 0);
 
+  const handleFile = (e) => {
+    const file = e.target.files[0];
+    if (!file) return;
+    setImporting(true); setImportMsg('');
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const base64 = ev.target.result.split(',')[1];
+      const mode = boqItems.length > 0 && window.confirm('Já existem itens no BOQ.\n\nOK = Substituir tudo\nCancelar = Adicionar aos existentes')
+        ? 'replace' : boqItems.length > 0 ? 'append' : 'replace';
+      const res = await fetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/boq/import`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ file: base64, mode }),
+      });
+      const json = await res.json();
+      setImporting(false);
+      if (res.ok) { setImportMsg(`✓ ${json.imported} items imported (${json.total} total)`); onRefresh(); }
+      else setImportMsg(`Error: ${json.error}`);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  };
+
   return (
     <div>
       <div className="section-toolbar">
         <span className="section-stat">
           {boqItems.length} items · Contract: €{fmt(totalContract)} · Certified: €{fmt(totalCertified)} · Remaining: €{fmt(totalRemaining)}
         </span>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          {importMsg && <span style={{ fontSize:12, color: importMsg.startsWith('✓') ? '#166534' : '#dc2626' }}>{importMsg}</span>}
+          <label style={{ padding:'5px 12px', borderRadius:6, border:'1px solid #bfdbfe', background:'#eff6ff',
+            cursor:'pointer', fontSize:12, color:'#1e40af', fontWeight:600 }}>
+            {importing ? 'Importing…' : '⬆ Import BOQ (Excel)'}
+            <input type="file" accept=".xlsx,.xls,.csv" style={{ display:'none' }} onChange={handleFile} disabled={importing} />
+          </label>
+        </div>
       </div>
       {boqItems.length === 0 ? (
         <div className="empty-hint">No sub BOQ items defined.</div>

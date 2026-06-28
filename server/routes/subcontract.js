@@ -1,5 +1,6 @@
 const express = require('express');
 const path    = require('path');
+const XLSX    = require('xlsx');
 const { DatabaseSync } = require('node:sqlite');
 
 const router  = express.Router();
@@ -446,6 +447,51 @@ router.delete('/projects/:pid/subcontracts/:scid', (req, res) => {
     con.close();
     throw e;
   }
+});
+
+// ── SUB BOQ IMPORT (Excel) ───────────────────────────────────────────────────
+// Expects JSON body: { file: '<base64>', mode: 'replace'|'append' }
+// Excel columns (any order, header row required):
+//   Ref | Description | Unit | Qty | Rate | Section
+router.post('/projects/:pid/subcontracts/:id/boq/import', (req, res) => {
+  const con = db();
+  const sc = con.prepare('SELECT id FROM subcontract WHERE id=? AND project_id=?').get(req.params.id, req.params.pid);
+  if (!sc) { con.close(); return res.status(404).json({ error: 'Not found' }); }
+
+  const { file, mode = 'replace' } = req.body;
+  if (!file) { con.close(); return res.status(400).json({ error: 'No file data' }); }
+
+  const buf  = Buffer.from(file, 'base64');
+  const wb   = XLSX.read(buf, { type: 'buffer' });
+  const ws   = wb.Sheets[wb.SheetNames[0]];
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+  // Normalise header names (case-insensitive, trim)
+  const norm = (s) => String(s).toLowerCase().trim();
+  const items = rows.map(r => {
+    const keys = Object.fromEntries(Object.entries(r).map(([k,v]) => [norm(k), v]));
+    return {
+      item_ref:    String(keys['ref'] || keys['item ref'] || keys['item_ref'] || '').trim(),
+      description: String(keys['description'] || keys['desc'] || '').trim(),
+      unit:        String(keys['unit'] || '').trim(),
+      qty:         parseFloat(keys['qty'] || keys['quantity'] || 0) || 0,
+      rate:        parseFloat(keys['rate'] || keys['rate (€)'] || 0) || 0,
+      section:     String(keys['section'] || '').trim() || null,
+    };
+  }).filter(r => r.description);
+
+  con.exec('BEGIN');
+  if (mode === 'replace') con.prepare('DELETE FROM sub_boq_item WHERE subcontract_id=?').run(sc.id);
+  const ins = con.prepare('INSERT INTO sub_boq_item (subcontract_id,item_ref,description,unit,qty,rate,section,sort_order) VALUES (?,?,?,?,?,?,?,?)');
+  const base = mode === 'append'
+    ? ((con.prepare('SELECT COALESCE(MAX(sort_order),0) AS m FROM sub_boq_item WHERE subcontract_id=?').get(sc.id) || {}).m || 0) + 10
+    : 0;
+  items.forEach((it, i) => ins.run(sc.id, it.item_ref, it.description, it.unit, it.qty, it.rate, it.section, base + i * 10));
+  con.exec('COMMIT');
+
+  const saved = con.prepare('SELECT * FROM sub_boq_item WHERE subcontract_id=? ORDER BY sort_order').all(sc.id);
+  con.close();
+  res.json({ ok: true, imported: items.length, total: saved.length, items: saved });
 });
 
 // Error handler
