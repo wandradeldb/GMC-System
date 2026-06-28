@@ -1,14 +1,14 @@
-﻿import { apiFetch } from '../apiFetch.js';
+import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useMemo } from 'react';
 
-// O scope Ã© definido pela SCHEDULE (nÃ£o pelo type): Sch 1 = Prel. Fixed, 1A = Prel. Time, 2 = Pump Station.
+// O scope é definido pela SCHEDULE (não pelo type): Sch 1 = Prel. Fixed, 1A = Prel. Time, 2 = Pump Station.
 const SCHED_LABELS = { '1': 'Prel. Fixed', '1A': 'Prel. Time', '2': 'Pump Station' };
 const SCHED_COLOR  = { '1': 'F', '1A': 'T', '2': 'M' };   // reusa as cores existentes type-F/T/M
 const SCHED_ORDER  = ['1', '1A', '2'];
 
 const fmt = (n) =>
   n === 0 || n == null
-    ? <span className="zero">â€”</span>
+    ? <span className="zero">—</span>
     : new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
 function TypeBadge({ schedule }) {
@@ -24,8 +24,8 @@ function BOQTable({ items }) {
           <th className="col-ref">Ref</th>
           <th className="col-desc">Description</th>
           <th className="col-unit">Unit</th>
-          <th className="col-num">Rate (â‚¬)</th>
-          <th className="col-num">Contract Sum (â‚¬)</th>
+          <th className="col-num">Rate (€)</th>
+          <th className="col-num">Contract Sum (€)</th>
           <th className="col-type">Type</th>
         </tr>
       </thead>
@@ -56,7 +56,7 @@ function ScheduleBlock({ schedule, sections, subtotal, label }) {
       <div className="schedule-header">
         <span className="schedule-title">Schedule {schedule}</span>
         <span className="schedule-subtitle">{label}</span>
-        <span className="schedule-total">â‚¬ {fmt2(subtotal)}</span>
+        <span className="schedule-total">€ {fmt2(subtotal)}</span>
       </div>
 
       {Object.entries(sections).map(([section, items]) => (
@@ -125,14 +125,14 @@ export default function BOQView({ projectId, schedule, scheduleLabels }) {
 
   if (loading) return (
     <div className="state-box">
-      <div className="icon">â³</div>
-      <p>Loading BOQâ€¦</p>
+      <div className="icon">⏳</div>
+      <p>Loading BOQ…</p>
     </div>
   );
 
   if (!data) return (
     <div className="state-box">
-      <div className="icon">âš ï¸</div>
+      <div className="icon">⚠️</div>
       <p>Failed to load BOQ data.</p>
     </div>
   );
@@ -144,7 +144,7 @@ export default function BOQView({ projectId, schedule, scheduleLabels }) {
       <div className="filter-bar">
         <input
           type="search"
-          placeholder="Search itemsâ€¦"
+          placeholder="Search items…"
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
@@ -161,14 +161,14 @@ export default function BOQView({ projectId, schedule, scheduleLabels }) {
             title="Show all"
             style={{ padding:'4px 12px', borderRadius:6, border:'1px solid #d1d5db', background:'#f9fafb',
               cursor:'pointer', fontSize:12, color:'#6b7280' }}>
-            âœ• Clear
+            ✕ Clear
           </button>
         </div>
       </div>
 
       {visibleSchedules.length === 0 ? (
         <div className="state-box">
-          <div className="icon">ðŸ”</div>
+          <div className="icon">🔍</div>
           <p>No items match your filters.</p>
         </div>
       ) : (

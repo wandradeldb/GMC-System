@@ -1,12 +1,12 @@
-﻿import { apiFetch } from '../apiFetch.js';
+import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect } from 'react';
 
 function fmt(n) {
-  if (n == null) return 'â€”';
+  if (n == null) return '—';
   return new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2 }).format(n);
 }
 function fmtDate(d) {
-  if (!d) return 'â€”';
+  if (!d) return '—';
   return new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { day:'numeric', month:'short', year:'numeric' });
 }
 
@@ -47,9 +47,9 @@ export default function PaymentCalendar({ projectId }) {
         <div>
           <span className="section-stat">{runs.length} payment runs</span>
           <span style={{ margin:'0 12px', color:'#d1d5db' }}>|</span>
-          <span className="section-stat">Scheduled: â‚¬{fmt(totalScheduled)}</span>
+          <span className="section-stat">Scheduled: €{fmt(totalScheduled)}</span>
           <span style={{ margin:'0 12px', color:'#d1d5db' }}>|</span>
-          <span className="section-stat" style={{ color:'#166534', fontWeight:600 }}>Paid: â‚¬{fmt(totalPaid)}</span>
+          <span className="section-stat" style={{ color:'#166534', fontWeight:600 }}>Paid: €{fmt(totalPaid)}</span>
         </div>
         <button className="btn-primary" onClick={() => setShowNew(s => !s)}>+ New Payment Run</button>
       </div>
@@ -65,7 +65,7 @@ export default function PaymentCalendar({ projectId }) {
               <input value={form.description} onChange={e => setForm(f=>({...f,description:e.target.value}))} placeholder="June 2026 subcontractor payments" /></div>
           </div>
           <div style={{ display:'flex', gap:8, marginTop:12 }}>
-            <button className="btn-primary" onClick={createRun} disabled={saving}>{saving?'Savingâ€¦':'Create Run'}</button>
+            <button className="btn-primary" onClick={createRun} disabled={saving}>{saving?'Saving…':'Create Run'}</button>
             <button className="btn-ghost" onClick={() => setShowNew(false)}>Cancel</button>
           </div>
         </div>
@@ -78,7 +78,7 @@ export default function PaymentCalendar({ projectId }) {
           {runs.map(run => (
             <div key={run.id} className={`payment-run-row ${run.status}`}>
               <div className="pr-date">
-                <div className="pr-day">{run.run_date ? new Date(run.run_date+'T12:00:00').toLocaleDateString('en-IE',{day:'2-digit',month:'short'}) : 'â€”'}</div>
+                <div className="pr-day">{run.run_date ? new Date(run.run_date+'T12:00:00').toLocaleDateString('en-IE',{day:'2-digit',month:'short'}) : '—'}</div>
                 <div className="pr-year">{run.run_date ? new Date(run.run_date+'T12:00:00').getFullYear() : ''}</div>
               </div>
               <div className="pr-dot" />
@@ -90,10 +90,10 @@ export default function PaymentCalendar({ projectId }) {
                 </div>
                 <div className="pr-card-body">
                   <span>{run.invoice_count} invoice{run.invoice_count !== 1 ? 's' : ''}</span>
-                  <span className="pr-amount">â‚¬{fmt(run.total_net)}</span>
+                  <span className="pr-amount">€{fmt(run.total_net)}</span>
                   {run.status === 'open' && (
                     <button className="btn-link" style={{ marginLeft:'auto' }} onClick={() => markPaid(run.id)}>
-                      Mark Paid â†’
+                      Mark Paid →
                     </button>
                   )}
                 </div>

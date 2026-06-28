@@ -1,14 +1,14 @@
-﻿import { apiFetch } from '../apiFetch.js';
+import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback } from 'react';
 
-const fmt  = (n, d = 0) => n == null ? 'â€”' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
-const fmtD      = d => { if (!d) return 'â€”'; const [y,m,dy] = String(d).split('-'); return `${dy}/${m}/${y}`; };
-const fmtPeriod = p => { if (!p) return 'â€”'; const [y,m] = String(p).split('-'); return new Date(`${y}-${m}-01T12:00:00`).toLocaleDateString('en-IE', { month: 'short', year: 'numeric' }); };
+const fmt  = (n, d = 0) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
+const fmtD      = d => { if (!d) return '—'; const [y,m,dy] = String(d).split('-'); return `${dy}/${m}/${y}`; };
+const fmtPeriod = p => { if (!p) return '—'; const [y,m] = String(p).split('-'); return new Date(`${y}-${m}-01T12:00:00`).toLocaleDateString('en-IE', { month: 'short', year: 'numeric' }); };
 
 const STATUS_LABEL = { draft: 'Draft', submitted: 'Submitted', certified: 'Certified', paid: 'Paid' };
 const STATUS_COLOR = { draft: '#6b7280', submitted: '#1e40af', certified: '#166534', paid: '#7c3aed' };
 
-const SCH_LABEL = { '1': 'Schedule 1 â€” Prelims Fixed', '1A': 'Schedule 1A â€” Prelims Time', '2': 'Schedule 2 â€” Civil & MEICA' };
+const SCH_LABEL = { '1': 'Schedule 1 — Prelims Fixed', '1A': 'Schedule 1A — Prelims Time', '2': 'Schedule 2 — Civil & MEICA' };
 
 export default function PayAppView({ projectId }) {
   const [data,       setData]      = useState(null);
@@ -22,7 +22,7 @@ export default function PayAppView({ projectId }) {
 
   useEffect(() => { load(); }, [load]);
 
-  if (!data) return <div className="state-box"><div className="icon">â³</div><p>Loadingâ€¦</p></div>;
+  if (!data) return <div className="state-box"><div className="icon">⏳</div><p>Loading…</p></div>;
 
   const { payapps, latest, summary } = data;
 
@@ -47,43 +47,43 @@ export default function PayAppView({ projectId }) {
 
   return (
     <div>
-      {/* â”€â”€ Summary bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Summary bar ─────────────────────────────────────────── */}
       <div className="tracker-summary">
         <div className="tracker-summary-card">
           <div className="tracker-kpi-label">Contract Value</div>
-          <div className="tracker-kpi-value" style={{ color: '#1a1a2e' }}>â‚¬{fmt(summary.contractValue)}</div>
+          <div className="tracker-kpi-value" style={{ color: '#1a1a2e' }}>€{fmt(summary.contractValue)}</div>
           <div className="tracker-kpi-sub">Merlin Park W03/26</div>
         </div>
         <div className="summary-divider" />
         <div className="tracker-summary-card">
           <div className="tracker-kpi-label">Total Certified</div>
-          <div className="tracker-kpi-value" style={{ color: '#166534' }}>â‚¬{fmt(totalCertified)}</div>
+          <div className="tracker-kpi-value" style={{ color: '#166534' }}>€{fmt(totalCertified)}</div>
           <div className="tracker-kpi-sub">{fmt(pctCertified, 1)}% of contract</div>
         </div>
         <div className="tracker-summary-card">
           <div className="tracker-kpi-label">Previously Certified</div>
-          <div className="tracker-kpi-value" style={{ color: '#374151' }}>â‚¬{fmt(latest?.previously_certified || 0)}</div>
-          <div className="tracker-kpi-sub">before PayApp #{latest?.app_number || 'â€”'}</div>
+          <div className="tracker-kpi-value" style={{ color: '#374151' }}>€{fmt(latest?.previously_certified || 0)}</div>
+          <div className="tracker-kpi-sub">before PayApp #{latest?.app_number || '—'}</div>
         </div>
         <div className="tracker-summary-card">
           <div className="tracker-kpi-label">Last Certificate</div>
-          <div className="tracker-kpi-value" style={{ color: '#1e40af' }}>â‚¬{fmt(latest?.this_certificate || 0)}</div>
-          <div className="tracker-kpi-sub">PayApp #{latest?.app_number} â€” {fmtD(latest?.date_submitted)}</div>
+          <div className="tracker-kpi-value" style={{ color: '#1e40af' }}>€{fmt(latest?.this_certificate || 0)}</div>
+          <div className="tracker-kpi-sub">PayApp #{latest?.app_number} — {fmtD(latest?.date_submitted)}</div>
         </div>
         <div className="summary-divider" />
         <div className="tracker-summary-card">
           <div className="tracker-kpi-label">Retention Held</div>
-          <div className="tracker-kpi-value" style={{ color: '#dc2626' }}>â‚¬{fmt(latest?.retention_cumulative || 0)}</div>
+          <div className="tracker-kpi-value" style={{ color: '#dc2626' }}>€{fmt(latest?.retention_cumulative || 0)}</div>
           <div className="tracker-kpi-sub">{latest?.retention_pct || 3}% of gross</div>
         </div>
         <div className="tracker-summary-card">
           <div className="tracker-kpi-label">Balance Remaining</div>
-          <div className="tracker-kpi-value" style={{ color: '#7c3aed' }}>â‚¬{fmt((summary.totalBOQ || 0) - (latest?.works_gross_cumulative || 0))}</div>
+          <div className="tracker-kpi-value" style={{ color: '#7c3aed' }}>€{fmt((summary.totalBOQ || 0) - (latest?.works_gross_cumulative || 0))}</div>
           <div className="tracker-kpi-sub">uncertified gross works</div>
         </div>
       </div>
 
-      {/* â”€â”€ Toolbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Toolbar ─────────────────────────────────────────────── */}
       <div className="tracker-toolbar">
         <h2 className="sc-title">Application for Payment</h2>
         <button className="btn-primary" onClick={() => setShowNew(true)}>
@@ -91,9 +91,9 @@ export default function PayAppView({ projectId }) {
         </button>
       </div>
 
-      {/* â”€â”€ History table â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── History table ───────────────────────────────────────── */}
       {payapps.length === 0 ? (
-        <div className="state-box"><div className="icon">ðŸ§¾</div><p>No applications yet. Create the first PayApp.</p></div>
+        <div className="state-box"><div className="icon">🧾</div><p>No applications yet. Create the first PayApp.</p></div>
       ) : (
         <div style={{ padding: '0 12px 32px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
           <table className="boq-table" style={{ minWidth: 480 }}>
@@ -121,16 +121,16 @@ export default function PayAppView({ projectId }) {
                       {STATUS_LABEL[pa.status]}
                     </span>
                   </td>
-                  <td className="col-num payapp-col-hide" style={{ color: '#6b7280' }}>â‚¬{fmt(pa.works_gross_cumulative)}</td>
-                  <td className="col-num payapp-col-hide">â‚¬{fmt(pa.net_cumulative)}</td>
+                  <td className="col-num payapp-col-hide" style={{ color: '#6b7280' }}>€{fmt(pa.works_gross_cumulative)}</td>
+                  <td className="col-num payapp-col-hide">€{fmt(pa.net_cumulative)}</td>
                   <td className="col-num" style={{ background: '#f0fdf4', color: '#166534', fontWeight: 700, fontSize: 14 }}>
-                    â‚¬{fmt(pa.this_certificate)}
+                    €{fmt(pa.this_certificate)}
                   </td>
                   <td className="col-num" style={{ color: '#7c3aed', fontSize: 12 }}>
-                    {pa.cert_number || 'â€”'}
+                    {pa.cert_number || '—'}
                   </td>
                   <td style={{ textAlign: 'right' }}>
-                    <button className="btn-link" onClick={e => { e.stopPropagation(); setDetail(pa); }}>View â†’</button>
+                    <button className="btn-link" onClick={e => { e.stopPropagation(); setDetail(pa); }}>View →</button>
                   </td>
                 </tr>
               ))}
@@ -142,7 +142,7 @@ export default function PayAppView({ projectId }) {
   );
 }
 
-// â”€â”€ New PayApp Form â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── New PayApp Form ──────────────────────────────────────────────────────────
 function NewPayAppForm({ projectId, onBack }) {
   const [sheet,         setSheet]        = useState(null);
   const [items,         setItems]        = useState([]);
@@ -173,7 +173,7 @@ function NewPayAppForm({ projectId, onBack }) {
       });
   }, [projectId]);
 
-  if (!sheet) return <div className="state-box"><div className="icon">â³</div><p>Loading BOQâ€¦</p></div>;
+  if (!sheet) return <div className="state-box"><div className="icon">⏳</div><p>Loading BOQ…</p></div>;
 
   const setItem = (i, val) => {
     const row = items[i];
@@ -182,7 +182,7 @@ function NewPayAppForm({ projectId, onBack }) {
     setItems(rows => rows.map((r, j) => j === i ? { ...r, pct_complete: n } : r));
   };
 
-  // Live totals â€” cumulative = pct_prev + incremental; use override if QS entered it
+  // Live totals — cumulative = pct_prev + incremental; use override if QS entered it
   const itemsGross = items.reduce((s, i) => s + ((parseFloat(i.pct_prev) || 0) + (parseFloat(i.pct_complete) || 0)) / 100 * (i.contract_sum || 0), 0);
   const worksGross = grossOverride !== '' ? (parseFloat(grossOverride) || 0) : itemsGross;
   const retPct     = parseFloat(header.retention_pct) || 3;
@@ -216,41 +216,41 @@ function NewPayAppForm({ projectId, onBack }) {
   return (
     <div>
       <div className="detail-nav">
-        <button className="btn-back" onClick={onBack}>â† PayApps</button>
+        <button className="btn-back" onClick={onBack}>← PayApps</button>
       </div>
 
-      {/* Header â€” sticky below topbar */}
+      {/* Header — sticky below topbar */}
       <div className="assessment-header" style={{ position:'sticky', top:0, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb', marginBottom:0 }}>
         <div className="assessment-title">
           <span className="assessment-period">PayApp #{sheet.next_app_number}</span>
           <span style={{ fontSize: 13, color: '#6b7280' }}>
-            Previously Certified: <strong>â‚¬{fmt(prevCert)}</strong>
+            Previously Certified: <strong>€{fmt(prevCert)}</strong>
           </span>
         </div>
         <div className="assessment-kpis">
           <div className="assess-kpi">
-            <div className="kpi-label">Works Gross (Cum.) â‚¬</div>
-            <div className="kpi-value" style={{ color: '#1e40af' }}>â‚¬{fmt(grossOverride || itemsGross, 2)}</div>
+            <div className="kpi-label">Works Gross (Cum.) €</div>
+            <div className="kpi-value" style={{ color: '#1e40af' }}>€{fmt(grossOverride || itemsGross, 2)}</div>
           </div>
           <div className="assess-kpi">
             <div className="kpi-label">Retention ({retPct}%)</div>
-            <div className="kpi-value" style={{ color: '#dc2626' }}>â‚¬{fmt(retention, 0)}</div>
+            <div className="kpi-value" style={{ color: '#dc2626' }}>€{fmt(retention, 0)}</div>
           </div>
           <div className="assess-kpi">
             <div className="kpi-label">This Certificate</div>
-            <div className="kpi-value" style={{ color: thisCert >= 0 ? '#166534' : '#dc2626', fontWeight: 800 }}>â‚¬{fmt(thisCert, 0)}</div>
+            <div className="kpi-value" style={{ color: thisCert >= 0 ? '#166534' : '#dc2626', fontWeight: 800 }}>€{fmt(thisCert, 0)}</div>
           </div>
         </div>
         <div className="assessment-actions">
           <input value={header.prepared_by} onChange={e => setHeader(h => ({ ...h, prepared_by: e.target.value }))}
             placeholder="Prepared by" style={{ padding:'7px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:13, width:150 }} />
           <button className="btn-save" onClick={save} disabled={saving}>
-            {saving ? 'Savingâ€¦' : saved ? 'âœ“ Saved' : 'Save PayApp'}
+            {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save PayApp'}
           </button>
         </div>
       </div>
 
-      {/* Tabs â€” sticky below assessment header */}
+      {/* Tabs — sticky below assessment header */}
       <div className="das-tabs" style={{ position:'sticky', top:0, zIndex:8, background:'#fff', borderBottom:'1px solid #e5e7eb' }}>
         {[
           { id: 'boq',     label: `BOQ Detail (${items.length})` },
@@ -291,11 +291,11 @@ function NewPayAppForm({ projectId, onBack }) {
                   </button>
                 ))}
                 <span style={{ color:'#9ca3af', fontSize:12, marginLeft:4 }}>{items.filter(i => parseFloat(i.pct_complete) > 0).length} items with %</span>
-                <input type="search" placeholder="Filter itemsâ€¦" value={search} onChange={e => setSearch(e.target.value)}
+                <input type="search" placeholder="Filter items…" value={search} onChange={e => setSearch(e.target.value)}
                   style={{ padding:'5px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:12, width:180, marginLeft:'auto' }} />
               </div>
 
-              {/* Scrollable table area â€” overflow:auto + max-height makes thead sticky work */}
+              {/* Scrollable table area — overflow:auto + max-height makes thead sticky work */}
               {(() => {
                 // sticky column left offsets
                 const W = { ref:52, desc:220, unit:46, rate:82, total:90 };
@@ -325,15 +325,15 @@ function NewPayAppForm({ projectId, onBack }) {
                         <th style={{ ...thStyle({ position:'sticky', top:0, left:L.desc,  zIndex:7, width:W.desc,  textAlign:'left'   }) }}>Description</th>
                         <th style={{ ...thStyle({ position:'sticky', top:0, left:L.unit,  zIndex:7, width:W.unit,  textAlign:'center' }) }}>Unit</th>
                         <th style={{ ...thStyle({ position:'sticky', top:0, left:L.rate,  zIndex:7, width:W.rate,  textAlign:'right'  }) }}>Rate</th>
-                        <th style={{ ...thStyle({ position:'sticky', top:0, left:L.total, zIndex:7, width:W.total, textAlign:'right'  }) }}>Contract â‚¬</th>
-                        <th style={{ ...thStyle({ position:'sticky', top:0, zIndex:5, background:'#1e40af', textAlign:'right', minWidth:90 }) }}>Cumul. â‚¬</th>
+                        <th style={{ ...thStyle({ position:'sticky', top:0, left:L.total, zIndex:7, width:W.total, textAlign:'right'  }) }}>Contract €</th>
+                        <th style={{ ...thStyle({ position:'sticky', top:0, zIndex:5, background:'#1e40af', textAlign:'right', minWidth:90 }) }}>Cumul. €</th>
                         {priorApps.map(a => (
                           <th key={a.app_number} style={{ ...thStyle({ position:'sticky', top:0, zIndex:5, background:'#334155', textAlign:'right', minWidth:64 }) }}>
                             App #{a.app_number}
                           </th>
                         ))}
                         <th style={{ ...thStyle({ position:'sticky', top:0, zIndex:5, background:'#166534', textAlign:'right', minWidth:76 }) }}>% This App</th>
-                        <th style={{ ...thStyle({ position:'sticky', top:0, zIndex:5, background:'#166534', textAlign:'right', minWidth:84 }) }}>Value â‚¬</th>
+                        <th style={{ ...thStyle({ position:'sticky', top:0, zIndex:5, background:'#166534', textAlign:'right', minWidth:84 }) }}>Value €</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -367,14 +367,14 @@ function NewPayAppForm({ projectId, onBack }) {
                                 <td style={{ ...stickyTd(L.ref,   bg), padding:'5px 8px', fontSize:12, fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>{row.item_ref}</td>
                                 <td style={{ ...stickyTd(L.desc,  bg), padding:'5px 8px', fontSize:12, color:'#111827', maxWidth:W.desc, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={row.description}>{row.description}</td>
                                 <td style={{ ...stickyTd(L.unit,  bg), padding:'5px 4px', fontSize:12, textAlign:'center', color:'#6b7280', whiteSpace:'nowrap' }}>{row.unit}</td>
-                                <td style={{ ...stickyTd(L.rate,  bg), padding:'5px 8px', fontSize:11, textAlign:'right', color:'#6b7280', whiteSpace:'nowrap' }}>{row.rate > 0 ? `â‚¬${fmt(row.rate,2)}` : 'â€”'}</td>
-                                <td style={{ ...stickyTd(L.total, bg), padding:'5px 8px', fontSize:12, textAlign:'right', color:'#374151', whiteSpace:'nowrap' }}>{row.contract_sum > 0 ? `â‚¬${fmt(row.contract_sum,2)}` : 'â€”'}</td>
+                                <td style={{ ...stickyTd(L.rate,  bg), padding:'5px 8px', fontSize:11, textAlign:'right', color:'#6b7280', whiteSpace:'nowrap' }}>{row.rate > 0 ? `€${fmt(row.rate,2)}` : '—'}</td>
+                                <td style={{ ...stickyTd(L.total, bg), padding:'5px 8px', fontSize:12, textAlign:'right', color:'#374151', whiteSpace:'nowrap' }}>{row.contract_sum > 0 ? `€${fmt(row.contract_sum,2)}` : '—'}</td>
                                 <td className="col-num" style={{ background:'#eff6ff', color: cumVal > 0 ? '#1e40af' : '#d1d5db', fontSize:12 }}>
-                                  {cumVal > 0 ? `â‚¬${fmt(cumVal,2)}` : 'â€”'}
+                                  {cumVal > 0 ? `€${fmt(cumVal,2)}` : '—'}
                                 </td>
                                 {appPcts.map((p, ai) => (
                                   <td key={ai} className="col-num" style={{ background:'#f8faff', color: p > 0 ? '#374151' : '#d1d5db', fontSize:11 }}>
-                                    {p > 0 ? `${fmt(p,1)}%` : 'â€”'}
+                                    {p > 0 ? `${fmt(p,1)}%` : '—'}
                                   </td>
                                 ))}
                                 <td className="col-num" style={{ background:'#f0fff4' }}>
@@ -395,7 +395,7 @@ function NewPayAppForm({ projectId, onBack }) {
                                   </div>
                                 </td>
                                 <td className="col-num" style={{ background:'#f0fff4', color: val > 0 ? '#166534' : '#d1d5db', fontWeight: val > 0 ? 700 : 400 }}>
-                                  {val > 0 ? `â‚¬${fmt(val,2)}` : 'â€”'}
+                                  {val > 0 ? `€${fmt(val,2)}` : '—'}
                                 </td>
                               </tr>
                             );
@@ -403,15 +403,15 @@ function NewPayAppForm({ projectId, onBack }) {
                           <tr key={`sub-${sch}`} style={{ background:'#dbeafe', fontWeight:700 }}>
                             <td style={{ ...stickyTd(L.ref,  '#dbeafe'), padding:'5px 8px' }} />
                             <td style={{ ...stickyTd(L.desc, '#dbeafe'), padding:'5px 8px', fontSize:12, color:'#1e40af' }}>
-                              {SCH_LABEL[sch]?.split('â€”')[1]?.trim() || sch} â€” Subtotal
+                              {SCH_LABEL[sch]?.split('—')[1]?.trim() || sch} — Subtotal
                             </td>
                             <td style={{ ...stickyTd(L.unit, '#dbeafe') }} />
                             <td style={{ ...stickyTd(L.rate, '#dbeafe') }} />
-                            <td style={{ ...stickyTd(L.total,'#dbeafe'), padding:'5px 8px', textAlign:'right', color:'#1e40af' }}>â‚¬{fmt(schContractTotal,2)}</td>
-                            <td className="col-num" style={{ background:'#bfdbfe', color:'#1e40af' }}>â‚¬{fmt(schCumulate,2)}</td>
+                            <td style={{ ...stickyTd(L.total,'#dbeafe'), padding:'5px 8px', textAlign:'right', color:'#1e40af' }}>€{fmt(schContractTotal,2)}</td>
+                            <td className="col-num" style={{ background:'#bfdbfe', color:'#1e40af' }}>€{fmt(schCumulate,2)}</td>
                             {priorApps.map(a => <td key={a.app_number} />)}
                             <td />
-                            <td className="col-num" style={{ background:'#bbf7d0', color:'#166534' }}>â‚¬{fmt(schThis,2)}</td>
+                            <td className="col-num" style={{ background:'#bbf7d0', color:'#166534' }}>€{fmt(schThis,2)}</td>
                           </tr>,
                         ];
                       })}
@@ -420,11 +420,11 @@ function NewPayAppForm({ projectId, onBack }) {
                         <td style={{ ...stickyTd(L.desc, '#1e3a8a'), padding:'6px 8px', fontSize:13, color:'#fff' }}>GRAND TOTAL</td>
                         <td style={{ ...stickyTd(L.unit, '#1e3a8a') }} />
                         <td style={{ ...stickyTd(L.rate, '#1e3a8a') }} />
-                        <td style={{ ...stickyTd(L.total,'#1e3a8a'), padding:'6px 8px', textAlign:'right', color:'#fff' }}>â‚¬{fmt(grandTotal,2)}</td>
-                        <td className="col-num" style={{ background:'#1e40af' }}>â‚¬{fmt(grandCumulate,2)}</td>
+                        <td style={{ ...stickyTd(L.total,'#1e3a8a'), padding:'6px 8px', textAlign:'right', color:'#fff' }}>€{fmt(grandTotal,2)}</td>
+                        <td className="col-num" style={{ background:'#1e40af' }}>€{fmt(grandCumulate,2)}</td>
                         {priorApps.map(a => <td key={a.app_number} />)}
                         <td />
-                        <td className="col-num" style={{ background:'#166534' }}>â‚¬{fmt(grandThis,2)}</td>
+                        <td className="col-num" style={{ background:'#166534' }}>€{fmt(grandThis,2)}</td>
                       </tr>
                     </tbody>
                   </table>
@@ -441,7 +441,7 @@ function NewPayAppForm({ projectId, onBack }) {
               { key: 'period',         label: 'Period (YYYY-MM)',   type: 'text',   placeholder: '2026-07' },
               { key: 'date_submitted', label: 'Date Submitted',     type: 'date',   placeholder: '' },
               { key: 'retention_pct',  label: 'Retention %',        type: 'number', placeholder: '3.0' },
-              { key: 'notes',          label: 'Notes / Commentary', type: 'text',   placeholder: 'Optional notesâ€¦' },
+              { key: 'notes',          label: 'Notes / Commentary', type: 'text',   placeholder: 'Optional notes…' },
             ].map(f => (
               <div key={f.key} className="field">
                 <label className="field-label">{f.label}</label>
@@ -456,15 +456,15 @@ function NewPayAppForm({ projectId, onBack }) {
           <div style={{ maxWidth: 520, padding: '8px 0' }}>
             <table className="payapp-cert-table">
               <tbody>
-                <CertRow label="Works (Current Commitment)" commitment={`â‚¬${fmt(sheet.last_certified?.works_gross_cumulative || 0)}`} value={`â‚¬${fmt(worksGross, 0)}`} />
-                <CertRow label="Adjustment Events" commitment="â‚¬0" value="â‚¬0" />
-                <CertRow label="Total" commitment={`â‚¬${fmt(sheet.last_certified?.total_gross_cumulative || 0)}`} value={`â‚¬${fmt(worksGross, 0)}`} bold />
+                <CertRow label="Works (Current Commitment)" commitment={`€${fmt(sheet.last_certified?.works_gross_cumulative || 0)}`} value={`€${fmt(worksGross, 0)}`} />
+                <CertRow label="Adjustment Events" commitment="€0" value="€0" />
+                <CertRow label="Total" commitment={`€${fmt(sheet.last_certified?.total_gross_cumulative || 0)}`} value={`€${fmt(worksGross, 0)}`} bold />
                 <tr><td colSpan={3} style={{ padding: '6px 0', borderBottom: '1px solid #e5e7eb' }}></td></tr>
-                <CertRow label={`Total Retention @ ${retPct}%`} value={`â‚¬${fmt(retention, 0)}`} minus />
-                <CertRow label="Total less Retention" value={`â‚¬${fmt(netCum, 0)}`} bold />
-                <CertRow label="Previously Certified" value={`â‚¬${fmt(prevCert, 0)}`} minus />
+                <CertRow label={`Total Retention @ ${retPct}%`} value={`€${fmt(retention, 0)}`} minus />
+                <CertRow label="Total less Retention" value={`€${fmt(netCum, 0)}`} bold />
+                <CertRow label="Previously Certified" value={`€${fmt(prevCert, 0)}`} minus />
                 <tr><td colSpan={3} style={{ padding: '4px 0' }}></td></tr>
-                <CertRow label="PRESENT CERTIFICATE" value={`â‚¬${fmt(thisCert, 0)}`} total />
+                <CertRow label="PRESENT CERTIFICATE" value={`€${fmt(thisCert, 0)}`} total />
               </tbody>
             </table>
           </div>
@@ -484,7 +484,7 @@ function CertRow({ label, commitment, value, bold, minus, total }) {
   );
 }
 
-// â”€â”€ PayApp Detail view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── PayApp Detail view ───────────────────────────────────────────────────────
 function PayAppDetail({ payapp, projectId, onBack, onStatusChange }) {
   const [erCert,  setErCert]  = useState({ er_works_certified: payapp.er_works_certified || '', er_net_certified: payapp.er_net_certified || '', er_this_cert: payapp.er_this_cert || '', date_certified: payapp.date_certified || '', cert_number: payapp.cert_number || '' });
   const [saving,  setSaving]  = useState(false);
@@ -506,25 +506,25 @@ function PayAppDetail({ payapp, projectId, onBack, onStatusChange }) {
   return (
     <div>
       <div className="detail-nav">
-        <button className="btn-back" onClick={onBack}>â† PayApps</button>
+        <button className="btn-back" onClick={onBack}>← PayApps</button>
       </div>
 
       <div className="assessment-header">
         <div className="assessment-title">
-          <span className="assessment-period">PayApp #{payapp.app_number} â€” {fmtPeriod(payapp.period)}</span>
+          <span className="assessment-period">PayApp #{payapp.app_number} — {fmtPeriod(payapp.period)}</span>
           <span className="type-badge" style={{ background: STATUS_COLOR[payapp.status] + '18', color: STATUS_COLOR[payapp.status], border: `1px solid ${STATUS_COLOR[payapp.status]}40`, fontSize: 12 }}>
             {STATUS_LABEL[payapp.status]}
           </span>
         </div>
         <div className="assessment-kpis">
-          <div className="assess-kpi"><div className="kpi-label">Works Gross</div><div className="kpi-value" style={{ color: '#1e40af' }}>â‚¬{fmt(payapp.works_gross_cumulative)}</div></div>
-          <div className="assess-kpi"><div className="kpi-label">Net Cumulative</div><div className="kpi-value">â‚¬{fmt(payapp.net_cumulative)}</div></div>
-          <div className="assess-kpi"><div className="kpi-label">This Certificate</div><div className="kpi-value" style={{ color: '#166534', fontWeight: 800 }}>â‚¬{fmt(payapp.this_certificate)}</div></div>
+          <div className="assess-kpi"><div className="kpi-label">Works Gross</div><div className="kpi-value" style={{ color: '#1e40af' }}>€{fmt(payapp.works_gross_cumulative)}</div></div>
+          <div className="assess-kpi"><div className="kpi-label">Net Cumulative</div><div className="kpi-value">€{fmt(payapp.net_cumulative)}</div></div>
+          <div className="assess-kpi"><div className="kpi-label">This Certificate</div><div className="kpi-value" style={{ color: '#166534', fontWeight: 800 }}>€{fmt(payapp.this_certificate)}</div></div>
         </div>
         {btnLabel[payapp.status] && (
           <div className="assessment-actions">
             <button className="btn-save" onClick={advance} disabled={saving}>
-              {saving ? 'Savingâ€¦' : btnLabel[payapp.status]}
+              {saving ? 'Saving…' : btnLabel[payapp.status]}
             </button>
           </div>
         )}
@@ -538,15 +538,15 @@ function PayAppDetail({ payapp, projectId, onBack, onStatusChange }) {
             <th style={{ width:'23%', textAlign:'right', padding:'6px 12px', fontSize:11, textTransform:'uppercase', color:'#7c3aed' }}>ER Certified</th>
           </tr></thead>
           <tbody>
-            <CertRow label="Works (gross cumulative)" value={`â‚¬${fmt(payapp.works_gross_cumulative)}`} commitment={payapp.er_works_certified ? `â‚¬${fmt(payapp.er_works_certified)}` : 'â€”'} />
-            <CertRow label={`Retention @ ${payapp.retention_pct}%`} value={`â‚¬${fmt(payapp.retention_cumulative)}`} commitment="" minus />
-            <CertRow label="Net Cumulative" value={`â‚¬${fmt(payapp.net_cumulative)}`} commitment={payapp.er_net_certified ? `â‚¬${fmt(payapp.er_net_certified)}` : 'â€”'} bold />
-            <CertRow label="Previously Certified" value={`â‚¬${fmt(payapp.previously_certified)}`} commitment="" minus />
-            <CertRow label="THIS CERTIFICATE" value={`â‚¬${fmt(payapp.this_certificate)}`} commitment={payapp.er_this_cert ? `â‚¬${fmt(payapp.er_this_cert)}` : 'â€”'} total />
+            <CertRow label="Works (gross cumulative)" value={`€${fmt(payapp.works_gross_cumulative)}`} commitment={payapp.er_works_certified ? `€${fmt(payapp.er_works_certified)}` : '—'} />
+            <CertRow label={`Retention @ ${payapp.retention_pct}%`} value={`€${fmt(payapp.retention_cumulative)}`} commitment="" minus />
+            <CertRow label="Net Cumulative" value={`€${fmt(payapp.net_cumulative)}`} commitment={payapp.er_net_certified ? `€${fmt(payapp.er_net_certified)}` : '—'} bold />
+            <CertRow label="Previously Certified" value={`€${fmt(payapp.previously_certified)}`} commitment="" minus />
+            <CertRow label="THIS CERTIFICATE" value={`€${fmt(payapp.this_certificate)}`} commitment={payapp.er_this_cert ? `€${fmt(payapp.er_this_cert)}` : '—'} total />
           </tbody>
         </table>
 
-        {/* ER determination fields â€” show when submitted */}
+        {/* ER determination fields — show when submitted */}
         {payapp.status === 'submitted' && (
           <div>
             <div className="section-label" style={{ marginBottom: 12 }}>ER Determination</div>
@@ -554,9 +554,9 @@ function PayAppDetail({ payapp, projectId, onBack, onStatusChange }) {
               {[
                 { key: 'cert_number',       label: 'Certificate Number',     type: 'text'   },
                 { key: 'date_certified',     label: 'Date Certified',         type: 'date'   },
-                { key: 'er_works_certified', label: 'ER Works Certified (â‚¬)', type: 'number' },
-                { key: 'er_net_certified',   label: 'ER Net Certified (â‚¬)',   type: 'number' },
-                { key: 'er_this_cert',       label: 'ER This Cert Amount (â‚¬)',type: 'number' },
+                { key: 'er_works_certified', label: 'ER Works Certified (€)', type: 'number' },
+                { key: 'er_net_certified',   label: 'ER Net Certified (€)',   type: 'number' },
+                { key: 'er_this_cert',       label: 'ER This Cert Amount (€)',type: 'number' },
               ].map(f => (
                 <div key={f.key} className="field">
                   <label className="field-label">{f.label}</label>
@@ -568,7 +568,7 @@ function PayAppDetail({ payapp, projectId, onBack, onStatusChange }) {
         )}
 
         {payapp.source === 'import' && (
-          <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 16 }}>Imported from Excel â€” {payapp.notes}</p>
+          <p style={{ fontSize: 12, color: '#9ca3af', marginTop: 16 }}>Imported from Excel — {payapp.notes}</p>
         )}
       </div>
     </div>

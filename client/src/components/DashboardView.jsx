@@ -1,8 +1,8 @@
-﻿import { apiFetch } from '../apiFetch.js';
+import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect } from 'react';
 
-const fmtE = (n, d = 0) => n == null ? 'â€”' : `â‚¬${new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n)}`;
-const fmtK = n => n == null ? 'â€”' : (Math.abs(n) >= 1000 ? `â‚¬${(n / 1000).toFixed(0)}k` : `â‚¬${n.toFixed(0)}`);
+const fmtE = (n, d = 0) => n == null ? '—' : `€${new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n)}`;
+const fmtK = n => n == null ? '—' : (Math.abs(n) >= 1000 ? `€${(n / 1000).toFixed(0)}k` : `€${n.toFixed(0)}`);
 
 const PIPELINE = [
   { key: 'draft',    label: 'Draft',    color: '#92400e', bg: '#fef9c3' },
@@ -21,7 +21,7 @@ export default function DashboardView({ projectId, onNavigate }) {
     apiFetch(`/api/v1/projects/${projectId}/tracker`).then(r => r.json()).then(setTracker).catch(() => {});
   }, [projectId]);
 
-  if (!dash || !tracker) return <div className="state-box"><div className="icon">â³</div><p>Loading dashboardâ€¦</p></div>;
+  if (!dash || !tracker) return <div className="state-box"><div className="icon">⏳</div><p>Loading dashboard…</p></div>;
 
   const rows = (tracker.rows || []).filter(r => r.rev_cumulative > 0 || r.cost_cumulative > 0);
   const latest = rows[rows.length - 1] || {};
@@ -46,7 +46,7 @@ export default function DashboardView({ projectId, onNavigate }) {
       {/* KPIs */}
       <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
         <Kpi label="Margin (cumulative)" value={fmtE(marginCum, 0)}
-          sub={`${marginPct.toFixed(1)}% Â· target ${targetPct}%`}
+          sub={`${marginPct.toFixed(1)}% · target ${targetPct}%`}
           color={marginPct >= targetPct ? '#166534' : marginPct >= 0 ? '#d97706' : '#dc2626'}
           onClick={() => onNavigate('tracker')} />
         <Kpi label="Works Completed" value={`${pctComplete.toFixed(1)}%`}
@@ -83,7 +83,7 @@ export default function DashboardView({ projectId, onNavigate }) {
       </div>
 
       {/* Sub exposure */}
-      <Card title="Subcontract Exposure (committed Â· certified Â· remaining)" onClick={() => onNavigate('sub')}>
+      <Card title="Subcontract Exposure (committed · certified · remaining)" onClick={() => onNavigate('sub')}>
         {dash.subExposure.length === 0 ? <Empty /> : (
           <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
             {dash.subExposure.map(s => {
@@ -92,7 +92,7 @@ export default function DashboardView({ projectId, onNavigate }) {
               return (
                 <div key={s.id}>
                   <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
-                    <span style={{ fontWeight: 600, color: '#1a1a2e' }}>{s.ref} â€” {s.sub_name}</span>
+                    <span style={{ fontWeight: 600, color: '#1a1a2e' }}>{s.ref} — {s.sub_name}</span>
                     <span style={{ color: '#6b7280' }}>{fmtE(s.certified, 0)} / {fmtE(s.contract_value, 0)}</span>
                   </div>
                   <div style={{ height: 16, background: '#fee2e2', borderRadius: 4, overflow: 'hidden' }}>
@@ -108,7 +108,7 @@ export default function DashboardView({ projectId, onNavigate }) {
   );
 }
 
-// â”€â”€ Charts â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Charts ──────────────────────────────────────────────────────────────────
 function SCurve({ rows }) {
   if (rows.length < 2) return <Empty />;
   const W = 560, H = 220, pad = 40;
@@ -187,7 +187,7 @@ function Pipeline({ pipeline }) {
   );
 }
 
-// â”€â”€ UI helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── UI helpers ──────────────────────────────────────────────────────────────
 function Kpi({ label, value, sub, color, onClick }) {
   return (
     <div onClick={onClick} title="Open source tab"
@@ -206,7 +206,7 @@ function Card({ title, children, onClick, grow }) {
       <div onClick={onClick} title="Open source tab"
         style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', marginBottom: 12, cursor: onClick ? 'pointer' : 'default',
           display: 'flex', justifyContent: 'space-between' }}>
-        {title} {onClick && <span style={{ color: '#6366f1', fontSize: 12 }}>â†—</span>}
+        {title} {onClick && <span style={{ color: '#6366f1', fontSize: 12 }}>↗</span>}
       </div>
       {children}
     </div>

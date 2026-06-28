@@ -1,4 +1,4 @@
-﻿import { apiFetch } from '../apiFetch.js';
+import { apiFetch } from '../apiFetch.js';
 import { useState } from 'react';
 
 export default function LoginView({ onLogin }) {
@@ -54,7 +54,7 @@ export default function LoginView({ onLogin }) {
           />
           {error && <div style={{ color: '#dc2626', fontSize: 13 }}>{error}</div>}
           <button type="submit" className="login-btn" disabled={loading}>
-            {loading ? 'Signing inâ€¦' : 'Sign in'}
+            {loading ? 'Signing in…' : 'Sign in'}
           </button>
         </form>
       </div>

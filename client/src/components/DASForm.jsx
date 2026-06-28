@@ -1,4 +1,4 @@
-﻿import { apiFetch } from '../apiFetch.js';
+import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect } from 'react';
 import NextWeekForm from './NextWeekForm.jsx';
 
@@ -54,7 +54,7 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
     weekday:'long', day:'numeric', month:'long', year:'numeric'
   });
 
-  if (loading) return <div className="state-box"><div className="icon">â³</div><p>Loadingâ€¦</p></div>;
+  if (loading) return <div className="state-box"><div className="icon">⏳</div><p>Loading…</p></div>;
 
   const isSubmitted = entry.status === 'submitted';
 
@@ -76,7 +76,7 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
           </div>
           <div style={{display:'flex', gap:8, marginTop:8}}>
             <button className="btn-save" onClick={() => save('draft')} disabled={saving || isSubmitted}>
-              {saving ? 'Savingâ€¦' : saved ? 'âœ“ Saved' : 'Save Draft'}
+              {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save Draft'}
             </button>
             <button className="btn-submit" onClick={() => { if(confirm('Submit this DAS? It cannot be edited after submission.')) save('submitted'); }}
               disabled={saving || isSubmitted}>
@@ -117,7 +117,7 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
   );
 }
 
-/* â”€â”€ Header Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Header Section ──────────────────────────────────────────────────────── */
 function HeaderSection({ entry, setEntry, disabled }) {
   const set = (k, v) => setEntry(e => ({ ...e, [k]: v }));
   return (
@@ -127,7 +127,7 @@ function HeaderSection({ entry, setEntry, disabled }) {
       </Field>
       <Field label="Weather">
         <select value={entry.weather || ''} onChange={e => set('weather', e.target.value)} disabled={disabled}>
-          <option value="">â€” Select â€”</option>
+          <option value="">— Select —</option>
           {WEATHER_OPTS.map(w => <option key={w}>{w}</option>)}
         </select>
       </Field>
@@ -147,13 +147,13 @@ function HeaderSection({ entry, setEntry, disabled }) {
       </Field>
       <Field label="General Notes" span2>
         <textarea rows={3} value={entry.general_notes || ''} onChange={e => set('general_notes', e.target.value)}
-          placeholder="Site diary notes, issues, instructions receivedâ€¦" disabled={disabled} />
+          placeholder="Site diary notes, issues, instructions received…" disabled={disabled} />
       </Field>
     </div>
   );
 }
 
-/* â”€â”€ Labour Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Labour Section ──────────────────────────────────────────────────────── */
 function LabourSection({ rows, setRows, disabled }) {
   const add    = () => setRows(r => [...r, emptyLabour()]);
   const remove = i => setRows(r => r.filter((_, j) => j !== i));
@@ -165,7 +165,7 @@ function LabourSection({ rows, setRows, disabled }) {
   return (
     <div>
       <div className="section-toolbar">
-        <span className="section-stat">{rows.length} workers Â· {totalHours}h normal Â· {totalOT}h OT</span>
+        <span className="section-stat">{rows.length} workers · {totalHours}h normal · {totalOT}h OT</span>
         {!disabled && <button className="btn-add" onClick={add}>+ Add Worker</button>}
       </div>
 
@@ -193,7 +193,7 @@ function LabourSection({ rows, setRows, disabled }) {
                 <td><input type="number" min="0" max="12" step="0.5" value={row.overtime_hours} onChange={e => set(i,'overtime_hours',e.target.value)} disabled={disabled} style={{width:50}} /></td>
                 <td>
                   <select value={row.activity_code || ''} onChange={e => set(i,'activity_code',e.target.value)} disabled={disabled} style={{width:110}}>
-                    {ACTIVITY_CODES.map(c => <option key={c} value={c}>{c} â€” {CODE_LABELS[c]}</option>)}
+                    {ACTIVITY_CODES.map(c => <option key={c} value={c}>{c} — {CODE_LABELS[c]}</option>)}
                   </select>
                 </td>
                 <td>
@@ -202,7 +202,7 @@ function LabourSection({ rows, setRows, disabled }) {
                   </select>
                 </td>
                 <td><input value={row.notes || ''} onChange={e => set(i,'notes',e.target.value)} disabled={disabled} placeholder="Notes" /></td>
-                {!disabled && <td><button className="btn-remove" onClick={() => remove(i)}>âœ•</button></td>}
+                {!disabled && <td><button className="btn-remove" onClick={() => remove(i)}>✕</button></td>}
               </tr>
             ))}
           </tbody>
@@ -212,7 +212,7 @@ function LabourSection({ rows, setRows, disabled }) {
   );
 }
 
-/* â”€â”€ Plant Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Plant Section ───────────────────────────────────────────────────────── */
 function PlantSection({ rows, setRows, disabled }) {
   const add    = () => setRows(r => [...r, emptyPlant()]);
   const remove = i => setRows(r => r.filter((_, j) => j !== i));
@@ -247,7 +247,7 @@ function PlantSection({ rows, setRows, disabled }) {
                 <td><input type="number" min="0" max="24" step="0.5" value={row.hours_idle} onChange={e => set(i,'hours_idle',e.target.value)} disabled={disabled} style={{width:60}} /></td>
                 <td>
                   <select value={row.activity_code || ''} onChange={e => set(i,'activity_code',e.target.value)} disabled={disabled} style={{width:110}}>
-                    {ACTIVITY_CODES.map(c => <option key={c} value={c}>{c} â€” {CODE_LABELS[c]}</option>)}
+                    {ACTIVITY_CODES.map(c => <option key={c} value={c}>{c} — {CODE_LABELS[c]}</option>)}
                   </select>
                 </td>
                 <td>
@@ -256,7 +256,7 @@ function PlantSection({ rows, setRows, disabled }) {
                   </select>
                 </td>
                 <td><input value={row.notes || ''} onChange={e => set(i,'notes',e.target.value)} disabled={disabled} placeholder="Notes" /></td>
-                {!disabled && <td><button className="btn-remove" onClick={() => remove(i)}>âœ•</button></td>}
+                {!disabled && <td><button className="btn-remove" onClick={() => remove(i)}>✕</button></td>}
               </tr>
             ))}
           </tbody>
@@ -266,7 +266,7 @@ function PlantSection({ rows, setRows, disabled }) {
   );
 }
 
-/* â”€â”€ Activities Section â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Activities Section ──────────────────────────────────────────────────── */
 function ActivitiesSection({ rows, setRows, disabled }) {
   const add    = () => setRows(r => [...r, emptyActivity()]);
   const remove = i => setRows(r => r.filter((_, j) => j !== i));
@@ -311,16 +311,16 @@ function ActivitiesSection({ rows, setRows, disabled }) {
                         {SERVICE_CATS.map(c => <option key={c}>{c}</option>)}
                       </select>
                     </td>
-                    <td><input value={row.description} onChange={e => set(row._idx,'description',e.target.value)} disabled={disabled} placeholder="Describe work done todayâ€¦" style={{minWidth:220}} /></td>
-                    <td><input type="number" step="any" min="0" value={row.qty_today || ''} onChange={e => set(row._idx,'qty_today',e.target.value)} disabled={disabled} style={{width:70}} placeholder="â€”" /></td>
-                    <td><input value={row.unit || ''} onChange={e => set(row._idx,'unit',e.target.value)} disabled={disabled} style={{width:55}} placeholder="m, mÂ², nrâ€¦" /></td>
+                    <td><input value={row.description} onChange={e => set(row._idx,'description',e.target.value)} disabled={disabled} placeholder="Describe work done today…" style={{minWidth:220}} /></td>
+                    <td><input type="number" step="any" min="0" value={row.qty_today || ''} onChange={e => set(row._idx,'qty_today',e.target.value)} disabled={disabled} style={{width:70}} placeholder="—" /></td>
+                    <td><input value={row.unit || ''} onChange={e => set(row._idx,'unit',e.target.value)} disabled={disabled} style={{width:55}} placeholder="m, m², nr…" /></td>
                     <td>
                       <select value={row.work_type} onChange={e => set(row._idx,'work_type',e.target.value)} disabled={disabled} style={{width:100}}>
                         <option>Contract</option><option>Daywork</option>
                       </select>
                     </td>
                     <td><input value={row.notes || ''} onChange={e => set(row._idx,'notes',e.target.value)} disabled={disabled} placeholder="Notes" /></td>
-                    {!disabled && <td><button className="btn-remove" onClick={() => remove(row._idx)}>âœ•</button></td>}
+                    {!disabled && <td><button className="btn-remove" onClick={() => remove(row._idx)}>✕</button></td>}
                   </tr>
                 ))}
               </tbody>
@@ -334,7 +334,7 @@ function ActivitiesSection({ rows, setRows, disabled }) {
   );
 }
 
-/* â”€â”€ Shared Field wrapper â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */
+/* ── Shared Field wrapper ────────────────────────────────────────────────── */
 function Field({ label, children, required, span2 }) {
   return (
     <div className={`field${span2 ? ' span2' : ''}`}>

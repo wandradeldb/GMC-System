@@ -1,9 +1,9 @@
-﻿import { apiFetch } from '../apiFetch.js';
+import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback, useRef } from 'react';
 
-const fmt = n => n == null ? 'â€”' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
-const fmtDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { day:'numeric', month:'short', year:'numeric' }) : 'â€”';
-const fmtWE   = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { day:'numeric', month:'short' }) : 'â€”';
+const fmt = n => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
+const fmtDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { day:'numeric', month:'short', year:'numeric' }) : '—';
+const fmtWE   = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { day:'numeric', month:'short' }) : '—';
 
 const CAT_STYLE = {
   Plant:    { bg:'#fef3c7', color:'#92400e', border:'#d97706' },
@@ -118,14 +118,14 @@ export default function QSCostsView({ projectId }) {
     }
   };
 
-  if (!data) return <div className="state-box"><div className="icon">â³</div><p>Loading QS Costsâ€¦</p></div>;
+  if (!data) return <div className="state-box"><div className="icon">⏳</div><p>Loading QS Costs…</p></div>;
 
   const { rows, summary, filters } = data;
   const grandTotal = summary.reduce((s, r) => s + r.total, 0);
 
   return (
     <div>
-      {/* â”€â”€ Toolbar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Toolbar ─────────────────────────────────────────────── */}
       <div className="sc-toolbar" style={{ flexWrap: 'wrap', gap: 8 }}>
         <h2 className="sc-title">QS Costs</h2>
         <div style={{ display:'flex', gap:8, alignItems:'center', flexWrap:'wrap' }}>
@@ -134,7 +134,7 @@ export default function QSCostsView({ projectId }) {
             <button className={`tab-btn ${viewMode === 'summary' ? 'active' : ''}`} onClick={() => setViewMode('summary')}>By Week</button>
           </div>
           <label className="btn-primary" style={{ cursor:'pointer', position:'relative' }}>
-            {importing ? 'Importingâ€¦' : 'â¬† Import Excel'}
+            {importing ? 'Importing…' : '⬆ Import Excel'}
             <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleImport}
               style={{ position:'absolute', inset:0, opacity:0, cursor:'pointer' }} />
           </label>
@@ -150,7 +150,7 @@ export default function QSCostsView({ projectId }) {
         </div>
       )}
 
-      {/* â”€â”€ Summary totals strip â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Summary totals strip ─────────────────────────────────── */}
       {summary.length > 0 && (
         <div style={{ display:'flex', gap:8, flexWrap:'wrap', margin:'12px 0' }}>
           {summary.map(s => {
@@ -162,23 +162,23 @@ export default function QSCostsView({ projectId }) {
                   borderRadius:8, padding:'8px 14px', cursor:'pointer',
                   boxShadow: category === s.cost_category ? `0 0 0 2px ${st.border}` : 'none' }}>
                 <div style={{ fontSize:11, color: st.color, fontWeight:600 }}>{s.cost_category}</div>
-                <div style={{ fontSize:16, fontWeight:700, color: st.color }}>â‚¬{fmt(s.total)}</div>
+                <div style={{ fontSize:16, fontWeight:700, color: st.color }}>€{fmt(s.total)}</div>
                 <div style={{ fontSize:11, color:'#9ca3af' }}>{s.count} txns</div>
               </div>
             );
           })}
           <div style={{ background:'#1a1a2e', borderRadius:8, padding:'8px 14px', marginLeft:'auto' }}>
             <div style={{ fontSize:11, color:'rgba(255,255,255,0.6)', fontWeight:600 }}>TOTAL</div>
-            <div style={{ fontSize:16, fontWeight:700, color:'#fff' }}>â‚¬{fmt(grandTotal)}</div>
+            <div style={{ fontSize:16, fontWeight:700, color:'#fff' }}>€{fmt(grandTotal)}</div>
             <div style={{ fontSize:11, color:'rgba(255,255,255,0.5)' }}>{rows.length} rows</div>
           </div>
         </div>
       )}
 
-      {/* â”€â”€ Filter bar â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── Filter bar ──────────────────────────────────────────── */}
       <div className="filter-bar">
         <input
-          placeholder="Search description, supplier, plantâ€¦"
+          placeholder="Search description, supplier, plant…"
           value={search}
           onChange={e => setSearch(e.target.value)}
           style={{ minWidth: 240 }}
@@ -224,25 +224,25 @@ export default function QSCostsView({ projectId }) {
         {hasFilters && (
           <button onClick={clearFilters}
             style={{ padding:'6px 12px', borderRadius:6, border:'1px solid #d1d5db', background:'#fff', fontSize:12, cursor:'pointer', color:'#6b7280' }}>
-            Clear âœ•
+            Clear ✕
           </button>
         )}
         {selected.size > 0 && (
           <button onClick={handleDelete} disabled={deleting}
             style={{ padding:'6px 12px', borderRadius:6, border:'1px solid #dc2626', background:'#fee2e2', fontSize:12, cursor: deleting ? 'wait' : 'pointer', color:'#991b1b', fontWeight:600 }}>
-            {deleting ? 'Deletingâ€¦' : `ðŸ—‘ Delete ${selected.size}`}
+            {deleting ? 'Deleting…' : `🗑 Delete ${selected.size}`}
           </button>
         )}
       </div>
 
-      {/* â”€â”€ View: By Week Summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── View: By Week Summary ─────────────────────────────────── */}
       {viewMode === 'summary' && <WeekSummaryView projectId={projectId} />}
 
-      {/* â”€â”€ View: Transaction List â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€ */}
+      {/* ── View: Transaction List ───────────────────────────────── */}
       {viewMode === 'list' && (
         rows.length === 0 ? (
           <div className="state-box">
-            <div className="icon">ðŸ“‹</div>
+            <div className="icon">📋</div>
             <p>{filters.gangs.length === 0
               ? 'No QS Cost data yet. Import an Excel file with the "QS Costs" sheet.'
               : 'No transactions match the current filters.'}</p>
@@ -282,21 +282,21 @@ export default function QSCostsView({ projectId }) {
                     <td style={{whiteSpace:'nowrap'}}>{fmtDate(r.trans_date)}</td>
                     <td style={{whiteSpace:'nowrap', color:'#6b7280', fontSize:12}}>WE {fmtWE(r.week_ending)}</td>
                     <td style={{fontWeight:600, maxWidth:180, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}
-                      title={r.gang_name}>{r.gang_name || 'â€”'}</td>
+                      title={r.gang_name}>{r.gang_name || '—'}</td>
                     <td><CatBadge category={r.cost_category} /></td>
                     <td style={{fontSize:11, color:'#6b7280', fontFamily:'monospace'}}>{r.cost_code}</td>
                     <td style={{maxWidth:220, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap'}}
                       title={r.stock_item_text || r.plant_description}>
-                      {r.stock_item_text || r.plant_description || 'â€”'}
+                      {r.stock_item_text || r.plant_description || '—'}
                     </td>
                     <td style={{maxWidth:160, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:12, color:'#6b7280'}}
-                      title={r.supplier_name}>{r.supplier_name || 'â€”'}</td>
-                    <td style={{textAlign:'right', fontVariantNumeric:'tabular-nums'}}>{r.qty ?? 'â€”'}</td>
+                      title={r.supplier_name}>{r.supplier_name || '—'}</td>
+                    <td style={{textAlign:'right', fontVariantNumeric:'tabular-nums'}}>{r.qty ?? '—'}</td>
                     <td style={{textAlign:'right', fontVariantNumeric:'tabular-nums'}}>
-                      {r.unit_value != null ? `â‚¬${fmt(r.unit_value)}` : 'â€”'}
+                      {r.unit_value != null ? `€${fmt(r.unit_value)}` : '—'}
                     </td>
                     <td style={{textAlign:'right', fontWeight:600, fontVariantNumeric:'tabular-nums', color: r.cost < 0 ? '#dc2626' : '#1a1a2e'}}>
-                      â‚¬{fmt(r.cost)}
+                      €{fmt(r.cost)}
                     </td>
                   </tr>
                 ))}
@@ -305,7 +305,7 @@ export default function QSCostsView({ projectId }) {
                 <tr style={{background:'#f8fafc', fontWeight:700}}>
                   <td colSpan={10} style={{textAlign:'right', paddingRight:8}}>Total ({rows.length} transactions)</td>
                   <td style={{textAlign:'right', fontVariantNumeric:'tabular-nums'}}>
-                    â‚¬{fmt(rows.reduce((s, r) => s + (r.cost || 0), 0))}
+                    €{fmt(rows.reduce((s, r) => s + (r.cost || 0), 0))}
                   </td>
                 </tr>
               </tfoot>
@@ -317,7 +317,7 @@ export default function QSCostsView({ projectId }) {
   );
 }
 
-// â”€â”€ Weekly summary sub-view â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// ── Weekly summary sub-view ───────────────────────────────────────────────────
 function WeekSummaryView({ projectId }) {
   const [rows, setRows] = useState([]);
 
@@ -326,7 +326,7 @@ function WeekSummaryView({ projectId }) {
       .then(r => r.json()).then(setRows);
   }, [projectId]);
 
-  // Pivot: week â†’ { category: total }
+  // Pivot: week → { category: total }
   const weeks = [...new Set(rows.map(r => r.week_ending))].sort();
   const cats  = [...new Set(rows.map(r => r.cost_category))].sort();
   const pivot = {};
@@ -335,7 +335,7 @@ function WeekSummaryView({ projectId }) {
     pivot[r.week_ending][r.cost_category] = r.total;
   });
 
-  if (!weeks.length) return <div className="state-box"><div className="icon">ðŸ“Š</div><p>No weekly data yet.</p></div>;
+  if (!weeks.length) return <div className="state-box"><div className="icon">📊</div><p>No weekly data yet.</p></div>;
 
   return (
     <div style={{ overflowX:'auto', marginTop:8 }}>
@@ -356,10 +356,10 @@ function WeekSummaryView({ projectId }) {
                 <td style={{fontWeight:600}}>WE {fmtWE(w)}</td>
                 {cats.map(c => (
                   <td key={c} style={{textAlign:'right', fontVariantNumeric:'tabular-nums', color: weekData[c] ? '#1a1a2e' : '#d1d5db'}}>
-                    {weekData[c] ? `â‚¬${fmt(weekData[c])}` : 'â€”'}
+                    {weekData[c] ? `€${fmt(weekData[c])}` : '—'}
                   </td>
                 ))}
-                <td style={{textAlign:'right', fontWeight:700, fontVariantNumeric:'tabular-nums'}}>â‚¬{fmt(weekTotal)}</td>
+                <td style={{textAlign:'right', fontWeight:700, fontVariantNumeric:'tabular-nums'}}>€{fmt(weekTotal)}</td>
               </tr>
             );
           })}
@@ -369,10 +369,10 @@ function WeekSummaryView({ projectId }) {
             <td>TOTAL</td>
             {cats.map(c => {
               const t = rows.filter(r => r.cost_category === c).reduce((s,r) => s+r.total, 0);
-              return <td key={c} style={{textAlign:'right', fontVariantNumeric:'tabular-nums'}}>â‚¬{fmt(t)}</td>;
+              return <td key={c} style={{textAlign:'right', fontVariantNumeric:'tabular-nums'}}>€{fmt(t)}</td>;
             })}
             <td style={{textAlign:'right', fontVariantNumeric:'tabular-nums'}}>
-              â‚¬{fmt(rows.reduce((s,r) => s+r.total,0))}
+              €{fmt(rows.reduce((s,r) => s+r.total,0))}
             </td>
           </tr>
         </tfoot>
