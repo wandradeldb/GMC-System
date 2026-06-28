@@ -56,14 +56,13 @@ function recalcWeek(con, projectId, weekEnding) {
   `).get(projectId, weekEnding);
   const revCumulative = prevWeeks.cum + revTotal;
 
-  // 3. Cost: subs from approved applications + Excel imports
-  const wePeriod = weekEnding.slice(0, 7); // YYYY-MM
+  // 3. Cost: subs from approved applications (exact week_ending) + Excel imports
   const subsVal  = con.prepare(`
     SELECT COALESCE(SUM(a.value_gmc),0) AS total
     FROM sub_application a
     JOIN subcontract sc ON sc.id = a.subcontract_id
-    WHERE sc.project_id=? AND substr(a.week_ending,1,7)=? AND a.status NOT IN ('draft')
-  `).get(projectId, wePeriod);
+    WHERE sc.project_id=? AND a.week_ending=? AND a.status NOT IN ('draft')
+  `).get(projectId, weekEnding);
 
   const excelSubs = con.prepare(`
     SELECT COALESCE(SUM(amount),0) AS total
