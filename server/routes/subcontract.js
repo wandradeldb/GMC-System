@@ -117,6 +117,67 @@ router.put('/projects/:pid/subcontracts/:id/boq', (req, res) => {
   con.close();
 });
 
+// ── DASHBOARD ────────────────────────────────────────────────────────────────
+// Agregados para o dashboard de gestão (exposição por sub, pipeline, retenção, cash)
+router.get('/projects/:pid/dashboard', (req, res) => {
+  const con = db();
+  const pid = req.params.pid;
+  const project = con.prepare('SELECT name, ref, client, contract_value FROM project WHERE id=?').get(pid) || {};
+
+  const subs = con.prepare(`
+    SELECT sc.id, sc.ref, sc.retention_pct, s.name AS sub_name,
+      (SELECT ROUND(SUM(qty*rate),2) FROM sub_boq_item WHERE subcontract_id=sc.id) AS contract_value,
+      (SELECT COALESCE(ROUND(SUM(value_gmc),2),0) FROM sub_application WHERE subcontract_id=sc.id AND status!='draft') AS certified
+    FROM subcontract sc JOIN subcontractor s ON s.id=sc.subcontractor_id
+    WHERE sc.project_id=? ORDER BY contract_value DESC
+  `).all(pid);
+  const subExposure = subs.map(s => ({
+    id: s.id, ref: s.ref, sub_name: s.sub_name,
+    contract_value: s.contract_value || 0, certified: s.certified || 0,
+    remaining: Math.round(((s.contract_value || 0) - (s.certified || 0)) * 100) / 100,
+  }));
+
+  const pipeline = { draft: 0, assessed: 0, approved: 0, invoiced: 0, paid: 0 };
+  con.prepare(`
+    SELECT a.status, ROUND(SUM(a.value_gmc),2) val
+    FROM sub_application a JOIN subcontract sc ON sc.id=a.subcontract_id
+    WHERE sc.project_id=? GROUP BY a.status
+  `).all(pid).forEach(r => { if (r.status in pipeline) pipeline[r.status] = r.val || 0; });
+
+  const committedTotal = subExposure.reduce((a, s) => a + s.contract_value, 0);
+  const certifiedTotal = subExposure.reduce((a, s) => a + s.certified, 0);
+  const paidTotal = con.prepare(`
+    SELECT COALESCE(ROUND(SUM(a.net_payable),2),0) v
+    FROM sub_application a JOIN subcontract sc ON sc.id=a.subcontract_id
+    WHERE sc.project_id=? AND a.status='paid'
+  `).get(pid).v;
+  const retentionHeld = Math.round(subs.reduce((a, s) => a + (s.certified || 0) * (s.retention_pct || 0) / 100, 0) * 100) / 100;
+
+  con.close();
+  res.json({
+    project, subExposure, pipeline,
+    kpis: {
+      committedTotal: Math.round(committedTotal * 100) / 100,
+      certifiedTotal: Math.round(certifiedTotal * 100) / 100,
+      paidTotal,
+      retentionHeld,
+      owedToSubs: Math.round((certifiedTotal - paidTotal) * 100) / 100,
+    },
+  });
+});
+
+// Update retention % for a subcontract
+router.put('/projects/:pid/subcontracts/:id/retention', (req, res) => {
+  const con = db();
+  const sc = con.prepare('SELECT id FROM subcontract WHERE id=? AND project_id=?').get(req.params.id, req.params.pid);
+  if (!sc) { con.close(); throw notFound('Subcontract not found'); }
+  const pct = Math.min(100, Math.max(0, parseFloat(req.body.retention_pct) || 0));
+  con.prepare('UPDATE subcontract SET retention_pct=?, updated_at=? WHERE id=?')
+    .run(pct, new Date().toISOString(), sc.id);
+  con.close();
+  res.json({ ok: true, retention_pct: pct });
+});
+
 // ── SUB APPLICATION ──────────────────────────────────────────────────────────
 
 router.get('/projects/:pid/subcontracts/:id/applications', (req, res) => {

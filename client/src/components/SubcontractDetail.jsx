@@ -67,8 +67,9 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
           <div className="sc-detail-ref">{sc.ref}</div>
           <div className="sc-detail-name">{sc.subcontractor_name}</div>
           <div className="sc-detail-desc">{sc.description}</div>
-          <div className="sc-detail-meta">
-            {fmtDate(sc.start_date)} – {fmtDate(sc.end_date)} · Retention {sc.retention_pct}%
+          <div className="sc-detail-meta" style={{ display:'flex', alignItems:'center', gap:6 }}>
+            {fmtDate(sc.start_date)} – {fmtDate(sc.end_date)} ·
+            <RetentionField projectId={projectId} subcontractId={subcontractId} value={sc.retention_pct} onSaved={load} />
           </div>
         </div>
         <div className="sc-detail-kpis">
@@ -436,5 +437,38 @@ function CETab({ ces, subcontractId, projectId, onRefresh }) {
         </table>
       )}
     </div>
+  );
+}
+
+// ── Inline editable retention % ────────────────────────────────────────────────
+function RetentionField({ projectId, subcontractId, value, onSaved }) {
+  const [editing, setEditing] = useState(false);
+  const [val, setVal] = useState(value);
+  const save = async () => {
+    const pct = Math.min(100, Math.max(0, parseFloat(val) || 0));
+    await fetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/retention`,
+      { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ retention_pct: pct }) });
+    setEditing(false);
+    if (onSaved) onSaved();
+  };
+  if (editing) {
+    return (
+      <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+        Retention
+        <input type="number" min={0} max={100} step={0.5} value={val} autoFocus
+          onChange={e => setVal(e.target.value)}
+          onKeyDown={e => { if (e.key === 'Enter') save(); if (e.key === 'Escape') setEditing(false); }}
+          style={{ width: 56, padding: '1px 4px', fontSize: 13, borderRadius: 4, border: '1px solid #6366f1' }} />%
+        <button onClick={save}
+          style={{ border: 'none', background: '#16a34a', color: '#fff', borderRadius: 4, padding: '1px 7px', cursor: 'pointer', fontSize: 12 }}>✓</button>
+      </span>
+    );
+  }
+  return (
+    <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
+      Retention {value}%
+      <button onClick={() => { setVal(value); setEditing(true); }} title="Edit retention %"
+        style={{ border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', borderRadius: 4, padding: '0 6px', cursor: 'pointer', fontSize: 11 }}>✎</button>
+    </span>
   );
 }

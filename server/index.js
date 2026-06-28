@@ -9,6 +9,7 @@ const importRouter  = require('./routes/import');
 const qsCostsRouter    = require('./routes/qscosts');
 const assessmentRouter    = require('./routes/assessment');
 const subAssessmentRouter = require('./routes/subassessment');
+const revenueRouter       = require('./routes/revenue');
 
 const app  = express();
 const PORT = process.env.PORT || 3001;
@@ -25,6 +26,7 @@ app.use('/api/v1', importRouter);
 app.use('/api/v1', qsCostsRouter);
 app.use('/api/v1', assessmentRouter);
 app.use('/api/v1', subAssessmentRouter);
+app.use('/api/v1', revenueRouter);
 
 app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
 

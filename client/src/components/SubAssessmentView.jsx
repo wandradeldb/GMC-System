@@ -846,10 +846,20 @@ function CertificateView({ data, onBack }) {
         </button>
       </div>
 
-      <div className="cert-print" style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:8, padding:28, maxWidth:920, margin:'0 auto' }}>
-        <div style={{ borderBottom:'3px solid #1a1a2e', paddingBottom:12, marginBottom:16 }}>
-          <div style={{ fontSize:22, fontWeight:800, color:'#1a1a2e', letterSpacing:'0.02em' }}>PAYMENT CERTIFICATE</div>
-          <div style={{ fontSize:13, color:'#6b7280', marginTop:2 }}>{project.name} — {project.ref} · {project.client}</div>
+      <div className="cert-print" style={{ background:'#fff', border:'1px solid #e5e7eb', borderRadius:8, padding:28, maxWidth:820, margin:'0 auto' }}>
+        <div style={{ display:'flex', alignItems:'center', justifyContent:'space-between', gap:16,
+          background:'#1a1a2e', color:'#fff', borderRadius:6, padding:'14px 20px', margin:'-28px -28px 22px -28px' }}>
+          <div style={{ display:'flex', alignItems:'center', gap:14 }}>
+            <img src="/gmc-logo.png" alt="GMC" style={{ height:42, background:'#fff', borderRadius:6, padding:'4px 6px' }} />
+            <div>
+              <div style={{ fontSize:20, fontWeight:800, letterSpacing:'0.03em' }}>PAYMENT CERTIFICATE</div>
+              <div style={{ fontSize:12, color:'#c7cad1', marginTop:2 }}>{project.name} — {project.ref} · {project.client}</div>
+            </div>
+          </div>
+          <div style={{ textAlign:'right', fontSize:11, color:'#c7cad1', lineHeight:1.6 }}>
+            <div>Approved: <strong style={{ color:'#fff' }}>{fmtDate(app.qs_approved_date)}</strong></div>
+            <div>Printed: {fmtDate(new Date().toISOString())}</div>
+          </div>
         </div>
 
         <div style={{ display:'flex', flexWrap:'wrap', gap:'8px 40px', marginBottom:22, fontSize:13 }}>
@@ -929,10 +939,12 @@ function CertificateView({ data, onBack }) {
           ))}
         </div>
 
-        <CTitle>Recommendation & Sign-off</CTitle>
-        <div style={{ display:'flex', gap:48, marginTop:28, flexWrap:'wrap' }}>
-          <CSign role="Reviewed By (QS)" />
-          <CSign role="Approved By (Project Manager)" />
+        <div className="cert-sign">
+          <CTitle>Recommendation & Sign-off</CTitle>
+          <div style={{ display:'flex', gap:48, marginTop:28, flexWrap:'wrap' }}>
+            <CSign role="Reviewed By (QS)" />
+            <CSign role="Approved By (Project Manager)" />
+          </div>
         </div>
       </div>
     </div>

@@ -74,7 +74,8 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
       ) : (
         <div className="sc-grid">
           {list.map(sc => (
-            <div key={sc.id} className="sc-card">
+            <div key={sc.id} className="sc-card" onClick={() => setSelected(sc.id)}
+              style={{ cursor:'pointer' }} title="Open details">
               <div className="sc-card-header">
                 <span className="sc-ref">{sc.ref}</span>
                 <span className="status-badge"
@@ -105,17 +106,13 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
                 </div>
               )}
               <div style={{ display:'flex', gap:8, marginTop:10 }}>
-                <button onClick={() => setSelected(sc.id)}
-                  style={{ flex:1, padding:'5px 0', borderRadius:6, border:'1px solid #d1d5db',
-                    background:'#f9fafb', cursor:'pointer', fontSize:12, color:'#374151' }}>
-                  Details
-                </button>
-                <button onClick={() => setAssessment({ id: sc.id, ref: sc.ref, name: sc.subcontractor_name, contract_value: sc.contract_value })}
-                  style={{ flex:2, padding:'5px 0', borderRadius:6, border:'none',
+                <button onClick={(e) => { e.stopPropagation(); setAssessment({ id: sc.id, ref: sc.ref, name: sc.subcontractor_name, contract_value: sc.contract_value }); }}
+                  style={{ flex:1, padding:'5px 0', borderRadius:6, border:'none',
                     background:'#1a1a2e', cursor:'pointer', fontSize:12, color:'#fff', fontWeight:600 }}>
                   📋 Assessment
                 </button>
-                <button onClick={async () => {
+                <button onClick={async (e) => {
+                  e.stopPropagation();
                   if (!window.confirm(`Delete ${sc.ref} — ${sc.subcontractor_name}?\nThis also removes all its applications and BOQ items.`)) return;
                   await fetch(`/api/v1/projects/${projectId}/subcontracts/${sc.id}`, { method:'DELETE' });
                   load();

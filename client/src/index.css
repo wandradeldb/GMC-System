@@ -5,11 +5,15 @@ input.cell-input::-webkit-outer-spin-button,
 input.cell-input::-webkit-inner-spin-button { -webkit-appearance: none; margin: 0; }
 input.cell-input { -moz-appearance: textfield; appearance: textfield; }
 
-/* Print: show only the Payment Certificate */
+/* Print: show only the Payment Certificate, formatted for A4 */
 @media print {
+  @page { size: A4; margin: 14mm; }
   body * { visibility: hidden; }
   .cert-print, .cert-print * { visibility: visible; }
-  .cert-print { position: absolute; left: 0; top: 0; width: 100%; border: none !important; }
+  .cert-print { position: absolute; left: 0; top: 0; width: 100%; max-width: none !important; border: none !important; padding: 0 !important; font-size: 11px; }
+  .cert-print table { page-break-inside: auto; }
+  .cert-print tr { page-break-inside: avoid; }
+  .cert-sign { page-break-inside: avoid; break-inside: avoid; }
   .no-print { display: none !important; }
 }
 
@@ -44,22 +48,24 @@ body {
 .topbar-project { font-size: 13px; color: rgba(255,255,255,0.7); }
 
 .topbar-nav-btn {
-  padding: 8px 18px;
+  padding: 9px 20px;
   border: none;
   border-radius: 6px;
   cursor: pointer;
   background: transparent;
-  color: #fff;
-  font-size: 14px;
-  font-weight: 500;
+  color: #e5e7eb;
+  font-size: 16px;
+  font-weight: 600;
   flex-shrink: 0;
   white-space: nowrap;
-  transition: background 0.15s;
+  transition: background 0.15s, color 0.15s;
 }
-.topbar-nav-btn:hover { background: rgba(255,255,255,0.1); }
+.topbar-nav-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
 .topbar-nav-btn.active {
-  background: rgba(255,255,255,0.18);
-  font-weight: 700;
+  background: rgba(255,255,255,0.22);
+  color: #fff;
+  font-weight: 800;
+  box-shadow: inset 0 -3px 0 #6366f1;
 }
 
 .main { display: flex; flex: 1; gap: 0; }
@@ -110,11 +116,11 @@ body {
   display: flex; align-items: center; gap: 12px;
   margin-bottom: 16px; flex-wrap: wrap;
 }
-.filter-bar input {
+.filter-bar input[type="search"] {
   flex: 1; min-width: 200px; padding: 7px 12px; border-radius: 6px;
   border: 1px solid #d1d5db; font-size: 13px; outline: none;
 }
-.filter-bar input:focus { border-color: #1d4ed8; box-shadow: 0 0 0 2px #dbeafe; }
+.filter-bar input[type="search"]:focus { border-color: #1d4ed8; box-shadow: 0 0 0 2px #dbeafe; }
 .type-filters { display: flex; gap: 6px; }
 .type-chip {
   padding: 5px 12px; border-radius: 20px; border: 1px solid #d1d5db;

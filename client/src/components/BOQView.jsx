@@ -1,14 +1,17 @@
 import { useState, useEffect, useMemo } from 'react';
 
-const TYPE_LABELS = { F: 'Prel. Fixed', T: 'Prel. Time', M: 'Measured' };
+// O scope é definido pela SCHEDULE (não pelo type): Sch 1 = Prel. Fixed, 1A = Prel. Time, 2 = Pump Station.
+const SCHED_LABELS = { '1': 'Prel. Fixed', '1A': 'Prel. Time', '2': 'Pump Station' };
+const SCHED_COLOR  = { '1': 'F', '1A': 'T', '2': 'M' };   // reusa as cores existentes type-F/T/M
+const SCHED_ORDER  = ['1', '1A', '2'];
 
 const fmt = (n) =>
   n === 0 || n == null
     ? <span className="zero">—</span>
     : new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
-function TypeBadge({ type }) {
-  return <span className={`type-badge type-${type}`}>{type} — {TYPE_LABELS[type]}</span>;
+function TypeBadge({ schedule }) {
+  return <span className={`type-badge type-${SCHED_COLOR[schedule] || 'F'}`}>{SCHED_LABELS[schedule] || schedule}</span>;
 }
 
 function BOQTable({ items }) {
@@ -35,7 +38,7 @@ function BOQTable({ items }) {
             <td className="col-num" style={{ fontWeight: item.contract_sum > 0 ? 600 : 400 }}>
               {fmt(item.contract_sum)}
             </td>
-            <td className="col-type"><TypeBadge type={item.type} /></td>
+            <td className="col-type"><TypeBadge schedule={item.schedule} /></td>
           </tr>
         ))}
       </tbody>
@@ -69,7 +72,7 @@ export default function BOQView({ projectId, schedule, scheduleLabels }) {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState('');
-  const [types,   setTypes]   = useState(new Set(['F', 'T', 'M']));
+  const [scheds,  setScheds]  = useState(new Set(['1', '1A', '2']));
 
   useEffect(() => {
     setLoading(true);
@@ -82,10 +85,10 @@ export default function BOQView({ projectId, schedule, scheduleLabels }) {
       .catch(() => setLoading(false));
   }, [projectId, schedule]);
 
-  const toggleType = (t) =>
-    setTypes(prev => {
+  const toggleSched = (s) =>
+    setScheds(prev => {
       const next = new Set(prev);
-      next.has(t) ? next.delete(t) : next.add(t);
+      next.has(s) ? next.delete(s) : next.add(s);
       return next;
     });
 
@@ -95,10 +98,10 @@ export default function BOQView({ projectId, schedule, scheduleLabels }) {
 
     const result = {};
     for (const [sch, sections] of Object.entries(data.grouped)) {
+      if (!scheds.has(sch)) continue;          // filtra por schedule
       const filteredSections = {};
       for (const [sec, items] of Object.entries(sections)) {
         const filtered = items.filter(item =>
-          types.has(item.type) &&
           (!q ||
             item.description.toLowerCase().includes(q) ||
             item.item_ref.toLowerCase().includes(q))
@@ -108,7 +111,7 @@ export default function BOQView({ projectId, schedule, scheduleLabels }) {
       if (Object.keys(filteredSections).length) result[sch] = filteredSections;
     }
     return result;
-  }, [data, search, types]);
+  }, [data, search, scheds]);
 
   const subtotalFor = (sch) => {
     if (!filteredGrouped[sch]) return 0;
@@ -144,16 +147,21 @@ export default function BOQView({ projectId, schedule, scheduleLabels }) {
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
-        <div className="type-filters">
-          {['F', 'T', 'M'].map(t => (
-            <button
-              key={t}
-              className={`type-chip ${types.has(t) ? `active-${t}` : ''}`}
-              onClick={() => toggleType(t)}
-            >
-              {t} — {TYPE_LABELS[t]}
-            </button>
+        <div className="type-filters" style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
+          {SCHED_ORDER.map(s => (
+            <label key={s} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, fontWeight:600, color:'#374151' }}>
+              <input type="checkbox" checked={scheds.has(s)} onChange={() => toggleSched(s)}
+                style={{ width:16, height:16, cursor:'pointer', accentColor:'#1a1a2e' }} />
+              {SCHED_LABELS[s]}
+            </label>
           ))}
+          <button
+            onClick={() => { setScheds(new Set(['1', '1A', '2'])); setSearch(''); }}
+            title="Show all"
+            style={{ padding:'4px 12px', borderRadius:6, border:'1px solid #d1d5db', background:'#f9fafb',
+              cursor:'pointer', fontSize:12, color:'#6b7280' }}>
+            ✕ Clear
+          </button>
         </div>
       </div>
 

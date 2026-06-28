@@ -5,6 +5,8 @@ import SubcontractView from './components/SubcontractView.jsx';
 import TrackerView from './components/TrackerView.jsx';
 import PayAppView from './components/PayAppView.jsx';
 import QSCostsView from './components/QSCostsView.jsx';
+import DashboardView from './components/DashboardView.jsx';
+import RevenueGenerationView from './components/RevenueGenerationView.jsx';
 
 const SCHEDULE_LABELS = {
   '1':  'Sch 1 — Preliminaries Fixed',
@@ -13,18 +15,19 @@ const SCHEDULE_LABELS = {
 };
 
 const NAV = [
-  { id: 'boq', label: 'Contract BOQ',     icon: '📄' },
-  { id: 'sub', label: 'Subcontracts',     icon: '🤝' },
-  { id: 'das',     label: 'Daily Allocation', icon: '📋' },
+  { id: 'dashboard', label: 'Dashboard',      icon: '📈' },
   { id: 'tracker', label: 'Cost Tracker',     icon: '📊' },
-  { id: 'payapp',  label: 'Applications',     icon: '🧾' },
+  { id: 'sub',     label: 'Subcontracts',     icon: '🤝' },
   { id: 'qscosts', label: 'QS Costs',         icon: '💰' },
+  { id: 'payapp',  label: 'Applications',     icon: '🧾' },
+  { id: 'das',     label: 'Daily Allocation', icon: '📋' },
+  { id: 'boq',     label: 'Revenue',          icon: '📄' },
 ];
 
 export default function App() {
   const [project,  setProject]  = useState(null);
   const [summary,  setSummary]  = useState([]);
-  const [activeNav, setActiveNav]   = useState('boq');
+  const [activeNav, setActiveNav]   = useState('dashboard');
   const [activeSchedule, setActiveSchedule] = useState('all');
   const [subDeepLink, setSubDeepLink] = useState(null); // { subName } — from tracker click
 
@@ -66,22 +69,8 @@ export default function App() {
       </header>
 
       <div className="main">
-        {/* Sidebar — only for BOQ */}
-        {activeNav === 'boq' && (
-          <nav className="sidebar">
-            <div className="sidebar-section" style={{ marginBottom: 8 }}>Schedules</div>
-            {['all', '1', '1A', '2'].map(sch => (
-              <button key={sch} className={`sidebar-item ${activeSchedule === sch ? 'active' : ''}`}
-                onClick={() => setActiveSchedule(sch)}>
-                <span>{sch === 'all' ? 'All Schedules' : SCHEDULE_LABELS[sch]}</span>
-                <span className="sidebar-badge">{scheduleCount(sch)}</span>
-              </button>
-            ))}
-          </nav>
-        )}
-
         <main className="content">
-          {project && activeNav !== 'tracker' && (
+          {project && activeNav !== 'tracker' && activeNav !== 'dashboard' && (
             <div className="project-card">
               <div>
                 <h1>{project.name}</h1>
@@ -96,14 +85,9 @@ export default function App() {
             </div>
           )}
 
-          {activeNav === 'boq' && (
-            <BOQView
-              projectId={1}
-              schedule={activeSchedule === 'all' ? null : activeSchedule}
-              scheduleLabels={SCHEDULE_LABELS}
-            />
-          )}
+          {activeNav === 'boq' && <RevenueGenerationView projectId={1} />}
 
+          {activeNav === 'dashboard' && <DashboardView projectId={1} onNavigate={setActiveNav} />}
           {activeNav === 'sub'     && <SubcontractView projectId={1} deepLinkSubName={subDeepLink?.subName} onDeepLinkConsumed={() => setSubDeepLink(null)} />}
           {activeNav === 'das'     && <DASView projectId={1} />}
           {activeNav === 'tracker' && <TrackerView projectId={1} onSubCellClick={subName => { setSubDeepLink({ subName }); setActiveNav('sub'); }} />}
