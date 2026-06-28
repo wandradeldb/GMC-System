@@ -12,12 +12,15 @@ const assessmentRouter    = require('./routes/assessment');
 const subAssessmentRouter = require('./routes/subassessment');
 const revenueRouter       = require('./routes/revenue');
 
-const app  = express();
-const PORT = process.env.PORT || 3001;
-const isProd = process.env.NODE_ENV === 'production';
+const fs   = require('fs');
+
+const app      = express();
+const PORT     = process.env.PORT || 3001;
+const DIST_DIR = path.join(__dirname, '../client/dist');
+const isProd   = fs.existsSync(DIST_DIR);
 
 if (isProd) {
-  app.use(express.static(path.join(__dirname, '../client/dist')));
+  app.use(express.static(DIST_DIR));
 } else {
   app.use(cors({ origin: 'http://localhost:5173' }));
 }
