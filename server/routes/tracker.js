@@ -1,9 +1,9 @@
-const express = require('express');
+﻿const express = require('express');
 const path    = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
 const router  = express.Router();
-const DB_PATH = path.join(__dirname, '../../db/gmc.db');
+const DB_PATH = require('../db-path');
 
 function db() {
   const con = new DatabaseSync(DB_PATH, { open: true });
@@ -11,8 +11,8 @@ function db() {
   return con;
 }
 
-// ── Revenue category classifier ─────────────────────────────────────────────
-// Maps a boq_item row → one of the 7 revenue buckets
+// â”€â”€ Revenue category classifier â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Maps a boq_item row â†’ one of the 7 revenue buckets
 function revenueCategory(item) {
   const desc = (item.description || '').toLowerCase();
   const sch  = item.schedule;
@@ -24,12 +24,12 @@ function revenueCategory(item) {
     if (/mechanical|electrical|control|instrumentation|meica/.test(desc)) return 'meica';
     if (/civil|excavat|tank|pipeline|manhole|sewer|water main/.test(desc)) return 'civil';
   }
-  // Design/AE items (from Sch1 prelims — Design Principles etc.)
+  // Design/AE items (from Sch1 prelims â€” Design Principles etc.)
   if (/design|ae |a&e|engineering|architect/.test(desc)) return 'ae';
   return 'civil'; // fallback for schedule 2 uncategorised
 }
 
-// ── Recalculate a tracker_we row from source data ──────────────────────────
+// â”€â”€ Recalculate a tracker_we row from source data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function recalcWeek(con, projectId, weekEnding) {
   // 1. Revenue from BOQ_PROGRESS
   const progressRows = con.prepare(`
@@ -129,7 +129,7 @@ function recalcWeek(con, projectId, weekEnding) {
   };
 }
 
-// ── GET /projects/:pid/tracker  ─────────────────────────────────────────────
+// â”€â”€ GET /projects/:pid/tracker  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Returns all tracker_we rows ordered by week_ending ASC (columns for the UI)
 router.get('/projects/:pid/tracker', (req, res) => {
   const con  = db();
@@ -191,7 +191,7 @@ router.get('/projects/:pid/tracker', (req, res) => {
   const contractValue = (con.prepare('SELECT contract_value FROM project WHERE id=?').get(req.params.pid) || {}).contract_value || 0;
   const totalBOQ      = (con.prepare('SELECT COALESCE(SUM(qty*rate),0) AS t FROM boq_item WHERE project_id=?').get(req.params.pid) || {}).t || 0;
 
-  // ── Sub breakdown per week ─────────────────────────────────────────────────
+  // â”€â”€ Sub breakdown per week â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Get all registered subcontracts for this project
   const subs = con.prepare(`
     SELECT sc.id, sc.ref, sc.description, s.name AS sub_name
@@ -199,18 +199,18 @@ router.get('/projects/:pid/tracker', (req, res) => {
     WHERE sc.project_id=? ORDER BY sc.ref
   `).all(req.params.pid);
 
-  // Cost-Payment per sub per WE — primeiro tenta sub_assessment (Excel import),
-  // depois fallback para sub_application (aplicações formais)
+  // Cost-Payment per sub per WE â€” primeiro tenta sub_assessment (Excel import),
+  // depois fallback para sub_application (aplicaÃ§Ãµes formais)
   const assessRows = con.prepare(`
     SELECT sub_name, week_ending, ROUND(SUM(gmc_assessment),2) AS cost_payment
     FROM sub_assessment WHERE project_id=? AND week_ending IS NOT NULL
     GROUP BY sub_name, week_ending
   `).all(req.params.pid);
-  // index: sheet_name_norm + WE → cost_payment
+  // index: sheet_name_norm + WE â†’ cost_payment
   const assessMap = {};
   assessRows.forEach(r => { assessMap[`${r.sub_name}__${r.week_ending}`] = r.cost_payment; });
 
-  // Sub applications confirmadas (não-draft) por sub e SEMANA EXATA (week_ending)
+  // Sub applications confirmadas (nÃ£o-draft) por sub e SEMANA EXATA (week_ending)
   const subPayments = con.prepare(`
     SELECT sc.id AS sub_id, s.name AS sub_name, a.week_ending,
       ROUND(SUM(a.value_gmc),2) AS cost_payment
@@ -251,23 +251,23 @@ router.get('/projects/:pid/tracker', (req, res) => {
     SELECT week_ending, sub_name, revenue_generated, gmc_op_plant, misc_subbies_cost, misc_subbies_revenue
     FROM tracker_sub_revenue WHERE project_id=?
   `).all(req.params.pid);
-  // index: sub_name + WE → revenue_generated
+  // index: sub_name + WE â†’ revenue_generated
   const revMap = {};
   subRevRows.forEach(r => { revMap[`${r.sub_name}__${r.week_ending}`] = r; });
 
   // Build sub_lines: for each WE, for each sub, aggregate the 3 values
-  const subLines = {}; // week_ending → [{sub_id, sub_name, ref, cost_payment, cost_material, revenue_generated}]
+  const subLines = {}; // week_ending â†’ [{sub_id, sub_name, ref, cost_payment, cost_material, revenue_generated}]
   enriched.forEach(r => {
     const we = r.week_ending;
     const period = we.slice(0, 7); // YYYY-MM
     subLines[we] = subs.map(sc => {
-      // Cost-Payment: 1º tenta sub_assessment (Excel import) por correspondência de nome de aba
+      // Cost-Payment: 1Âº tenta sub_assessment (Excel import) por correspondÃªncia de nome de aba
       // O sheet name do Excel pode ser "Folan Civil", "Right Group", etc.
       // Comparamos com palavras-chave do nome do sub registado
       const GENERIC = new Set(['civil','group','engineering','construction','services','limited','solutions','building','contractors','infrastructure','ireland','costs','works','management']);
       const subWords = sc.sub_name.toLowerCase().split(/\s+/).filter(w => w.length > 3 && !GENERIC.has(w));
       let costPayment = 0;
-      // 1º (fonte de verdade): sub_application desta semana exata (approved/assessed/… — não draft)
+      // 1Âº (fonte de verdade): sub_application desta semana exata (approved/assessed/â€¦ â€” nÃ£o draft)
       const pa = payMap[`${sc.id}__${we}`];
       if (pa) costPayment = pa.cost_payment;
       // Fallback: sub_assessment legacy (import Excel antigo) por nome+semana
@@ -281,7 +281,7 @@ router.get('/projects/:pid/tracker', (req, res) => {
         }
       }
 
-      // Material: match gang_name — try normal includes first, then space-stripped compare
+      // Material: match gang_name â€” try normal includes first, then space-stripped compare
       const matRow = subMaterials.find(m => {
         if (m.week_ending !== we) return false;
         const gn = m.gang_name?.toLowerCase() || '';
@@ -320,7 +320,7 @@ router.get('/projects/:pid/tracker', (req, res) => {
   res.json({ rows: enriched, summary: { latest, previous, contractValue, totalBOQ }, sub_lines: subLines });
 });
 
-// ── GET /projects/:pid/tracker/:we  ─────────────────────────────────────────
+// â”€â”€ GET /projects/:pid/tracker/:we  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Get single WE detail including BOQ progress lines
 router.get('/projects/:pid/tracker/:we', (req, res) => {
   const con     = db();
@@ -343,7 +343,7 @@ router.get('/projects/:pid/tracker/:we', (req, res) => {
   res.json({ tracker, boq_progress: boqProgress });
 });
 
-// ── PUT /projects/:pid/tracker/:we  ─────────────────────────────────────────
+// â”€â”€ PUT /projects/:pid/tracker/:we  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Upsert tracker for a WE: save BOQ progress + manual costs + EFA, then recalc
 router.put('/projects/:pid/tracker/:we', (req, res) => {
   const con = db();
@@ -439,7 +439,7 @@ router.put('/projects/:pid/tracker/:we', (req, res) => {
   }
 });
 
-// ── GET /projects/:pid/tracker/:we/progress-sheet  ──────────────────────────
+// â”€â”€ GET /projects/:pid/tracker/:we/progress-sheet  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Returns BOQ items grouped by schedule for the progress entry form
 router.get('/projects/:pid/tracker/:we/progress-sheet', (req, res) => {
   const con = db();
@@ -466,7 +466,7 @@ router.get('/projects/:pid/tracker/:we/progress-sheet', (req, res) => {
   res.json({ week_ending: weekEnding, prev_week_ending: prevWE, items });
 });
 
-// ── PUT /projects/:pid/tracker/:we/sub-revenue ──────────────────────────────
+// â”€â”€ PUT /projects/:pid/tracker/:we/sub-revenue â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Save revenue_generated per sub for a WE (and GMC OP plant + Misc)
 router.put('/projects/:pid/tracker/:we/sub-revenue', (req, res) => {
   const con = db();
@@ -508,13 +508,13 @@ router.put('/projects/:pid/tracker/:we/sub-revenue', (req, res) => {
   }
 });
 
-// ── DELETE /projects/:pid/tracker/:we ────────────────────────────────────────
+// â”€â”€ DELETE /projects/:pid/tracker/:we â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.delete('/projects/:pid/tracker/:we', (req, res) => {
   const con = db();
   con.prepare('DELETE FROM boq_progress WHERE project_id=? AND week_ending=?').run(req.params.pid, req.params.we);
   const r = con.prepare('DELETE FROM tracker_we WHERE project_id=? AND week_ending=?').run(req.params.pid, req.params.we);
   con.close();
-  if (r.changes === 0) return res.status(404).json({ error: 'Semana não encontrada' });
+  if (r.changes === 0) return res.status(404).json({ error: 'Semana nÃ£o encontrada' });
   res.json({ ok: true });
 });
 

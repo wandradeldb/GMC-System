@@ -1,9 +1,9 @@
-const express = require('express');
+﻿const express = require('express');
 const path    = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
 const router  = express.Router();
-const DB_PATH = path.join(__dirname, '../../db/gmc.db');
+const DB_PATH = require('../db-path');
 
 const ACTIVITY_CODES = { A:'Civil', B:'Mechanical', C:'Electrical', D:'Instrumentation', E:'Commissioning', F:'Preliminaries', G:'Other' };
 const SERVICE_CATS   = ['Pump Station','Manhole','Pipework','Preliminaries','MEICA','Landscape','Other'];
@@ -27,14 +27,14 @@ function assertEntry(con, entryId) {
   if (!e) throw Object.assign(new Error('DAS entry not found'), { status: 404, code: 'NOT_FOUND' });
 }
 
-// ── Metadata ────────────────────────────────────────────────────────────────
+// â”€â”€ Metadata â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/das/meta', (_req, res) => {
   res.json({ activity_codes: ACTIVITY_CODES, service_categories: SERVICE_CATS, work_types: WORK_TYPES, weather: WEATHER_OPTS });
 });
 
-// ── DAS_ENTRY ────────────────────────────────────────────────────────────────
+// â”€â”€ DAS_ENTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// GET /projects/:id/das  – list entries (summary)
+// GET /projects/:id/das  â€“ list entries (summary)
 router.get('/projects/:id/das', (req, res) => {
   const con = db();
   assertProject(con, req.params.id);
@@ -55,7 +55,7 @@ router.get('/projects/:id/das', (req, res) => {
   res.json(entries);
 });
 
-// GET /projects/:id/das/:date  – get or create entry for a date
+// GET /projects/:id/das/:date  â€“ get or create entry for a date
 router.get('/projects/:id/das/:date', (req, res) => {
   const con = db();
   assertProject(con, req.params.id);
@@ -80,7 +80,7 @@ router.get('/projects/:id/das/:date', (req, res) => {
   res.json({ entry, labour, plant, activities });
 });
 
-// PUT /projects/:id/das/:date  – upsert full DAS (header + children)
+// PUT /projects/:id/das/:date  â€“ upsert full DAS (header + children)
 router.put('/projects/:id/das/:date', (req, res) => {
   const con = db();
   try {
@@ -152,7 +152,7 @@ router.put('/projects/:id/das/:date', (req, res) => {
   }
 });
 
-// ── DAS_NEXT_WEEK ────────────────────────────────────────────────────────────
+// â”€â”€ DAS_NEXT_WEEK â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // GET /projects/:id/next-week/:monday
 router.get('/projects/:id/next-week/:monday', (req, res) => {
@@ -190,7 +190,7 @@ router.put('/projects/:id/next-week/:monday', (req, res) => {
   res.json({ ok: true, next_week: saved });
 });
 
-// ── Error handler ─────────────────────────────────────────────────────────────
+// â”€â”€ Error handler â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.use((err, _req, res, _next) => {
   res.status(err.status || 500).json({ error: err.message, code: err.code || 'ERROR' });
 });

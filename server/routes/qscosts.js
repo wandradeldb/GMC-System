@@ -1,11 +1,11 @@
-const express = require('express');
+﻿const express = require('express');
 const multer  = require('multer');
 const XLSX    = require('xlsx');
 const path    = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
 const router  = express.Router();
-const DB_PATH = path.join(__dirname, '../../db/gmc.db');
+const DB_PATH = require('../db-path');
 const upload  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 30 * 1024 * 1024 } });
 
 function db() {
@@ -14,7 +14,7 @@ function db() {
   return con;
 }
 
-// Map cost codes → readable category
+// Map cost codes â†’ readable category
 function deriveCategory(transType, costCode) {
   const tt = (transType || '').toUpperCase();
   const cc = (costCode  || '').toLowerCase().trim();
@@ -30,7 +30,7 @@ function deriveCategory(transType, costCode) {
   return 'Other';
 }
 
-// Excel serial → YYYY-MM-DD
+// Excel serial â†’ YYYY-MM-DD
 function serialToISO(serial) {
   if (!serial || isNaN(serial)) return null;
   const d = XLSX.SSF.parse_date_code(Number(serial));
@@ -38,7 +38,7 @@ function serialToISO(serial) {
   return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
 }
 
-// ── POST /projects/:pid/qs-costs/import ─────────────────────────────────────
+// â”€â”€ POST /projects/:pid/qs-costs/import â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post('/projects/:pid/qs-costs/import', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded', code: 'NO_FILE' });
 
@@ -85,7 +85,7 @@ router.post('/projects/:pid/qs-costs/import', upload.single('file'), (req, res) 
   const sourceFile = req.file.originalname;
   const projectId  = req.params.pid;
 
-  // Find header row — look for row containing "TransactionID" or "GangName" or "Cost"
+  // Find header row â€” look for row containing "TransactionID" or "GangName" or "Cost"
   let hdRow = -1;
   const COL = {};
   for (let r = 0; r <= Math.min(10, range.e.r); r++) {
@@ -204,7 +204,7 @@ router.post('/projects/:pid/qs-costs/import', upload.single('file'), (req, res) 
   }
 });
 
-// ── GET /projects/:pid/qs-costs ─────────────────────────────────────────────
+// â”€â”€ GET /projects/:pid/qs-costs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Supports ?gang=&category=&week=&search=&page=&limit=
 router.get('/projects/:pid/qs-costs', (req, res) => {
   const con = db();
@@ -253,7 +253,7 @@ router.get('/projects/:pid/qs-costs', (req, res) => {
   res.json({ rows, summary, filters: { gangs: gangs.map(r=>r.gang_name), weeks: weeks.map(r=>r.week_ending), categories: cats.map(r=>r.cost_category) } });
 });
 
-// ── DELETE /projects/:pid/qs-costs ──────────────────────────────────────────
+// â”€â”€ DELETE /projects/:pid/qs-costs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Body: { ids: [1, 2, 3] }
 router.delete('/projects/:pid/qs-costs', (req, res) => {
   const ids = req.body.ids;
@@ -273,7 +273,7 @@ router.delete('/projects/:pid/qs-costs', (req, res) => {
   }
 });
 
-// ── GET /projects/:pid/qs-costs/summary-by-week ─────────────────────────────
+// â”€â”€ GET /projects/:pid/qs-costs/summary-by-week â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/projects/:pid/qs-costs/summary-by-week', (req, res) => {
   const con = db();
   const rows = con.prepare(`

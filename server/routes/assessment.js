@@ -1,11 +1,11 @@
-const express = require('express');
+﻿const express = require('express');
 const multer  = require('multer');
 const XLSX    = require('xlsx');
 const path    = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
 const router  = express.Router();
-const DB_PATH = path.join(__dirname, '../../db/gmc.db');
+const DB_PATH = require('../db-path');
 const upload  = multer({ storage: multer.memoryStorage(), limits: { fileSize: 50 * 1024 * 1024 } });
 
 function db() {
@@ -34,13 +34,13 @@ function cellNum(sh, r, c) {
   return v != null && !isNaN(Number(v)) ? Number(v) : null;
 }
 
-// ── Parser: Folan Civil / Right Group (application-based) ───────────────────
+// â”€â”€ Parser: Folan Civil / Right Group (application-based) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Detecta blocos "App N" nas rows de header; extrai GMC Assessment total por app
 function parseApplicationBased(sh, sheetName) {
   const range = XLSX.utils.decode_range(sh['!ref'] || 'A1:A1');
   const results = [];
 
-  // Encontrar a linha de header (contém "App" e "Assessment" ou "GMC Assessment")
+  // Encontrar a linha de header (contÃ©m "App" e "Assessment" ou "GMC Assessment")
   let hdRow = -1;
   for (let r = 0; r <= Math.min(8, range.e.r); r++) {
     let hasApp = false, hasAssessment = false;
@@ -50,7 +50,7 @@ function parseApplicationBased(sh, sheetName) {
       if (s.includes('assessment') || s.includes('gmc assessment')) hasAssessment = true;
     }
     if (hasApp && hasAssessment) { hdRow = r; break; }
-    if (hasApp) { hdRow = r; }  // fallback: só app
+    if (hasApp) { hdRow = r; }  // fallback: sÃ³ app
   }
   if (hdRow < 0) return results;
 
@@ -65,7 +65,7 @@ function parseApplicationBased(sh, sheetName) {
     if (dateCount > 0) { dateRow = r; break; }
   }
 
-  // Mapear blocos: para cada col onde header contém "App N"
+  // Mapear blocos: para cada col onde header contÃ©m "App N"
   const appBlocks = []; // { col, appLabel, assessCol, weekEnding }
   for (let c = range.s.c; c <= range.e.c; c++) {
     const hdr = cellStr(sh, hdRow, c);
@@ -90,7 +90,7 @@ function parseApplicationBased(sh, sheetName) {
     }
   }
 
-  // Para cada bloco, somar valores numéricos na coluna Assessment
+  // Para cada bloco, somar valores numÃ©ricos na coluna Assessment
   for (const blk of appBlocks) {
     let gmcTotal = 0, subTotal = 0;
     for (let r = hdRow + 1; r <= range.e.r; r++) {
@@ -112,7 +112,7 @@ function parseApplicationBased(sh, sheetName) {
   return results;
 }
 
-// ── Parser: RPS / CarlowT (colunas semanais Qty+Amount) ─────────────────────
+// â”€â”€ Parser: RPS / CarlowT (colunas semanais Qty+Amount) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function parseWeeklyQtyAmount(sh, sheetName) {
   const range = XLSX.utils.decode_range(sh['!ref'] || 'A1:A1');
   const results = [];
@@ -161,7 +161,7 @@ function parseWeeklyQtyAmount(sh, sheetName) {
   return results;
 }
 
-// ── Parser: Misc Subcons (semanal, agrupado por "Subbie") ───────────────────
+// â”€â”€ Parser: Misc Subcons (semanal, agrupado por "Subbie") â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function parseMiscSubcons(sh) {
   const range = XLSX.utils.decode_range(sh['!ref'] || 'A1:A1');
   const results = [];
@@ -193,17 +193,17 @@ function parseMiscSubcons(sh) {
 
   // Col A (ou col 0): nome do subbie (em linhas com "Subbie" na col anterior)
   let currentSubbie = null;
-  const totals = {}; // subbie+we → total
+  const totals = {}; // subbie+we â†’ total
 
   for (let r = hdRow + 1; r <= range.e.r; r++) {
-    // Verificar se esta linha é um header de subbie (col 0 ou 1 tem texto não-numérico)
+    // Verificar se esta linha Ã© um header de subbie (col 0 ou 1 tem texto nÃ£o-numÃ©rico)
     const colA = cellStr(sh, r, range.s.c);
     const colB = cellStr(sh, r, range.s.c + 1);
     const label = colA || colB;
 
     if (label && !/^\d/.test(label) && !label.toLowerCase().includes('total')) {
-      // É um nome de subbie ou item
-      // Se a linha seguinte tem valores, este é o nome do item
+      // Ã‰ um nome de subbie ou item
+      // Se a linha seguinte tem valores, este Ã© o nome do item
       currentSubbie = label;
     }
 
@@ -219,7 +219,7 @@ function parseMiscSubcons(sh) {
   for (const [key, total] of Object.entries(totals)) {
     const [subName, weekEnding] = key.split('__');
     results.push({
-      sub_name:       `Misc — ${subName}`,
+      sub_name:       `Misc â€” ${subName}`,
       app_label:      `WE_${weekEnding}`,
       week_ending:    weekEnding,
       gmc_assessment: Math.round(total * 100) / 100,
@@ -229,11 +229,11 @@ function parseMiscSubcons(sh) {
   return results;
 }
 
-// ── Detectar formato e fazer parse de uma aba ────────────────────────────────
+// â”€â”€ Detectar formato e fazer parse de uma aba â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 function parseSheet(sh, sheetName) {
   if (sheetName === 'Misc Subcons') return parseMiscSubcons(sh);
 
-  // Detectar se é application-based ou weekly
+  // Detectar se Ã© application-based ou weekly
   const range = XLSX.utils.decode_range(sh['!ref'] || 'A1:A1');
   for (let r = 0; r <= Math.min(6, range.e.r); r++) {
     for (let c = range.s.c; c <= range.e.c; c++) {
@@ -245,14 +245,14 @@ function parseSheet(sh, sheetName) {
   return parseWeeklyQtyAmount(sh, sheetName);
 }
 
-// ── Abas a ignorar (não são de sub) ─────────────────────────────────────────
+// â”€â”€ Abas a ignorar (nÃ£o sÃ£o de sub) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 const IGNORE_SHEETS = new Set([
   'project summary','revenue summary','subcons summary','tracker',
   'revenue generator','qs costs','summary pl-mat','ae revenue',
   'agent codes','gangs','costs civil subbie',
 ]);
 
-// ── POST /projects/:pid/assessment/import ────────────────────────────────────
+// â”€â”€ POST /projects/:pid/assessment/import â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post('/projects/:pid/assessment/import', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'Sem ficheiro', code: 'NO_FILE' });
 
@@ -311,7 +311,7 @@ router.post('/projects/:pid/assessment/import', upload.single('file'), (req, res
   }
 });
 
-// ── GET /projects/:pid/assessment ────────────────────────────────────────────
+// â”€â”€ GET /projects/:pid/assessment â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/projects/:pid/assessment', (req, res) => {
   const con = db();
   const rows = con.prepare(`
@@ -323,7 +323,7 @@ router.get('/projects/:pid/assessment', (req, res) => {
   res.json(rows);
 });
 
-// ── GET /projects/:pid/assessment/summary ────────────────────────────────────
+// â”€â”€ GET /projects/:pid/assessment/summary â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/projects/:pid/assessment/summary', (req, res) => {
   const con = db();
   const rows = con.prepare(`

@@ -5,3 +5,7 @@ server/node_modules/
 .env
 dist/
 client/dist/
+
+# SQLite backups only — db/gmc.db is committed as seed for first deploy
+db/gmc.db.bak-*
+Userswagne*

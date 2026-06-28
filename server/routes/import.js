@@ -1,11 +1,11 @@
-const express  = require('express');
+﻿const express  = require('express');
 const multer   = require('multer');
 const XLSX     = require('xlsx');
 const path     = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
 const router   = express.Router();
-const DB_PATH  = path.join(__dirname, '../../db/gmc.db');
+const DB_PATH  = require('../db-path');
 const upload   = multer({ storage: multer.memoryStorage(), limits: { fileSize: 20 * 1024 * 1024 } });
 
 function db() {
@@ -14,7 +14,7 @@ function db() {
   return con;
 }
 
-// ── helpers ──────────────────────────────────────────────────────────────────
+// â”€â”€ helpers â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 function cellVal(sheet, r, c) {
   const cell = sheet[XLSX.utils.encode_cell({ r, c })];
@@ -67,7 +67,7 @@ function mapCols(sheet, headerRow, aliases) {
   return result;
 }
 
-// Excel serial date → YYYY-MM-DD
+// Excel serial date â†’ YYYY-MM-DD
 function excelDateToISO(serial) {
   if (!serial || isNaN(serial)) return null;
   const d = XLSX.SSF.parse_date_code(serial);
@@ -79,7 +79,7 @@ function isDateSerial(v) {
   return typeof v === 'number' && v > 40000 && v < 60000; // roughly 2009-2064
 }
 
-// ── Parser: Folan Civil ───────────────────────────────────────────────────────
+// â”€â”€ Parser: Folan Civil â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Headers around row 5 (0-indexed 4): Item | Description | Qty | Unit | Rates | BOQ Value | Qty Complete | Rate
 // Returns { items: [{ref, description, qty_contracted, rate, boq_value, qty_complete}], weekEnding }
 function parseFolanCivil(sheet, weekEnding) {
@@ -106,7 +106,7 @@ function parseFolanCivil(sheet, weekEnding) {
     const qtyComplete = cols.qty_complete != null ? (cellNum(sheet, r, cols.qty_complete) ?? 0) : 0;
     const rate        = cols.rate != null         ? (cellNum(sheet, r, cols.rate) ?? 0)         : 0;
     const boqVal      = cols.boq_value != null    ? (cellNum(sheet, r, cols.boq_value) ?? 0)    : 0;
-    // Value this assessment = qty_complete × rate; if boq_value given, it's the contract total
+    // Value this assessment = qty_complete Ã— rate; if boq_value given, it's the contract total
     const itemAmount  = qtyComplete * rate;
     totalAmount += itemAmount;
   }
@@ -114,7 +114,7 @@ function parseFolanCivil(sheet, weekEnding) {
   return { amount: Math.round(totalAmount * 100) / 100, weekEnding };
 }
 
-// ── Parser: Right Group ───────────────────────────────────────────────────────
+// â”€â”€ Parser: Right Group â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Headers around row 5: Description | Qty | Unit | Rate | Amount | Comment
 function parseRightGroup(sheet, weekEnding) {
   const hdRow = findHeaderRow(sheet, ['description', 'amount'], 12);
@@ -143,7 +143,7 @@ function parseRightGroup(sheet, weekEnding) {
   return { amount: Math.round(totalAmount * 100) / 100, weekEnding };
 }
 
-// ── Parser: Weekly columns (RPS Costs, CarlowT) ───────────────────────────────
+// â”€â”€ Parser: Weekly columns (RPS Costs, CarlowT) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Row ~2: "Week Ending" date headers
 // Row ~4: sub-headers Qty | Unit | Rate | Sum | ... | Amount per week column group
 function parseWeeklyColumns(sheet, subName) {
@@ -223,7 +223,7 @@ function parseWeeklyColumns(sheet, subName) {
   return results;
 }
 
-// ── Parser: Misc Subcons (multiple subs with "Subbie" label rows) ─────────────
+// â”€â”€ Parser: Misc Subcons (multiple subs with "Subbie" label rows) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Row ~2: WE date headers
 // "Subbie" marker rows divide sections; each section = one sub
 function parseMiscSubcons(sheet) {
@@ -241,7 +241,7 @@ function parseMiscSubcons(sheet) {
   }
   if (weRow < 0) return allResults;
 
-  // Collect week ending → column index for "Amount" sub-columns
+  // Collect week ending â†’ column index for "Amount" sub-columns
   // Sub-header row (weRow+2 typically): has Qty/Inv | Amount pairs
   let subHdRow = weRow + 1;
   for (let r = weRow + 1; r <= Math.min(weRow + 4, range.e.r); r++) {
@@ -250,7 +250,7 @@ function parseMiscSubcons(sheet) {
     if (rowNorms.filter(v => v.includes('amount')).length >= 1) { subHdRow = r; break; }
   }
 
-  // Build WE → amtCol map
+  // Build WE â†’ amtCol map
   const weAmtMap = []; // [{weekEnding, amtCol}]
   for (let c = 1; c <= range.e.c; c++) {
     const v = cellVal(sheet, weRow, c);
@@ -299,7 +299,7 @@ function parseMiscSubcons(sheet) {
   return allResults;
 }
 
-// ── POST /projects/:pid/import/sub-excel ─────────────────────────────────────
+// â”€â”€ POST /projects/:pid/import/sub-excel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.post('/projects/:pid/import/sub-excel', upload.single('file'), (req, res) => {
   if (!req.file) return res.status(400).json({ error: 'No file uploaded', code: 'NO_FILE' });
 
@@ -307,7 +307,7 @@ router.post('/projects/:pid/import/sub-excel', upload.single('file'), (req, res)
   const sourceFile = req.file.originalname;
   const projectId  = req.params.pid;
 
-  // Tab name → parser config
+  // Tab name â†’ parser config
   // weekEnding from req.body if caller provides it (for Folan Civil / Right Group lump sheets)
   const { week_ending } = req.body; // optional override for lump-sum sheets
 
@@ -324,7 +324,7 @@ router.post('/projects/:pid/import/sub-excel', upload.single('file'), (req, res)
 
   for (const [tabName, format] of Object.entries(SUB_TABS)) {
     const sheet = workbook.Sheets[tabName];
-    if (!sheet) { warnings.push(`Sheet "${tabName}" not found — skipped`); continue; }
+    if (!sheet) { warnings.push(`Sheet "${tabName}" not found â€” skipped`); continue; }
 
     if (format === 'folan') {
       const we = week_ending || new Date().toISOString().slice(0, 10);
@@ -377,7 +377,7 @@ router.post('/projects/:pid/import/sub-excel', upload.single('file'), (req, res)
   }
 });
 
-// ── GET /projects/:pid/import/sub-excel ─────────────────────────────────────
+// â”€â”€ GET /projects/:pid/import/sub-excel â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // List what's been imported
 router.get('/projects/:pid/import/sub-excel', (req, res) => {
   const con = db();

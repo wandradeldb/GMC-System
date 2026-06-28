@@ -1,10 +1,10 @@
-const express = require('express');
+﻿const express = require('express');
 const path    = require('path');
 const XLSX    = require('xlsx');
 const { DatabaseSync } = require('node:sqlite');
 
 const router  = express.Router();
-const DB_PATH = path.join(__dirname, '../../db/gmc.db');
+const DB_PATH = require('../db-path');
 
 function db() {
   const con = new DatabaseSync(DB_PATH, { open: true });
@@ -17,9 +17,9 @@ const STATUS_FLOW = ['draft','assessed','approved','invoiced','paid'];
 function notFound(msg) { return Object.assign(new Error(msg), { status: 404, code: 'NOT_FOUND' }); }
 function badReq(msg)   { return Object.assign(new Error(msg), { status: 400, code: 'BAD_REQUEST' }); }
 
-// ── SUBCONTRACTORS ───────────────────────────────────────────────────────────
+// â”€â”€ SUBCONTRACTORS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// Search/list suppliers — supports ?q=term&active=1
+// Search/list suppliers â€” supports ?q=term&active=1
 router.get('/subcontractors', (req, res) => {
   const con = db();
   const { q, active } = req.query;
@@ -44,7 +44,7 @@ router.post('/subcontractors', (req, res) => {
   con.close();
 });
 
-// ── SUBCONTRACTS ─────────────────────────────────────────────────────────────
+// â”€â”€ SUBCONTRACTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/projects/:pid/subcontracts', (req, res) => {
   const con = db();
@@ -113,7 +113,7 @@ router.patch('/projects/:pid/subcontracts/:id', (req, res) => {
   con.close();
 });
 
-// ── SUB BOQ ITEMS ────────────────────────────────────────────────────────────
+// â”€â”€ SUB BOQ ITEMS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.put('/projects/:pid/subcontracts/:id/boq', (req, res) => {
   const con = db();
@@ -129,8 +129,8 @@ router.put('/projects/:pid/subcontracts/:id/boq', (req, res) => {
   con.close();
 });
 
-// ── DASHBOARD ────────────────────────────────────────────────────────────────
-// Agregados para o dashboard de gestão (exposição por sub, pipeline, retenção, cash)
+// â”€â”€ DASHBOARD â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Agregados para o dashboard de gestÃ£o (exposiÃ§Ã£o por sub, pipeline, retenÃ§Ã£o, cash)
 router.get('/projects/:pid/dashboard', (req, res) => {
   const con = db();
   const pid = req.params.pid;
@@ -190,7 +190,7 @@ router.put('/projects/:pid/subcontracts/:id/retention', (req, res) => {
   res.json({ ok: true, retention_pct: pct });
 });
 
-// ── SUB BOQ — with certified totals ─────────────────────────────────────────
+// â”€â”€ SUB BOQ â€” with certified totals â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/projects/:pid/subcontracts/:id/boq', (req, res) => {
   const con = db();
   const sc = con.prepare('SELECT id FROM subcontract WHERE id=? AND project_id=?').get(req.params.id, req.params.pid);
@@ -217,7 +217,7 @@ router.get('/projects/:pid/subcontracts/:id/boq', (req, res) => {
   res.json(result);
 });
 
-// ── SUB APPLICATION ──────────────────────────────────────────────────────────
+// â”€â”€ SUB APPLICATION â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 // List applications
 router.get('/projects/:pid/subcontracts/:id/applications', (req, res) => {
@@ -651,7 +651,7 @@ router.post('/projects/:pid/subcontracts/:id/applications/:appId/approve', (req,
   con.close();
 });
 
-// ── COMPENSATION EVENTS ──────────────────────────────────────────────────────
+// â”€â”€ COMPENSATION EVENTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.post('/projects/:pid/subcontracts/:id/ces', (req, res) => {
   const con = db();
@@ -677,7 +677,7 @@ router.patch('/projects/:pid/subcontracts/:id/ces/:ceId', (req, res) => {
   con.close();
 });
 
-// ── SUB INVOICES ─────────────────────────────────────────────────────────────
+// â”€â”€ SUB INVOICES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.post('/projects/:pid/subcontracts/:id/applications/:appId/invoices', (req, res) => {
   const con = db();
@@ -711,7 +711,7 @@ router.patch('/projects/:pid/invoices/:invoiceId', (req, res) => {
   con.close();
 });
 
-// ── PAYMENT RUNS ─────────────────────────────────────────────────────────────
+// â”€â”€ PAYMENT RUNS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
 router.get('/projects/:pid/payment-runs', (req, res) => {
   const con = db();
@@ -752,7 +752,7 @@ router.patch('/projects/:pid/payment-runs/:runId', (req, res) => {
   con.close();
 });
 
-// ── DELETE /projects/:pid/subcontracts/:scid ──────────────────────────────────
+// â”€â”€ DELETE /projects/:pid/subcontracts/:scid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.delete('/projects/:pid/subcontracts/:scid', (req, res) => {
   const con = db();
   con.exec('BEGIN');
@@ -768,7 +768,7 @@ router.delete('/projects/:pid/subcontracts/:scid', (req, res) => {
       .run(req.params.scid, req.params.pid);
     con.exec('COMMIT');
     con.close();
-    if (r.changes === 0) return res.status(404).json({ error: 'Subcontract não encontrado' });
+    if (r.changes === 0) return res.status(404).json({ error: 'Subcontract nÃ£o encontrado' });
     res.json({ ok: true });
   } catch (e) {
     con.exec('ROLLBACK');
@@ -777,7 +777,7 @@ router.delete('/projects/:pid/subcontracts/:scid', (req, res) => {
   }
 });
 
-// ── SUB BOQ IMPORT (Excel) ───────────────────────────────────────────────────
+// â”€â”€ SUB BOQ IMPORT (Excel) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Expects JSON body: { file: '<base64>', mode: 'replace'|'append' }
 // Excel columns (any order, header row required):
 //   Ref | Description | Unit | Qty | Rate | Section
@@ -801,7 +801,7 @@ router.post('/projects/:pid/subcontracts/:id/boq/import', (req, res) => {
   let items = [];
 
   if (hdrIdx >= 0) {
-    // Map by header names (column index → field)
+    // Map by header names (column index â†’ field)
     const hdr = raw[hdrIdx].map(norm);
     const col  = (names) => hdr.findIndex(h => names.includes(h));
     const iRef  = col(['ref', 'item ref', 'item_ref', 'no', 'no.', 'no,.', '#']);

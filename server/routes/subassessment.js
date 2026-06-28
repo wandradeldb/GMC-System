@@ -1,4 +1,4 @@
-const express = require('express');
+﻿const express = require('express');
 const multer  = require('multer');
 const XLSX    = require('xlsx');
 const path    = require('path');
@@ -16,7 +16,7 @@ function serialToISO(v) {
 function cellV(sh,r,c){ const x=sh[XLSX.utils.encode_cell({r,c})]; return x?x.v:null; }
 function numV(sh,r,c){ const v=cellV(sh,r,c); return typeof v==='number'?v:null; }
 function strV(sh,r,c){ const v=cellV(sh,r,c); return v!=null?String(v).trim():''; }
-const DB_PATH = path.join(__dirname, '../../db/gmc.db');
+const DB_PATH = require('../db-path');
 
 function db() {
   const con = new DatabaseSync(DB_PATH, { open: true });
@@ -24,8 +24,8 @@ function db() {
   return con;
 }
 
-// ── GET /projects/:pid/subcontracts/:scid/boq ────────────────────────────────
-// Lista itens BOQ do sub com o último % certificado
+// â”€â”€ GET /projects/:pid/subcontracts/:scid/boq â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Lista itens BOQ do sub com o Ãºltimo % certificado
 router.get('/projects/:pid/subcontracts/:scid/boq', (req, res) => {
   const con = db();
   const items = con.prepare(`
@@ -63,7 +63,7 @@ router.get('/projects/:pid/subcontracts/:scid/boq', (req, res) => {
   }));
 });
 
-// ── GET /projects/:pid/subcontracts/:scid/applications ───────────────────────
+// â”€â”€ GET /projects/:pid/subcontracts/:scid/applications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/projects/:pid/subcontracts/:scid/applications', (req, res) => {
   const con = db();
   const apps = con.prepare(`
@@ -82,7 +82,7 @@ router.get('/projects/:pid/subcontracts/:scid/applications', (req, res) => {
   res.json(apps);
 });
 
-// ── GET /projects/:pid/subcontracts/:scid/applications/:appid ───────────────
+// â”€â”€ GET /projects/:pid/subcontracts/:scid/applications/:appid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/projects/:pid/subcontracts/:scid/applications/:appid', (req, res) => {
   const con = db();
   const app = con.prepare('SELECT * FROM sub_application WHERE id=? AND subcontract_id=?')
@@ -102,15 +102,15 @@ router.get('/projects/:pid/subcontracts/:scid/applications/:appid', (req, res) =
   res.json({ app, items });
 });
 
-// ── POST /projects/:pid/subcontracts/:scid/applications ─────────────────────
-// Criar nova aplicação de assessment
+// â”€â”€ POST /projects/:pid/subcontracts/:scid/applications â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
+// Criar nova aplicaÃ§Ã£o de assessment
 // Body: { period, notes, items: [{sub_boq_item_id, pct_complete_sub, pct_complete_gmc, notes}] }
 router.post('/projects/:pid/subcontracts/:scid/applications', (req, res) => {
   const con = db();
   const { week_ending, notes, status, items = [] } = req.body;
   const weekEnding = week_ending || new Date().toISOString().slice(0, 10);
 
-  // week_ending é UNIQUE por subcontrato
+  // week_ending Ã© UNIQUE por subcontrato
   const dup = con.prepare(
     'SELECT application_number, status FROM sub_application WHERE subcontract_id=? AND week_ending=?'
   ).get(req.params.scid, weekEnding);
@@ -119,7 +119,7 @@ router.post('/projects/:pid/subcontracts/:scid/applications', (req, res) => {
     return res.status(409).json({ error: `An application already exists for week ${weekEnding} (App #${dup.application_number}, status: ${dup.status}). Pick another week.` });
   }
 
-  // Próximo número de aplicação
+  // PrÃ³ximo nÃºmero de aplicaÃ§Ã£o
   const last = con.prepare('SELECT MAX(application_number) AS n FROM sub_application WHERE subcontract_id=?').get(req.params.scid);
   const appNum = (last.n || 0) + 1;
 
@@ -131,7 +131,7 @@ router.post('/projects/:pid/subcontracts/:scid/applications', (req, res) => {
   const boqMap = {};
   boqItems.forEach(b => { boqMap[b.id] = b.contract_value; });
 
-  // % anterior certificada por item (última aplicação aprovada)
+  // % anterior certificada por item (Ãºltima aplicaÃ§Ã£o aprovada)
   const prevApps = con.prepare(`
     SELECT sai.sub_boq_item_id, sai.pct_complete_gmc
     FROM sub_application_item sai
@@ -203,14 +203,14 @@ router.post('/projects/:pid/subcontracts/:scid/applications', (req, res) => {
   }
 });
 
-// ── PUT /projects/:pid/subcontracts/:scid/applications/:appid/status ─────────
+// â”€â”€ PUT /projects/:pid/subcontracts/:scid/applications/:appid/status â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.put('/projects/:pid/subcontracts/:scid/applications/:appid/status', (req, res) => {
   const con = db();
   const { status } = req.body;
   if (!['draft','assessed','approved','invoiced','paid'].includes(status)) {
-    con.close(); return res.status(400).json({ error: 'Status inválido' });
+    con.close(); return res.status(400).json({ error: 'Status invÃ¡lido' });
   }
-  // Ao aprovar, carimba a data de aprovação (se ainda não tiver)
+  // Ao aprovar, carimba a data de aprovaÃ§Ã£o (se ainda nÃ£o tiver)
   if (status === 'approved') {
     con.prepare(`UPDATE sub_application
       SET status=?, qs_approved_date=COALESCE(qs_approved_date, date('now')), updated_at=datetime('now')
@@ -223,19 +223,19 @@ router.put('/projects/:pid/subcontracts/:scid/applications/:appid/status', (req,
   res.json({ ok: true });
 });
 
-// ── PUT /projects/:pid/subcontracts/:scid/applications/:appid/assessment ──────
-// Corte do QS: atualiza o € GMC item a item de uma App existente e recalcula totais.
-// Body: { items: [{ id, value_gmc }] }  (id = sub_application_item.id; value_gmc = € desta App)
+// â”€â”€ PUT /projects/:pid/subcontracts/:scid/applications/:appid/assessment â”€â”€â”€â”€â”€â”€
+// Corte do QS: atualiza o â‚¬ GMC item a item de uma App existente e recalcula totais.
+// Body: { items: [{ id, value_gmc }] }  (id = sub_application_item.id; value_gmc = â‚¬ desta App)
 router.put('/projects/:pid/subcontracts/:scid/applications/:appid/assessment', (req, res) => {
   const con = db();
   const { items = [] } = req.body;
   const { appid, scid } = req.params;
 
   const app = con.prepare('SELECT * FROM sub_application WHERE id=? AND subcontract_id=?').get(appid, scid);
-  if (!app) { con.close(); return res.status(404).json({ error: 'Application não encontrada' }); }
+  if (!app) { con.close(); return res.status(404).json({ error: 'Application nÃ£o encontrada' }); }
   if (['approved', 'invoiced', 'paid'].includes(app.status)) {
     con.close();
-    return res.status(409).json({ error: `App já está "${app.status}" — muda o estado para editar.` });
+    return res.status(409).json({ error: `App jÃ¡ estÃ¡ "${app.status}" â€” muda o estado para editar.` });
   }
 
   // contract_value + pct_prev por item desta App
@@ -267,7 +267,7 @@ router.put('/projects/:pid/subcontracts/:scid/applications/:appid/assessment', (
     }
     totalGmc = Math.round(totalGmc * 100) / 100;
 
-    // cumulativo das apps anteriores (não-draft, exceptuando esta)
+    // cumulativo das apps anteriores (nÃ£o-draft, exceptuando esta)
     const prev = con.prepare(`
       SELECT COALESCE(SUM(value_gmc),0) AS cg
       FROM sub_application WHERE subcontract_id=? AND status != 'draft' AND id != ?
@@ -287,8 +287,8 @@ router.put('/projects/:pid/subcontracts/:scid/applications/:appid/assessment', (
   }
 });
 
-// ── GET /projects/:pid/subcontracts/:scid/applications/:appid/certificate ─────
-// Dados para o Payment Certificate (resumo financeiro + histórico + itens).
+// â”€â”€ GET /projects/:pid/subcontracts/:scid/applications/:appid/certificate â”€â”€â”€â”€â”€
+// Dados para o Payment Certificate (resumo financeiro + histÃ³rico + itens).
 router.get('/projects/:pid/subcontracts/:scid/applications/:appid/certificate', (req, res) => {
   const con = db();
   const { pid, scid, appid } = req.params;
@@ -338,21 +338,21 @@ router.get('/projects/:pid/subcontracts/:scid/applications/:appid/certificate', 
   });
 });
 
-// ── Helpers para o formato "Folan" (vertical, uma App por sheet) ─────────────
+// â”€â”€ Helpers para o formato "Folan" (vertical, uma App por sheet) â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Suporta dois layouts:
-//  (a) Simples (1 linha header): Item | Description | % Sub | € Sub | % GMC | € GMC
+//  (a) Simples (1 linha header): Item | Description | % Sub | â‚¬ Sub | % GMC | â‚¬ GMC
 //  (b) Real (2 linhas header): linha de grupo "Folan" / "GMC" por cima,
-//      linha de rótulos Item | Description | % Complete | (€) | % Complete | Assessment
-// Em ambos: a coluna € de cada lado é a coluna imediatamente à direita da % .
-// A data (week ending) está numa linha acima do header.
+//      linha de rÃ³tulos Item | Description | % Complete | (â‚¬) | % Complete | Assessment
+// Em ambos: a coluna â‚¬ de cada lado Ã© a coluna imediatamente Ã  direita da % .
+// A data (week ending) estÃ¡ numa linha acima do header.
 
 function norm(s) { return String(s).toLowerCase().replace(/\s+/g, ' ').trim(); }
 
-// Localiza a linha de cabeçalho e mapeia colunas: item, desc, pctSub, eurSub, pctGmc, eurGmc
+// Localiza a linha de cabeÃ§alho e mapeia colunas: item, desc, pctSub, eurSub, pctGmc, eurGmc
 function findHeader(sh, range) {
-  const isItem = v => ['item', 'item#', 'item #', 'ref', 'referência', 'referencia'].includes(v);
-  const isDesc = v => ['description', 'descrição', 'descricao', 'desc'].includes(v);
-  // Coluna de percentagem: rótulo com "%" ou "complete" (ex.: "% sub", "% gmc", "% complete")
+  const isItem = v => ['item', 'item#', 'item #', 'ref', 'referÃªncia', 'referencia'].includes(v);
+  const isDesc = v => ['description', 'descriÃ§Ã£o', 'descricao', 'desc'].includes(v);
+  // Coluna de percentagem: rÃ³tulo com "%" ou "complete" (ex.: "% sub", "% gmc", "% complete")
   const isPct  = v => v.includes('%') || v.includes('complete') || v.includes('completo');
 
   for (let r = range.s.r; r <= Math.min(range.e.r, 30); r++) {
@@ -388,7 +388,7 @@ function findHeader(sh, range) {
       if (lab.includes('gmc') || grp === 'gmc') { if (gmcPct == null) gmcPct = c; }
       else if (lab.includes('sub') || lab.includes('folan') || grp === 'sub') { if (subPct == null) subPct = c; }
     }
-    // Fallback posicional: 1ª % = Sub, 2ª % = GMC
+    // Fallback posicional: 1Âª % = Sub, 2Âª % = GMC
     if (subPct == null && gmcPct == null) { subPct = pctCols[0]; gmcPct = pctCols[1]; }
     else if (gmcPct == null && pctCols.length >= 2) gmcPct = pctCols.find(c => c !== subPct);
     else if (subPct == null && pctCols.length >= 2) subPct = pctCols.find(c => c !== gmcPct);
@@ -405,7 +405,7 @@ function findHeader(sh, range) {
   return null;
 }
 
-// Procura a data (week ending) nas linhas acima do header — serial numérico,
+// Procura a data (week ending) nas linhas acima do header â€” serial numÃ©rico,
 // objecto Date, ou string dd.mm.yyyy / dd/mm/yyyy
 function findWeekEnding(sh, range, headerRow) {
   for (let r = range.s.r; r < headerRow; r++) {
@@ -429,16 +429,16 @@ function findWeekEnding(sh, range, headerRow) {
   return null;
 }
 
-// Normaliza % — fracção (0.35) → 35; valor já em % (35) fica como está
+// Normaliza % â€” fracÃ§Ã£o (0.35) â†’ 35; valor jÃ¡ em % (35) fica como estÃ¡
 function pctNorm(v) {
   if (v == null) return null;
   return Math.abs(v) <= 1.0001 ? v * 100 : v;
 }
 
-// ── POST /projects/:pid/subcontracts/:scid/applications/import-excel ─────────
+// â”€â”€ POST /projects/:pid/subcontracts/:scid/applications/import-excel â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Importa uma App (claim) do Excel para sub_application + items.
-// Body (multipart): file=<xlsx>, week_ending=<YYYY-MM-DD> (obrigatório), sheet_name=<str> (opcional)
-// Os valores do Excel são DESTA aplicação. A semana é a escolhida no UI (não a do Excel).
+// Body (multipart): file=<xlsx>, week_ending=<YYYY-MM-DD> (obrigatÃ³rio), sheet_name=<str> (opcional)
+// Os valores do Excel sÃ£o DESTA aplicaÃ§Ã£o. A semana Ã© a escolhida no UI (nÃ£o a do Excel).
 router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
   upload.single('file'),
   (req, res) => {
@@ -455,7 +455,7 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
 
     const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
 
-    // Escolher a aba: a indicada, ou a 1ª com cabeçalho válido
+    // Escolher a aba: a indicada, ou a 1Âª com cabeÃ§alho vÃ¡lido
     let sh, usedSheet, range, hdr;
     const candidates = (sheet_name && wb.Sheets[sheet_name]) ? [sheet_name] : (wb.SheetNames || Object.keys(wb.Sheets));
     for (const name of candidates) {
@@ -472,10 +472,10 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
       });
     }
     const { headerRow, cols } = hdr;
-    // A semana é a escolhida no UI (não a do Excel)
+    // A semana Ã© a escolhida no UI (nÃ£o a do Excel)
     const weekEnding = week_ending;
 
-    // BOQ items do sub indexados por item_ref (suporta refs duplicados → fila)
+    // BOQ items do sub indexados por item_ref (suporta refs duplicados â†’ fila)
     const boqItems = con.prepare(`
       SELECT id, item_ref, ROUND(qty*rate,2) AS contract_value
       FROM sub_boq_item WHERE subcontract_id=? ORDER BY sort_order
@@ -483,7 +483,7 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
     const boqByRef = {};
     boqItems.forEach(b => { (boqByRef[b.item_ref] ||= []).push({ ...b }); });
 
-    // % e valor já certificados por item (apps não-draft)
+    // % e valor jÃ¡ certificados por item (apps nÃ£o-draft)
     const certRows = con.prepare(`
       SELECT sai.sub_boq_item_id,
         COALESCE(SUM(sai.pct_complete_gmc),0) AS pct_cum,
@@ -496,8 +496,8 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
     const certMap = {};
     certRows.forEach(r => { certMap[r.sub_boq_item_id] = r; });
 
-    // 1ª passagem: ler o valor DESTA aplicação por item (cada ficheiro = 1 aplicação).
-    // € tem prioridade sobre %. Deriva-se a % de €/contract_value (evita ambiguidade fração/%).
+    // 1Âª passagem: ler o valor DESTA aplicaÃ§Ã£o por item (cada ficheiro = 1 aplicaÃ§Ã£o).
+    // â‚¬ tem prioridade sobre %. Deriva-se a % de â‚¬/contract_value (evita ambiguidade fraÃ§Ã£o/%).
     const raw = [];
     const unmatched = [];
     let rowsScanned = 0, subFileTotal = 0, gmcFileTotal = 0;
@@ -516,11 +516,11 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
       const eurGmcRaw = cols.eurGmc != null ? numV(sh, r, cols.eurGmc) : null;
 
       const cv = boq.contract_value || 0;
-      // Valor DESTA app: € do Excel se existir, senão calcula da % (normalizada)
+      // Valor DESTA app: â‚¬ do Excel se existir, senÃ£o calcula da % (normalizada)
       const subThisApp = eurSubRaw != null ? eurSubRaw : (pctSubRaw != null ? cv * pctNorm(pctSubRaw) / 100 : 0);
       const gmcThisApp = eurGmcRaw != null ? eurGmcRaw : (pctGmcRaw != null ? cv * pctNorm(pctGmcRaw) / 100 : 0);
 
-      // Linha sem qualquer dado → ignorar
+      // Linha sem qualquer dado â†’ ignorar
       if (subThisApp === 0 && gmcThisApp === 0 && pctSubRaw == null && pctGmcRaw == null) continue;
 
       subFileTotal += subThisApp;
@@ -539,8 +539,8 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
     // Se a coluna GMC vier toda vazia, usa a claim do Folan (Sub) como assessment inicial.
     const gmcFromSub = gmcFileTotal === 0 && subFileTotal > 0;
 
-    // 2ª passagem: os valores do Excel são DESTA aplicação (não cumulativos) → guardar direto.
-    // pct_prev = cumulativo das apps anteriores (só para mostrar / detetar over-claim).
+    // 2Âª passagem: os valores do Excel sÃ£o DESTA aplicaÃ§Ã£o (nÃ£o cumulativos) â†’ guardar direto.
+    // pct_prev = cumulativo das apps anteriores (sÃ³ para mostrar / detetar over-claim).
     const items = [];
     const overClaim = [];
     let valueSub = 0, valueGmc = 0;
@@ -552,11 +552,11 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
       const cert = certMap[it.boq.id] || { pct_cum: 0, val_cum: 0 };
       const pctPrev = Math.round(cert.pct_cum * 100) / 100;
 
-      // % desta app (derivada do €)
+      // % desta app (derivada do â‚¬)
       const pctSub = cv ? Math.round(subVal / cv * 100 * 100) / 100 : 0;
       const pctGmc = cv ? Math.round(gmcVal / cv * 100 * 100) / 100 : 0;
 
-      // Cumulativo acima de 100% → precisa de variation (compensation event)
+      // Cumulativo acima de 100% â†’ precisa de variation (compensation event)
       const cumPct = Math.round((pctPrev + pctGmc) * 100) / 100;
       if (cumPct > 100.01) overClaim.push({ ref: it.ref, cumulative_pct: cumPct });
 
@@ -570,7 +570,7 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
       });
     }
 
-    // Número sequencial e cumulativos anteriores
+    // NÃºmero sequencial e cumulativos anteriores
     const lastApp = con.prepare(
       'SELECT MAX(application_number) AS n FROM sub_application WHERE subcontract_id=?'
     ).get(req.params.scid);
@@ -580,7 +580,7 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
       FROM sub_application WHERE subcontract_id=? AND status != 'draft'
     `).get(req.params.scid);
 
-    // week_ending é NOT NULL e UNIQUE por subcontrato → fallback p/ hoje se não houver data
+    // week_ending Ã© NOT NULL e UNIQUE por subcontrato â†’ fallback p/ hoje se nÃ£o houver data
     const weekEndingFinal = weekEnding || new Date().toISOString().slice(0, 10);
     const dup = con.prepare(
       'SELECT application_number, status FROM sub_application WHERE subcontract_id=? AND week_ending=?'
@@ -592,10 +592,10 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
           + `Each week can only have one application. Pick a different Week Ending.`,
       });
     }
-    // GMC empty → 'assessed' (Folan claim loaded, QS still has to cut). GMC filled → 'approved'.
+    // GMC empty â†’ 'assessed' (Folan claim loaded, QS still has to cut). GMC filled â†’ 'approved'.
     const appStatus = gmcFromSub ? 'assessed' : 'approved';
-    const notes = `Imported from Excel — ${usedSheet} WE ${weekEndingFinal}`
-      + (gmcFromSub ? ' (GMC empty → used Folan claim)' : '');
+    const notes = `Imported from Excel â€” ${usedSheet} WE ${weekEndingFinal}`
+      + (gmcFromSub ? ' (GMC empty â†’ used Folan claim)' : '');
 
     con.exec('BEGIN');
     try {
@@ -647,7 +647,7 @@ router.post('/projects/:pid/subcontracts/:scid/applications/import-excel',
   }
 );
 
-// ── DELETE /projects/:pid/subcontracts/:scid/applications/:appid ─────────────
+// â”€â”€ DELETE /projects/:pid/subcontracts/:scid/applications/:appid â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.delete('/projects/:pid/subcontracts/:scid/applications/:appid', (req, res) => {
   const con = db();
   con.exec('BEGIN');
@@ -657,7 +657,7 @@ router.delete('/projects/:pid/subcontracts/:scid/applications/:appid', (req, res
       .run(req.params.appid, req.params.scid);
     con.exec('COMMIT');
     con.close();
-    if (r.changes === 0) return res.status(404).json({ error: 'Application não encontrada' });
+    if (r.changes === 0) return res.status(404).json({ error: 'Application nÃ£o encontrada' });
     res.json({ ok: true });
   } catch (e) {
     con.exec('ROLLBACK');

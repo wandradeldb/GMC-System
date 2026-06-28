@@ -1,9 +1,9 @@
-const express = require('express');
+﻿const express = require('express');
 const path    = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
 const router  = express.Router();
-const DB_PATH = path.join(__dirname, '../../db/gmc.db');
+const DB_PATH = require('../db-path');
 
 function db() {
   const con = new DatabaseSync(DB_PATH, { open: true });
@@ -13,7 +13,7 @@ function db() {
 
 function round2(n) { return Math.round((n || 0) * 100) / 100; }
 
-// ── GET /projects/:pid/payapps  ──────────────────────────────────────────────
+// â”€â”€ GET /projects/:pid/payapps  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // List all PayApps for project (history)
 router.get('/projects/:pid/payapps', (req, res) => {
   const con  = db();
@@ -25,7 +25,7 @@ router.get('/projects/:pid/payapps', (req, res) => {
   res.json({ payapps: rows, latest, summary: { contractValue, totalBOQ } });
 });
 
-// ── GET /projects/:pid/payapps/:id  ─────────────────────────────────────────
+// â”€â”€ GET /projects/:pid/payapps/:id  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Single PayApp with its items
 router.get('/projects/:pid/payapps/:id', (req, res) => {
   const con    = db();
@@ -43,7 +43,7 @@ router.get('/projects/:pid/payapps/:id', (req, res) => {
   res.json({ payapp, items });
 });
 
-// ── GET /projects/:pid/payapps/new/boq-sheet  ───────────────────────────────
+// â”€â”€ GET /projects/:pid/payapps/new/boq-sheet  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Returns BOQ for new PayApp entry, pre-filling % from the last certified payapp
 router.get('/projects/:pid/payapps/new/boq-sheet', (req, res) => {
   const con = db();
@@ -92,7 +92,7 @@ router.get('/projects/:pid/payapps/new/boq-sheet', (req, res) => {
   });
 });
 
-// ── POST /projects/:pid/payapps  ─────────────────────────────────────────────
+// â”€â”€ POST /projects/:pid/payapps  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Create (or update draft) a new PayApp
 router.post('/projects/:pid/payapps', (req, res) => {
   const con = db();
@@ -103,7 +103,7 @@ router.post('/projects/:pid/payapps', (req, res) => {
             ae_cumulative = 0, prepared_by, notes, items = [],
             works_gross_override } = req.body;
 
-    // Compute totals — use manual override if provided, else sum from items
+    // Compute totals â€” use manual override if provided, else sum from items
     const works_gross_cum  = works_gross_override != null
       ? round2(parseFloat(works_gross_override))
       : round2(items.reduce((s, i) => s + ((parseFloat(i.pct_complete) || 0) / 100) * (i.contract_sum || 0), 0));
@@ -170,7 +170,7 @@ router.post('/projects/:pid/payapps', (req, res) => {
   }
 });
 
-// ── PATCH /projects/:pid/payapps/:id/status  ────────────────────────────────
+// â”€â”€ PATCH /projects/:pid/payapps/:id/status  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Submit / certify / mark paid
 router.patch('/projects/:pid/payapps/:id/status', (req, res) => {
   const con = db();

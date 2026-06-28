@@ -1,16 +1,16 @@
-const express = require('express');
+﻿const express = require('express');
 const path = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
 const router = express.Router();
-const DB_PATH = path.join(__dirname, '../../db/gmc.db');
+const DB_PATH = require('../db-path');
 function db() {
   const con = new DatabaseSync(DB_PATH, { open: true });
   con.exec('PRAGMA foreign_keys = ON');
   return con;
 }
 
-// secção → coluna de revenue no tracker_we
+// secÃ§Ã£o â†’ coluna de revenue no tracker_we
 const SECTION_COL = {
   'Prelim Fixed':  'rev_prelims_fixed',
   'Prelim Time':   'rev_prelims_time',
@@ -20,7 +20,7 @@ const SECTION_COL = {
   'Commission':    'rev_commissioning',
 };
 
-// ── GET /projects/:pid/revenue/history ─── todas as WE com dados por atividade ──
+// â”€â”€ GET /projects/:pid/revenue/history â”€â”€â”€ todas as WE com dados por atividade â”€â”€
 router.get('/projects/:pid/revenue/history', (req, res) => {
   const con = db();
   const { pid } = req.params;
@@ -39,7 +39,7 @@ router.get('/projects/:pid/revenue/history', (req, res) => {
   res.json({ weeks, data });
 });
 
-// ── GET /projects/:pid/revenue/activities ─── lista de atividades (vista contrato) ──
+// â”€â”€ GET /projects/:pid/revenue/activities â”€â”€â”€ lista de atividades (vista contrato) â”€â”€
 router.get('/projects/:pid/revenue/activities', (req, res) => {
   const con = db();
   const acts = con.prepare(`
@@ -53,7 +53,7 @@ router.get('/projects/:pid/revenue/activities', (req, res) => {
   res.json(acts);
 });
 
-// ── GET /projects/:pid/revenue/week/:we ─── atividades + valores desta semana ──
+// â”€â”€ GET /projects/:pid/revenue/week/:we â”€â”€â”€ atividades + valores desta semana â”€â”€
 router.get('/projects/:pid/revenue/week/:we', (req, res) => {
   const con = db();
   const { pid, we } = req.params;
@@ -80,7 +80,7 @@ router.get('/projects/:pid/revenue/week/:we', (req, res) => {
   });
 });
 
-// ── PUT /projects/:pid/revenue/week/:we ─── grava a semana + alimenta o tracker ──
+// â”€â”€ PUT /projects/:pid/revenue/week/:we â”€â”€â”€ grava a semana + alimenta o tracker â”€â”€
 router.put('/projects/:pid/revenue/week/:we', (req, res) => {
   const con = db();
   const { pid, we } = req.params;
@@ -106,7 +106,7 @@ router.put('/projects/:pid/revenue/week/:we', (req, res) => {
       up.run(pid, it.activity_id, we, pct, it.sub_id || null, rev);
     }
 
-    // Somar revenue por secção (toda a semana, do DB)
+    // Somar revenue por secÃ§Ã£o (toda a semana, do DB)
     const totals = con.prepare(`
       SELECT ra.section, ROUND(SUM(rw.revenue),2) v
       FROM revenue_week rw JOIN revenue_activity ra ON ra.id = rw.activity_id

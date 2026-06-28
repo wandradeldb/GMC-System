@@ -1,9 +1,9 @@
-const express = require('express');
+﻿const express = require('express');
 const path    = require('path');
 const { DatabaseSync } = require('node:sqlite');
 
 const router  = express.Router();
-const DB_PATH = path.join(__dirname, '../../db/gmc.db');
+const DB_PATH = require('../db-path');
 
 function db() {
   const con = new DatabaseSync(DB_PATH, { open: true });
