@@ -9,12 +9,12 @@ const fmtDate = iso => {
   const m = String(iso).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
 };
-// ↑/↓ move o foco para o campo da linha de cima/baixo na mesma coluna
+// ↑/↓/Enter move o foco para o campo da linha de cima/baixo na mesma coluna
 const cellKeyNav = (e, colClass, idx) => {
-  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') return;
   e.preventDefault();
   const inputs = Array.from(document.querySelectorAll('input.' + colClass));
-  const next = inputs[idx + (e.key === 'ArrowDown' ? 1 : -1)];
+  const next = inputs[idx + (e.key === 'ArrowUp' ? -1 : 1)];
   if (next) { next.focus(); next.select(); }
 };
 
@@ -408,9 +408,12 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
   // Generate WE options
   const weOptions = fridayRange(defaultWE, 8, 2);
 
-  // Entrada livre (≥0). Acima de 100% cumulativo é permitido mas sinalizado (variation).
+  // Cap: cumulativo (prev + this) não pode ultrapassar 100%
   const setPct = (id, field, val) => {
-    const n = Math.max(0, parseFloat(val) || 0);
+    const item = boqItems.find(i => i.id === id);
+    const prev = item?.pct_certified || 0;
+    const max  = Math.max(0, 100 - prev);
+    const n    = Math.min(max, Math.max(0, parseFloat(val) || 0));
     setPcts(p => ({ ...p, [id]: { ...p[id], [field]: n } }));
   };
 
@@ -442,49 +445,47 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
 
   return (
     <div>
-      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16 }}>
-        <button onClick={onCancel}
-          style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:13 }}>
-          ← Back
-        </button>
-        <h3 style={{ margin:0, fontSize:16, color:'#1a1a2e' }}>App {nextAppNum} — Manual Assessment</h3>
-      </div>
-
-      {/* Week Ending + Status */}
-      <div style={{ display:'flex', gap:12, alignItems:'center', marginBottom:16, flexWrap:'wrap' }}>
-        <label style={{ fontSize:13, fontWeight:600, color:'#374151' }}>
-          WE:&nbsp;
-          <select value={weekEnding} onChange={e=>setWeekEnding(e.target.value)}
-            style={{ padding:'5px 8px', borderRadius:6, border:'1px solid #d1d5db', fontSize:13 }}>
-            {weOptions.map(we => (
-              <option key={we} value={we}>{fmtDate(we)}</option>
-            ))}
-          </select>
-        </label>
-        <label style={{ fontSize:13, fontWeight:600, color:'#374151' }}>
-          Status:&nbsp;
-          <select value={appStatus} onChange={e=>setAppStatus(e.target.value)}
-            style={{ padding:'5px 8px', borderRadius:6, border:'1px solid #d1d5db', fontSize:13 }}>
-            <option value="draft">Draft</option>
-            <option value="assessed">Assessed</option>
-            <option value="approved">Approved</option>
-            <option value="invoiced">Invoiced</option>
-            <option value="paid">Paid</option>
-          </select>
-        </label>
-        <div style={{ marginLeft:'auto', display:'flex', gap:16, alignItems:'center' }}>
-          <div style={{ textAlign:'right' }}>
-            <div style={{ fontSize:11, color:'#9ca3af' }}>THIS APP (GMC)</div>
-            <div style={{ fontSize:18, fontWeight:700, color:'#1e40af' }}>{fmtE(totalGmc,2)}</div>
-          </div>
-          <div style={{ textAlign:'right' }}>
-            <div style={{ fontSize:11, color:'#9ca3af' }}>CUMULATIVE</div>
-            <div style={{ fontSize:18, fontWeight:700, color:'#166534' }}>{fmtE(cumGmc,2)}</div>
+      {/* Sticky top bar */}
+      <div style={{ position:'sticky', top:56, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb',
+        padding:'8px 0 10px', marginBottom:12 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+          <button onClick={onCancel}
+            style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:13 }}>
+            ← Back
+          </button>
+          <h3 style={{ margin:0, fontSize:15, color:'#1a1a2e' }}>App {nextAppNum} — Manual Assessment</h3>
+          <label style={{ fontSize:13, fontWeight:600, color:'#374151' }}>
+            WE:&nbsp;
+            <select value={weekEnding} onChange={e=>setWeekEnding(e.target.value)}
+              style={{ padding:'4px 8px', borderRadius:6, border:'1px solid #d1d5db', fontSize:13 }}>
+              {weOptions.map(we => <option key={we} value={we}>{fmtDate(we)}</option>)}
+            </select>
+          </label>
+          <label style={{ fontSize:13, fontWeight:600, color:'#374151' }}>
+            Status:&nbsp;
+            <select value={appStatus} onChange={e=>setAppStatus(e.target.value)}
+              style={{ padding:'4px 8px', borderRadius:6, border:'1px solid #d1d5db', fontSize:13 }}>
+              <option value="draft">Draft</option>
+              <option value="assessed">Assessed</option>
+            </select>
+          </label>
+          <div style={{ marginLeft:'auto', display:'flex', gap:14, alignItems:'center' }}>
+            <div style={{ textAlign:'right' }}>
+              <div style={{ fontSize:10, color:'#9ca3af' }}>THIS APP</div>
+              <div style={{ fontSize:16, fontWeight:700, color:'#1e40af' }}>{fmtE(totalGmc,2)}</div>
+            </div>
+            <div style={{ textAlign:'right' }}>
+              <div style={{ fontSize:10, color:'#9ca3af' }}>CUMULATIVE</div>
+              <div style={{ fontSize:16, fontWeight:700, color:'#166534' }}>{fmtE(cumGmc,2)}</div>
+            </div>
+            <button onClick={handleSave} disabled={saving} className="btn-primary"
+              style={{ padding:'7px 22px', fontSize:14 }}>
+              {saving ? 'Saving…' : `Save App ${nextAppNum}`}
+            </button>
           </div>
         </div>
+        {error && <div style={{ background:'#fee2e2', color:'#991b1b', padding:'6px 12px', borderRadius:6, marginTop:8, fontSize:13 }}>{error}</div>}
       </div>
-
-      {error && <div style={{ background:'#fee2e2', color:'#991b1b', padding:'8px 12px', borderRadius:6, marginBottom:12, fontSize:13 }}>{error}</div>}
 
       <div style={{ overflowX:'auto' }}>
         <table className="boq-table" style={{ minWidth:900 }}>
@@ -515,7 +516,7 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
                   <td style={{textAlign:'right', color:'#9ca3af', fontSize:12}}>{fmtP(c.prev)}</td>
                   {/* Sub % (this period) */}
                   <td style={{background:'#fffbeb', padding:'2px 4px'}}>
-                    <input type="number" min={0} max={100} step={1}
+                    <input type="number" min={0} max={Math.max(0, 100 - (c.prev||0))} step={1}
                       className="cell-input sub-col"
                       value={pcts[it.id]?.sub ?? 0}
                       onChange={e => setPct(it.id, 'sub', e.target.value)}
@@ -525,7 +526,7 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
                   </td>
                   {/* GMC % (this period) */}
                   <td style={{background:'#f0fdf4', padding:'2px 4px'}}>
-                    <input type="number" min={0} max={100} step={1}
+                    <input type="number" min={0} max={Math.max(0, 100 - (c.prev||0))} step={1}
                       className="cell-input gmc-col"
                       value={pcts[it.id]?.gmc ?? 0}
                       onChange={e => setPct(it.id, 'gmc', e.target.value)}
@@ -559,16 +560,6 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
         </table>
       </div>
 
-      <div style={{ marginTop:16, display:'flex', gap:12, justifyContent:'flex-end' }}>
-        <button onClick={onCancel}
-          style={{ padding:'8px 20px', borderRadius:6, border:'1px solid #d1d5db', background:'#fff', cursor:'pointer', fontSize:14 }}>
-          Cancel
-        </button>
-        <button onClick={handleSave} disabled={saving} className="btn-primary"
-          style={{ padding:'8px 24px', fontSize:14 }}>
-          {saving ? 'Saving…' : `Save App ${nextAppNum}`}
-        </button>
-      </div>
     </div>
   );
 }
@@ -607,10 +598,12 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
   const cutTotal   = folanTotal - gmcTotal;
   const cutPctLive = folanTotal > 0 ? (1 - gmcTotal / folanTotal) * 100 : 0;
 
-  // Entrada livre (≥0). Acima de 100% cumulativo é permitido mas sinalizado (variation).
+  // Cap: cumulative (pct_prev + this) cannot exceed 100%
   const setItemGmcPct = (id, v) => {
-    const n = parseFloat(v);
-    setGmcPct(p => ({ ...p, [id]: isNaN(n) ? 0 : Math.round(Math.max(0, n) * 100) / 100 }));
+    const n    = parseFloat(v);
+    const item = items.find(i => i.id === id);
+    const max  = item ? Math.max(0, 100 - (item.pct_prev || 0)) : 100;
+    setGmcPct(p => ({ ...p, [id]: isNaN(n) ? 0 : Math.round(Math.min(max, Math.max(0, n)) * 100) / 100 }));
   };
   // Corte global: GMC % = Folan % × (1 − corte%)
   const applyGlobalCut = () => {
@@ -655,30 +648,46 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
 
   return (
     <div>
-      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16, flexWrap:'wrap' }}>
-        <button onClick={onBack}
-          style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:13 }}>
-          ← Back
-        </button>
-        <h3 style={{ margin:0, fontSize:16, color:'#1a1a2e' }}>
-          App {app.application_number} — WE {fmtDate(app.week_ending || app.period)}
-        </h3>
-        <span style={{ background:ss.bg, color:ss.color, borderRadius:12, padding:'2px 10px', fontSize:12, fontWeight:600 }}>
-          {ss.label}
-        </span>
-        <div style={{ marginLeft:'auto', display:'flex', gap:16 }}>
-          <div style={{ textAlign:'right' }}>
-            <div style={{ fontSize:11, color:'#9ca3af' }}>GMC ASSESSMENT</div>
-            <div style={{ fontSize:18, fontWeight:700, color:'#166534' }}>{fmtE(editable ? gmcTotal : app.value_gmc, 2)}</div>
-          </div>
-          <div style={{ textAlign:'right' }}>
-            <div style={{ fontSize:11, color:'#9ca3af' }}>CUMULATIVE</div>
-            <div style={{ fontSize:18, fontWeight:700, color:'#1e40af' }}>{fmtE(app.cumulative_gmc,2)}</div>
+      {/* Sticky header */}
+      <div style={{ position:'sticky', top:56, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb',
+        padding:'8px 0 10px', marginBottom:12 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+          <button onClick={onBack}
+            style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:13 }}>
+            ← Back
+          </button>
+          <h3 style={{ margin:0, fontSize:15, color:'#1a1a2e' }}>
+            App {app.application_number} — WE {fmtDate(app.week_ending || app.period)}
+          </h3>
+          <span style={{ background:ss.bg, color:ss.color, borderRadius:12, padding:'2px 10px', fontSize:12, fontWeight:600 }}>
+            {ss.label}
+          </span>
+          <div style={{ marginLeft:'auto', display:'flex', gap:14, alignItems:'center' }}>
+            <div style={{ textAlign:'right' }}>
+              <div style={{ fontSize:10, color:'#9ca3af' }}>GMC ASSESSMENT</div>
+              <div style={{ fontSize:16, fontWeight:700, color:'#166534' }}>{fmtE(editable ? gmcTotal : app.value_gmc, 2)}</div>
+            </div>
+            <div style={{ textAlign:'right' }}>
+              <div style={{ fontSize:10, color:'#9ca3af' }}>CUMULATIVE</div>
+              <div style={{ fontSize:16, fontWeight:700, color:'#1e40af' }}>{fmtE(app.cumulative_gmc,2)}</div>
+            </div>
+            {editable && (
+              <>
+                <button onClick={handleSave} disabled={saving || approving}
+                  style={{ padding:'7px 16px', borderRadius:6, border:'1px solid #16a34a', background:'#fff', color:'#166534',
+                    cursor: saving||approving ? 'not-allowed' : 'pointer', fontSize:13, fontWeight:600 }}>
+                  {saving ? 'Saving…' : 'Save'}
+                </button>
+                <button onClick={handleApprove} disabled={saving || approving} className="btn-primary"
+                  style={{ padding:'7px 18px', fontSize:13 }}>
+                  {approving ? 'Approving…' : '✓ Approve'}
+                </button>
+              </>
+            )}
           </div>
         </div>
+        {error && <div style={{ background:'#fee2e2', color:'#991b1b', padding:'6px 12px', borderRadius:6, marginTop:8, fontSize:13 }}>{error}</div>}
       </div>
-
-      {error && <div style={{ background:'#fee2e2', color:'#991b1b', padding:'8px 12px', borderRadius:6, marginBottom:12, fontSize:13 }}>{error}</div>}
 
       {/* Painel de corte do QS (só quando editável) */}
       {editable && (
@@ -761,7 +770,7 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
                   <td style={{textAlign:'center', background: editable ? '#f0fdf4' : 'transparent', padding: editable ? '2px 4px' : undefined}}>
                     {editable ? (
                       <span style={{ display:'inline-flex', alignItems:'center', gap:2 }}>
-                        <input type="number" min={0} step={1} value={gmcPct[it.id] ?? ''}
+                        <input type="number" min={0} max={Math.max(0, 100 - prevPctOf(it))} step={1} value={gmcPct[it.id] ?? ''}
                           className="cell-input gmc-col"
                           onChange={e => setItemGmcPct(it.id, e.target.value)}
                           onKeyDown={e => cellKeyNav(e, 'gmc-col', idx)}
@@ -793,19 +802,6 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
         </table>
       </div>
 
-      {editable && (
-        <div style={{ marginTop:16, display:'flex', gap:12, justifyContent:'flex-end', flexWrap:'wrap' }}>
-          <button onClick={handleSave} disabled={saving || approving}
-            style={{ padding:'8px 20px', borderRadius:6, border:'1px solid #16a34a', background:'#fff', color:'#166534',
-              cursor: saving||approving ? 'not-allowed' : 'pointer', fontSize:14, fontWeight:600 }}>
-            {saving ? 'Saving…' : 'Save assessment'}
-          </button>
-          <button onClick={handleApprove} disabled={saving || approving} className="btn-primary"
-            style={{ padding:'8px 24px', fontSize:14 }}>
-            {approving ? 'Approving…' : '✓ Approve App'}
-          </button>
-        </div>
-      )}
     </div>
   );
 }
