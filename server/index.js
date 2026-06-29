@@ -3,7 +3,7 @@ const cors    = require('cors');
 const path    = require('path');
 const fs      = require('fs');
 
-const { requireAuth, requireProjectAccess } = require('./routes/auth');
+const { requireAuth, requireProjectAccess, runStartupMigrations } = require('./routes/auth');
 const authRouter          = require('./routes/auth');
 const boqRouter           = require('./routes/boq');
 const dasRouter           = require('./routes/das');
@@ -58,4 +58,7 @@ app.use((err, _req, res, _next) => {
   res.status(500).json({ error: err.message, code: 'INTERNAL_ERROR' });
 });
 
-app.listen(PORT, () => console.log(`GMC API running on http://localhost:${PORT}`));
+app.listen(PORT, () => {
+  console.log(`GMC API running on http://localhost:${PORT}`);
+  runStartupMigrations();
+});

@@ -123,7 +123,13 @@ function requireAdmin(req, res, next) {
   next();
 }
 
+function runStartupMigrations() {
+  const con = db();
+  con.close();
+}
+
 module.exports = router;
 module.exports.requireAuth = requireAuth;
 module.exports.requireAdmin = requireAdmin;
 module.exports.requireProjectAccess = requireProjectAccess;
+module.exports.runStartupMigrations = runStartupMigrations;
