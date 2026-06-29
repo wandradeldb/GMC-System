@@ -9,6 +9,7 @@ import DashboardView from './components/DashboardView.jsx';
 import RevenueGenerationView from './components/RevenueGenerationView.jsx';
 import LoginView from './components/LoginView.jsx';
 import UsersView from './components/UsersView.jsx';
+import ProjectsView from './components/ProjectsView.jsx';
 import { apiFetch } from './apiFetch.js';
 
 const NAV = [
@@ -25,16 +26,17 @@ function getToken()    { return localStorage.getItem('gmc_token'); }
 function getRole()     { return localStorage.getItem('gmc_role'); }
 
 export default function App() {
-  const [token,     setToken]    = useState(getToken);
-  const [role,      setRole]     = useState(getRole);
-  const [project,   setProject]  = useState(null);
-  const [summary,   setSummary]  = useState([]);
-  const [activeNav, setActiveNav]   = useState('dashboard');
+  const [token,       setToken]      = useState(getToken);
+  const [role,        setRole]       = useState(getRole);
+  const [project,     setProject]    = useState(null);   // selected project object
+  const [summary,     setSummary]    = useState([]);
+  const [activeNav,   setActiveNav]  = useState('dashboard');
   const [subDeepLink, setSubDeepLink] = useState(null);
 
   function handleLogin(tok, userRole) {
     setToken(tok);
     setRole(userRole);
+    setProject(null); // go to project selector on login
   }
 
   function handleLogout() {
@@ -46,30 +48,55 @@ export default function App() {
     setProject(null);
   }
 
-  useEffect(() => {
-    if (!token) return;
-    Promise.all([
-      apiFetch('/api/v1/projects/1').then(r => r.json()),
-      apiFetch('/api/v1/projects/1/boq').then(r => r.json()),
-    ]).then(([proj, boq]) => {
-      setProject(proj);
-      setSummary(boq.summary || []);
-    }).catch(() => handleLogout());
-  }, [token]);
+  function handleSelectProject(proj) {
+    setProject(proj);
+    setActiveNav('dashboard');
+    // load BOQ summary for topbar
+    apiFetch(`/api/v1/projects/${proj.id}/boq`)
+      .then(r => r.json())
+      .then(boq => setSummary(boq.summary || []))
+      .catch(() => {});
+  }
+
+  function handleBackToProjects() {
+    setProject(null);
+    setSummary([]);
+    setActiveNav('dashboard');
+  }
 
   if (!token) return <LoginView onLogin={handleLogin} />;
 
+  // No project selected → show project selector
+  if (!project) {
+    return (
+      <div className="app">
+        <header className="topbar">
+          <img src="/gmc-logo.png" alt="GMC" style={{ height: 36, width: 'auto', flexShrink: 0 }} />
+          <span className="topbar-sep" />
+          <span className="topbar-project">Select a project</span>
+          <div className="topbar-nav" />
+          <button className="topbar-logout-btn" onClick={handleLogout} title="Sign out">⏻</button>
+        </header>
+        <div className="main">
+          <main className="content">
+            <ProjectsView onSelectProject={handleSelectProject} />
+          </main>
+        </div>
+      </div>
+    );
+  }
+
   const isAdmin = role === 'admin';
-  const fmt = n => new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2 }).format(n);
+  const projectId = project.id;
 
   return (
     <div className="app">
       <header className="topbar">
         <img src="/gmc-logo.png" alt="GMC" style={{ height: 36, width: 'auto', flexShrink: 0 }} />
         <span className="topbar-sep" />
-        <span className="topbar-project">
-          {project ? `${project.name} — ${project.ref} — ${project.client}` : 'Loading…'}
-        </span>
+        <button className="topbar-project topbar-project-btn" onClick={handleBackToProjects} title="Back to projects">
+          {project.name} — {project.ref} — {project.client} ▾
+        </button>
         <div className="topbar-nav">
           {NAV.map(n => (
             <button key={n.id}
@@ -91,13 +118,13 @@ export default function App() {
 
       <div className="main">
         <main className="content">
-          {activeNav === 'dashboard' && <DashboardView projectId={1} onNavigate={setActiveNav} />}
-          {activeNav === 'boq'       && <RevenueGenerationView projectId={1} />}
-          {activeNav === 'sub'       && <SubcontractView projectId={1} deepLinkSubName={subDeepLink?.subName} onDeepLinkConsumed={() => setSubDeepLink(null)} />}
-          {activeNav === 'das'       && <DASView projectId={1} />}
-          {activeNav === 'tracker'   && <TrackerView projectId={1} onSubCellClick={subName => { setSubDeepLink({ subName }); setActiveNav('sub'); }} />}
-          {activeNav === 'payapp'    && <PayAppView projectId={1} />}
-          {activeNav === 'qscosts'   && <QSCostsView projectId={1} />}
+          {activeNav === 'dashboard' && <DashboardView projectId={projectId} onNavigate={setActiveNav} />}
+          {activeNav === 'boq'       && <RevenueGenerationView projectId={projectId} />}
+          {activeNav === 'sub'       && <SubcontractView projectId={projectId} deepLinkSubName={subDeepLink?.subName} onDeepLinkConsumed={() => setSubDeepLink(null)} />}
+          {activeNav === 'das'       && <DASView projectId={projectId} />}
+          {activeNav === 'tracker'   && <TrackerView projectId={projectId} onSubCellClick={subName => { setSubDeepLink({ subName }); setActiveNav('sub'); }} />}
+          {activeNav === 'payapp'    && <PayAppView projectId={projectId} />}
+          {activeNav === 'qscosts'   && <QSCostsView projectId={projectId} />}
           {activeNav === 'users' && isAdmin && <UsersView />}
         </main>
       </div>

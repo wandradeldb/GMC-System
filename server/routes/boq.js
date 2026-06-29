@@ -10,15 +10,29 @@ function db() {
   return con;
 }
 
-// GET /api/v1/projects
-router.get('/projects', (_req, res) => {
+// GET /api/v1/projects — only projects owned by the authenticated user
+router.get('/projects', (req, res) => {
   const con = db();
   const rows = con.prepare(`
     SELECT id, ref, name, client, contract_value, status, start_date, end_date
-    FROM project ORDER BY id
-  `).all();
+    FROM project WHERE owner_id = ? ORDER BY id
+  `).all(req.user.id);
   con.close();
   res.json(rows);
+});
+
+// POST /api/v1/projects — create a new project owned by the authenticated user
+router.post('/projects', (req, res) => {
+  const { name, ref, client, contract_value, start_date, end_date } = req.body || {};
+  if (!name || !ref) return res.status(400).json({ error: 'name and ref are required', code: 'MISSING_FIELDS' });
+  const con = db();
+  const result = con.prepare(`
+    INSERT INTO project (name, ref, client, contract_value, status, start_date, end_date, owner_id)
+    VALUES (?, ?, ?, ?, 'active', ?, ?, ?)
+  `).run(name, ref, client || '', contract_value || 0, start_date || null, end_date || null, req.user.id);
+  const project = con.prepare('SELECT id, ref, name, client, contract_value, status, start_date, end_date FROM project WHERE id = ?').get(result.lastInsertRowid);
+  con.close();
+  res.status(201).json(project);
 });
 
 // GET /api/v1/projects/:id
