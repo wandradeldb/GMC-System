@@ -17,6 +17,13 @@ function db() {
   // Apply project owner migration if column missing
   try { con.exec('ALTER TABLE project ADD COLUMN owner_id INTEGER REFERENCES user(id)'); } catch {}
   try { con.exec('UPDATE project SET owner_id = 1 WHERE owner_id IS NULL'); } catch {}
+  // Project members table
+  try { con.exec(`CREATE TABLE IF NOT EXISTS project_member (
+    project_id INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+    user_id    INTEGER NOT NULL REFERENCES user(id)    ON DELETE CASCADE,
+    role       TEXT    NOT NULL DEFAULT 'viewer',
+    PRIMARY KEY (project_id, user_id)
+  )`); } catch {}
   return con;
 }
 
@@ -98,11 +105,16 @@ function requireProjectAccess(req, res, next) {
   if (!match) return next(); // not a project-specific route (e.g. GET /projects list)
   const projectId = match[1];
   const con = db();
-  const project = con.prepare(
-    'SELECT id FROM project WHERE id = ? AND owner_id = ?'
-  ).get(projectId, req.user.id);
+  // owner OR member
+  const access = con.prepare(`
+    SELECT 'owner' AS role FROM project WHERE id = ? AND owner_id = ?
+    UNION
+    SELECT role FROM project_member WHERE project_id = ? AND user_id = ?
+    LIMIT 1
+  `).get(projectId, req.user.id, projectId, req.user.id);
   con.close();
-  if (!project) return res.status(404).json({ error: 'Project not found', code: 'NOT_FOUND' });
+  if (!access) return res.status(404).json({ error: 'Project not found', code: 'NOT_FOUND' });
+  req.projectRole = access.role; // 'owner' | 'editor' | 'viewer'
   next();
 }
 
@@ -122,6 +134,50 @@ function requireAdmin(req, res, next) {
     return res.status(403).json({ error: 'Admin only', code: 'FORBIDDEN' });
   next();
 }
+
+// GET /api/v1/projects/:id/members
+router.get('/projects/:id/members', requireAuth, (req, res) => {
+  const con = db();
+  const isOwner = con.prepare('SELECT id FROM project WHERE id = ? AND owner_id = ?').get(req.params.id, req.user.id);
+  if (!isOwner) { con.close(); return res.status(403).json({ error: 'Only the project owner can manage members', code: 'FORBIDDEN' }); }
+  const members = con.prepare(`
+    SELECT u.id, u.username, u.role AS system_role, pm.role AS project_role
+    FROM project_member pm JOIN user u ON u.id = pm.user_id
+    WHERE pm.project_id = ?
+  `).all(req.params.id);
+  con.close();
+  res.json(members);
+});
+
+// POST /api/v1/projects/:id/members
+router.post('/projects/:id/members', requireAuth, (req, res) => {
+  const { username, role = 'viewer' } = req.body || {};
+  if (!username) return res.status(400).json({ error: 'username required', code: 'MISSING_FIELDS' });
+  if (!['editor', 'viewer'].includes(role)) return res.status(400).json({ error: 'role must be editor or viewer', code: 'INVALID_ROLE' });
+  const con = db();
+  const isOwner = con.prepare('SELECT id FROM project WHERE id = ? AND owner_id = ?').get(req.params.id, req.user.id);
+  if (!isOwner) { con.close(); return res.status(403).json({ error: 'Only the project owner can add members', code: 'FORBIDDEN' }); }
+  const user = con.prepare('SELECT id FROM user WHERE username = ?').get(username);
+  if (!user) { con.close(); return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND' }); }
+  try {
+    con.prepare('INSERT INTO project_member (project_id, user_id, role) VALUES (?, ?, ?)').run(req.params.id, user.id, role);
+    con.close();
+    res.status(201).json({ username, role });
+  } catch {
+    con.close();
+    res.status(409).json({ error: 'User is already a member', code: 'DUPLICATE' });
+  }
+});
+
+// DELETE /api/v1/projects/:id/members/:userId
+router.delete('/projects/:id/members/:userId', requireAuth, (req, res) => {
+  const con = db();
+  const isOwner = con.prepare('SELECT id FROM project WHERE id = ? AND owner_id = ?').get(req.params.id, req.user.id);
+  if (!isOwner) { con.close(); return res.status(403).json({ error: 'Only the project owner can remove members', code: 'FORBIDDEN' }); }
+  con.prepare('DELETE FROM project_member WHERE project_id = ? AND user_id = ?').run(req.params.id, req.params.userId);
+  con.close();
+  res.json({ ok: true });
+});
 
 function runStartupMigrations() {
   const con = db();

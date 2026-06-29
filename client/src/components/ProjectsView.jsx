@@ -2,12 +2,16 @@ import { useState, useEffect } from 'react';
 import { apiFetch } from '../apiFetch.js';
 
 export default function ProjectsView({ onSelectProject }) {
-  const [projects, setProjects]   = useState([]);
-  const [loading,  setLoading]    = useState(true);
-  const [showNew,  setShowNew]    = useState(false);
-  const [form,     setForm]       = useState({ name: '', ref: '', client: '', contract_value: '', start_date: '', end_date: '' });
-  const [saving,   setSaving]     = useState(false);
-  const [error,    setError]      = useState('');
+  const [projects, setProjects]     = useState([]);
+  const [loading,  setLoading]      = useState(true);
+  const [showNew,  setShowNew]      = useState(false);
+  const [shareProject, setShareProject] = useState(null); // project being managed
+  const [members,  setMembers]      = useState([]);
+  const [shareForm, setShareForm]   = useState({ username: '', role: 'viewer' });
+  const [shareErr, setShareErr]     = useState('');
+  const [form,     setForm]         = useState({ name: '', ref: '', client: '', contract_value: '', start_date: '', end_date: '' });
+  const [saving,   setSaving]       = useState(false);
+  const [error,    setError]        = useState('');
 
   useEffect(() => { load(); }, []);
 
@@ -15,7 +19,7 @@ export default function ProjectsView({ onSelectProject }) {
     setLoading(true);
     apiFetch('/api/v1/projects')
       .then(r => r.json())
-      .then(data => { setProjects(data); setLoading(false); })
+      .then(data => { setProjects(Array.isArray(data) ? data : []); setLoading(false); })
       .catch(() => setLoading(false));
   }
 
@@ -25,8 +29,7 @@ export default function ProjectsView({ onSelectProject }) {
   async function handleCreate(e) {
     e.preventDefault();
     if (!form.name.trim() || !form.ref.trim()) { setError('Name and Reference are required.'); return; }
-    setSaving(true);
-    setError('');
+    setSaving(true); setError('');
     try {
       const r = await apiFetch('/api/v1/projects', {
         method: 'POST',
@@ -34,10 +37,38 @@ export default function ProjectsView({ onSelectProject }) {
         body: JSON.stringify({ ...form, contract_value: parseFloat(form.contract_value) || 0 }),
       });
       if (!r.ok) { const d = await r.json(); setError(d.error || 'Error creating project'); setSaving(false); return; }
-      closeNew();
-      load();
+      closeNew(); load();
     } catch { setError('Network error'); }
     setSaving(false);
+  }
+
+  async function openShare(e, p) {
+    e.stopPropagation();
+    setShareProject(p); setShareErr(''); setShareForm({ username: '', role: 'viewer' });
+    const r = await apiFetch(`/api/v1/projects/${p.id}/members`);
+    if (r.ok) setMembers(await r.json());
+    else setMembers([]);
+  }
+  function closeShare() { setShareProject(null); setMembers([]); }
+
+  async function handleAddMember(e) {
+    e.preventDefault();
+    if (!shareForm.username.trim()) return;
+    setShareErr('');
+    const r = await apiFetch(`/api/v1/projects/${shareProject.id}/members`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(shareForm),
+    });
+    if (!r.ok) { const d = await r.json(); setShareErr(d.error); return; }
+    setShareForm({ username: '', role: 'viewer' });
+    const r2 = await apiFetch(`/api/v1/projects/${shareProject.id}/members`);
+    if (r2.ok) setMembers(await r2.json());
+  }
+
+  async function handleRemoveMember(userId) {
+    await apiFetch(`/api/v1/projects/${shareProject.id}/members/${userId}`, { method: 'DELETE' });
+    setMembers(m => m.filter(x => x.id !== userId));
   }
 
   const fmt = n => n ? new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(n) : '—';
@@ -69,11 +100,20 @@ export default function ProjectsView({ onSelectProject }) {
               <div className="project-card-name">{p.name}</div>
               <div className="project-card-client">{p.client || '—'}</div>
               <div className="project-card-value">{fmt(p.contract_value)}</div>
+              {p.access_role === 'owner' && (
+                <button className="project-card-share-btn" onClick={e => openShare(e, p)}>
+                  👥 Share
+                </button>
+              )}
+              {p.access_role !== 'owner' && (
+                <span className="project-card-shared-badge">Shared with you</span>
+              )}
             </div>
           ))}
         </div>
       )}
 
+      {/* New Project modal */}
       {showNew && (
         <div className="modal-overlay" onClick={closeNew}>
           <div className="modal" onClick={e => e.stopPropagation()}>
@@ -114,6 +154,49 @@ export default function ProjectsView({ onSelectProject }) {
                 <button type="submit" className="btn-primary" disabled={saving}>{saving ? 'Creating…' : 'Create Project'}</button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Share / Members modal */}
+      {shareProject && (
+        <div className="modal-overlay" onClick={closeShare}>
+          <div className="modal" onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <span className="modal-title">Share — {shareProject.name}</span>
+              <button className="modal-close" onClick={closeShare}>✕</button>
+            </div>
+            <div className="modal-body">
+              <form onSubmit={handleAddMember} className="share-add-row">
+                <input
+                  placeholder="Username"
+                  value={shareForm.username}
+                  onChange={e => setShareForm(f => ({ ...f, username: e.target.value }))}
+                />
+                <select value={shareForm.role} onChange={e => setShareForm(f => ({ ...f, role: e.target.value }))}>
+                  <option value="viewer">Viewer</option>
+                  <option value="editor">Editor</option>
+                </select>
+                <button type="submit" className="btn-primary">Add</button>
+              </form>
+              {shareErr && <p className="form-error" style={{ marginTop: 8 }}>{shareErr}</p>}
+
+              {members.length === 0 && <p className="share-empty">No members yet. Add a username above.</p>}
+              {members.length > 0 && (
+                <table className="share-table">
+                  <thead><tr><th>Username</th><th>Role</th><th></th></tr></thead>
+                  <tbody>
+                    {members.map(m => (
+                      <tr key={m.id}>
+                        <td>{m.username}</td>
+                        <td><span className="share-role-badge">{m.project_role}</span></td>
+                        <td><button className="share-remove-btn" onClick={() => handleRemoveMember(m.id)}>✕</button></td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              )}
+            </div>
           </div>
         </div>
       )}

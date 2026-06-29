@@ -10,13 +10,17 @@ function db() {
   return con;
 }
 
-// GET /api/v1/projects — only projects owned by the authenticated user
+// GET /api/v1/projects — projects owned by or shared with the authenticated user
 router.get('/projects', (req, res) => {
   const con = db();
   const rows = con.prepare(`
-    SELECT id, ref, name, client, contract_value, status, start_date, end_date
-    FROM project WHERE owner_id = ? ORDER BY id
-  `).all(req.user.id);
+    SELECT DISTINCT p.id, p.ref, p.name, p.client, p.contract_value, p.status, p.start_date, p.end_date,
+      CASE WHEN p.owner_id = ? THEN 'owner' ELSE pm.role END AS access_role
+    FROM project p
+    LEFT JOIN project_member pm ON pm.project_id = p.id AND pm.user_id = ?
+    WHERE p.owner_id = ? OR pm.user_id = ?
+    ORDER BY p.id
+  `).all(req.user.id, req.user.id, req.user.id, req.user.id);
   con.close();
   res.json(rows);
 });

@@ -872,3 +872,28 @@ input, select, textarea, button { touch-action: manipulation; }
 .btn-secondary { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; padding: 8px 18px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; }
 .btn-secondary:hover { background: #e2e8f0; }
 
+/* share button on project card */
+.project-card-share-btn {
+  margin-top: 10px; align-self: flex-start;
+  background: none; border: 1px solid #cbd5e1; color: #475569;
+  font-size: 12px; padding: 4px 10px; border-radius: 6px; cursor: pointer;
+}
+.project-card-share-btn:hover { background: #f1f5f9; border-color: #94a3b8; }
+.project-card-shared-badge {
+  margin-top: 10px; align-self: flex-start;
+  font-size: 11px; font-weight: 600; color: #7c3aed;
+  background: #ede9fe; padding: 2px 8px; border-radius: 99px;
+}
+
+/* share modal internals */
+.share-add-row { display: flex; gap: 8px; margin-bottom: 16px; }
+.share-add-row input  { flex: 1; padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+.share-add-row select { padding: 8px 10px; border: 1px solid #cbd5e1; border-radius: 6px; font-size: 14px; }
+.share-empty { color: #94a3b8; font-size: 13px; padding: 12px 0; }
+.share-table { width: 100%; border-collapse: collapse; font-size: 14px; }
+.share-table th { text-align: left; font-size: 11px; font-weight: 600; color: #64748b; text-transform: uppercase; padding: 6px 8px; border-bottom: 1px solid #e2e8f0; }
+.share-table td { padding: 8px 8px; border-bottom: 1px solid #f1f5f9; }
+.share-role-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: #e0f2fe; color: #0369a1; text-transform: capitalize; }
+.share-remove-btn { background: none; border: none; color: #94a3b8; cursor: pointer; font-size: 14px; padding: 2px 6px; border-radius: 4px; }
+.share-remove-btn:hover { background: #fee2e2; color: #dc2626; }
+
