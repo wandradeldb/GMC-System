@@ -62,11 +62,13 @@ export default function ProjectsView({ onSelectProject }) {
         <div className="projects-grid">
           {projects.map(p => (
             <div key={p.id} className="project-card" onClick={() => onSelectProject(p)}>
-              <div className="project-card-ref">{p.ref}</div>
+              <div className="project-card-top">
+                <span className="project-card-ref">{p.ref}</span>
+                <span className="project-card-status">{p.status}</span>
+              </div>
               <div className="project-card-name">{p.name}</div>
-              <div className="project-card-client">{p.client}</div>
+              <div className="project-card-client">{p.client || '—'}</div>
               <div className="project-card-value">{fmt(p.contract_value)}</div>
-              <div className="project-card-status">{p.status}</div>
             </div>
           ))}
         </div>
