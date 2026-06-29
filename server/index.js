@@ -3,7 +3,7 @@ const cors    = require('cors');
 const path    = require('path');
 const fs      = require('fs');
 
-const { requireAuth, requireProjectAccess, runStartupMigrations } = require('./routes/auth');
+const { requireAuth, requireProjectAccess, requireEditor, runStartupMigrations } = require('./routes/auth');
 const authRouter          = require('./routes/auth');
 const boqRouter           = require('./routes/boq');
 const dasRouter           = require('./routes/das');
@@ -36,16 +36,16 @@ app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
 
 // All other API routes — protected
 // requireProjectAccess guards any route with :id or :projectId param against other users' projects
-app.use('/api/v1', requireAuth, requireProjectAccess, boqRouter);
-app.use('/api/v1', requireAuth, requireProjectAccess, dasRouter);
-app.use('/api/v1', requireAuth, requireProjectAccess, subRouter);
-app.use('/api/v1', requireAuth, requireProjectAccess, trackerRouter);
-app.use('/api/v1', requireAuth, requireProjectAccess, payappRouter);
-app.use('/api/v1', requireAuth, requireProjectAccess, importRouter);
-app.use('/api/v1', requireAuth, requireProjectAccess, qsCostsRouter);
-app.use('/api/v1', requireAuth, requireProjectAccess, assessmentRouter);
-app.use('/api/v1', requireAuth, requireProjectAccess, subAssessmentRouter);
-app.use('/api/v1', requireAuth, requireProjectAccess, revenueRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, requireEditor, boqRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, requireEditor, dasRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, requireEditor, subRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, requireEditor, trackerRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, requireEditor, payappRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, requireEditor, importRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, requireEditor, qsCostsRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, requireEditor, assessmentRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, requireEditor, subAssessmentRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, requireEditor, revenueRouter);
 
 if (isProd) {
   app.get('*', (_req, res) => res.sendFile(path.join(DIST_DIR, 'index.html')));

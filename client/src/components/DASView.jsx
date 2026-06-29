@@ -17,7 +17,7 @@ function nextMonday(dateStr) {
   return toISODate(d);
 }
 
-export default function DASView({ projectId }) {
+export default function DASView({ projectId, readOnly }) {
   const [selectedDate, setSelectedDate] = useState(toISODate(new Date()));
   const [entries, setEntries]           = useState([]);
   const [view, setView]                 = useState('form'); // 'form' | 'list'
@@ -65,7 +65,7 @@ export default function DASView({ projectId }) {
         </div>
       </div>
 
-      {view === 'form' ? (
+      {view === 'form' && !readOnly ? (
         <DASForm
           projectId={projectId}
           date={selectedDate}
@@ -74,7 +74,7 @@ export default function DASView({ projectId }) {
           onSaved={handleSaved}
         />
       ) : (
-        <DASList entries={entries} onSelect={date => { setSelectedDate(date); setView('form'); }} />
+        <DASList entries={entries} onSelect={date => { setSelectedDate(date); setView(readOnly ? 'list' : 'form'); }} />
       )}
     </div>
   );

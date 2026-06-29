@@ -88,6 +88,7 @@ export default function App() {
 
   const isAdmin = role === 'admin';
   const projectId = project.id;
+  const readOnly = project.access_role === 'viewer';
 
   return (
     <div className="app">
@@ -97,6 +98,7 @@ export default function App() {
         <button className="topbar-project topbar-project-btn" onClick={handleBackToProjects} title="Back to projects">
           {project.name} — {project.ref} — {project.client} ▾
         </button>
+        {readOnly && <span className="topbar-readonly-badge">View only</span>}
         <div className="topbar-nav">
           {NAV.map(n => (
             <button key={n.id}
@@ -119,12 +121,12 @@ export default function App() {
       <div className="main">
         <main className="content">
           {activeNav === 'dashboard' && <DashboardView projectId={projectId} onNavigate={setActiveNav} />}
-          {activeNav === 'boq'       && <RevenueGenerationView projectId={projectId} />}
-          {activeNav === 'sub'       && <SubcontractView projectId={projectId} deepLinkSubName={subDeepLink?.subName} onDeepLinkConsumed={() => setSubDeepLink(null)} />}
-          {activeNav === 'das'       && <DASView projectId={projectId} />}
-          {activeNav === 'tracker'   && <TrackerView projectId={projectId} onSubCellClick={subName => { setSubDeepLink({ subName }); setActiveNav('sub'); }} />}
-          {activeNav === 'payapp'    && <PayAppView projectId={projectId} />}
-          {activeNav === 'qscosts'   && <QSCostsView projectId={projectId} />}
+          {activeNav === 'boq'       && <RevenueGenerationView projectId={projectId} readOnly={readOnly} />}
+          {activeNav === 'sub'       && <SubcontractView projectId={projectId} readOnly={readOnly} deepLinkSubName={subDeepLink?.subName} onDeepLinkConsumed={() => setSubDeepLink(null)} />}
+          {activeNav === 'das'       && <DASView projectId={projectId} readOnly={readOnly} />}
+          {activeNav === 'tracker'   && <TrackerView projectId={projectId} readOnly={readOnly} onSubCellClick={subName => { setSubDeepLink({ subName }); setActiveNav('sub'); }} />}
+          {activeNav === 'payapp'    && <PayAppView projectId={projectId} readOnly={readOnly} />}
+          {activeNav === 'qscosts'   && <QSCostsView projectId={projectId} readOnly={readOnly} />}
           {activeNav === 'users' && isAdmin && <UsersView />}
         </main>
       </div>

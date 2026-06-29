@@ -12,7 +12,7 @@ function fmt(n) {
   return new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2 }).format(n);
 }
 
-export default function SubcontractView({ projectId, deepLinkSubName, onDeepLinkConsumed }) {
+export default function SubcontractView({ projectId, readOnly, deepLinkSubName, onDeepLinkConsumed }) {
   const [list,       setList]       = useState([]);
   const [selected,   setSelected]   = useState(null);
   const [assessment, setAssessment] = useState(null); // { id, ref, name, contract_value }
@@ -65,7 +65,7 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
     <div>
       <div className="sc-toolbar">
         <h2 className="sc-title">Subcontracts</h2>
-        <button className="btn-primary" onClick={() => setShowNew(true)}>+ New Subcontract</button>
+        {!readOnly && <button className="btn-primary" onClick={() => setShowNew(true)}>+ New Subcontract</button>}
       </div>
 
       {list.length === 0 ? (
@@ -122,13 +122,13 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
                     background:'#1a1a2e', cursor:'pointer', fontSize:12, color:'#fff', fontWeight:600 }}>
                   📋 Assessment
                 </button>
-                <button onClick={(e) => { e.stopPropagation(); setEditing(sc); }}
+                {!readOnly && <button onClick={(e) => { e.stopPropagation(); setEditing(sc); }}
                   style={{ padding:'4px 10px', borderRadius:4, border:'1px solid #bfdbfe',
                     background:'#eff6ff', cursor:'pointer', fontSize:11, color:'#1e40af',
                     fontWeight:600, letterSpacing:'.03em' }}>
                   edit
-                </button>
-                <button onClick={async (e) => {
+                </button>}
+                {!readOnly && <button onClick={async (e) => {
                   e.stopPropagation();
                   if (!window.confirm(`Delete ${sc.ref} — ${sc.subcontractor_name}?\nThis also removes all its applications and BOQ items.`)) return;
                   await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${sc.id}`, { method:'DELETE' });
@@ -136,7 +136,7 @@ export default function SubcontractView({ projectId, deepLinkSubName, onDeepLink
                 }} style={{ padding:'5px 8px', borderRadius:6, border:'1px solid #fca5a5',
                     background:'#fff5f5', cursor:'pointer', fontSize:12, color:'#dc2626' }}>
                   ✕
-                </button>
+                </button>}
               </div>
             </div>
               ))}

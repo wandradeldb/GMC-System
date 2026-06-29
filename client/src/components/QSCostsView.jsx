@@ -26,7 +26,7 @@ function CatBadge({ category }) {
   );
 }
 
-export default function QSCostsView({ projectId }) {
+export default function QSCostsView({ projectId, readOnly }) {
   const [data,       setData]       = useState(null);
   const [search,     setSearch]     = useState('');
   const [gang,       setGang]       = useState('');
@@ -133,11 +133,11 @@ export default function QSCostsView({ projectId }) {
             <button className={`tab-btn ${viewMode === 'list' ? 'active' : ''}`} onClick={() => setViewMode('list')}>Transactions</button>
             <button className={`tab-btn ${viewMode === 'summary' ? 'active' : ''}`} onClick={() => setViewMode('summary')}>By Week</button>
           </div>
-          <label className="btn-primary" style={{ cursor:'pointer', position:'relative' }}>
+          {!readOnly && <label className="btn-primary" style={{ cursor:'pointer', position:'relative' }}>
             {importing ? 'Importing…' : '⬆ Import Excel'}
             <input ref={fileRef} type="file" accept=".xlsx,.xls" onChange={handleImport}
               style={{ position:'absolute', inset:0, opacity:0, cursor:'pointer' }} />
-          </label>
+          </label>}
         </div>
       </div>
 

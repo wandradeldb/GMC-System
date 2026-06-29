@@ -10,7 +10,7 @@ const STATUS_COLOR = { draft: '#6b7280', submitted: '#1e40af', certified: '#1665
 
 const SCH_LABEL = { '1': 'Schedule 1 — Prelims Fixed', '1A': 'Schedule 1A — Prelims Time', '2': 'Schedule 2 — Civil & MEICA' };
 
-export default function PayAppView({ projectId }) {
+export default function PayAppView({ projectId, readOnly }) {
   const [data,       setData]      = useState(null);
   const [showNew,    setShowNew]   = useState(false);
   const [detail,     setDetail]    = useState(null); // single payapp detail
@@ -86,9 +86,9 @@ export default function PayAppView({ projectId }) {
       {/* ── Toolbar ─────────────────────────────────────────────── */}
       <div className="tracker-toolbar">
         <h2 className="sc-title">Application for Payment</h2>
-        <button className="btn-primary" onClick={() => setShowNew(true)}>
+        {!readOnly && <button className="btn-primary" onClick={() => setShowNew(true)}>
           + New PayApp #{(latest?.app_number || 0) + 1}
-        </button>
+        </button>}
       </div>
 
       {/* ── History table ───────────────────────────────────────── */}

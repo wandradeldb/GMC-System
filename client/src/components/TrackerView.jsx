@@ -117,7 +117,7 @@ const ALL_TRACKER_WEEKS = (() => {
 })();
 
 // ── main component ───────────────────────────────────────────────────────────
-export default function TrackerView({ projectId, onSubCellClick }) {
+export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
   const [data,        setData]        = useState(null);
   const [showEntry,   setShowEntry]   = useState(false);
   const [entryWE,     setEntryWE]     = useState('');
@@ -235,9 +235,9 @@ export default function TrackerView({ projectId, onSubCellClick }) {
               </option>
             ))}
           </select>
-          <button className="btn-primary" onClick={() => openEntry(activeWE)}>
+          {!readOnly && <button className="btn-primary" onClick={() => openEntry(activeWE)}>
             {existingWEs.has(activeWE) ? '✎ Edit WE' : '+ Enter WE'}
-          </button>
+          </button>}
         </div>
       </div>
 

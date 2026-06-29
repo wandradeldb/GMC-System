@@ -179,6 +179,14 @@ router.delete('/projects/:id/members/:userId', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+function requireEditor(req, res, next) {
+  // Only block mutating methods on project-specific routes where role is known
+  if (['POST', 'PUT', 'PATCH', 'DELETE'].includes(req.method) && req.projectRole === 'viewer') {
+    return res.status(403).json({ error: 'Read-only access', code: 'FORBIDDEN' });
+  }
+  next();
+}
+
 function runStartupMigrations() {
   const con = db();
   con.close();
@@ -188,4 +196,5 @@ module.exports = router;
 module.exports.requireAuth = requireAuth;
 module.exports.requireAdmin = requireAdmin;
 module.exports.requireProjectAccess = requireProjectAccess;
+module.exports.requireEditor = requireEditor;
 module.exports.runStartupMigrations = runStartupMigrations;
