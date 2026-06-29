@@ -109,6 +109,28 @@ body {
 .login-btn:hover { background: #2d2d4e; }
 .login-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
+/* Buttons */
+.btn-primary {
+  background: #1a1a2e; color: #fff; border: none; border-radius: 8px;
+  padding: 9px 20px; font-size: 14px; font-weight: 600; cursor: pointer;
+}
+.btn-primary:hover { background: #2d2d4e; }
+.btn-secondary {
+  background: #f3f4f6; color: #374151; border: 1px solid #d1d5db; border-radius: 8px;
+  padding: 9px 20px; font-size: 14px; font-weight: 500; cursor: pointer;
+}
+.btn-secondary:hover { background: #e5e7eb; }
+
+/* Modal */
+.modal-overlay {
+  position: fixed; inset: 0; background: rgba(0,0,0,0.4);
+  display: flex; align-items: center; justify-content: center; z-index: 1000;
+}
+.modal-box {
+  background: #fff; border-radius: 12px; padding: 28px 28px 24px;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.18); min-width: 320px;
+}
+
 .main { display: flex; flex: 1; gap: 0; }
 
 /* ── Sidebar ── */

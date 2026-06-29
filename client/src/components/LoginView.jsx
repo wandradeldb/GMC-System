@@ -21,7 +21,8 @@ export default function LoginView({ onLogin }) {
       if (!r.ok) { setError(data.error || 'Login failed'); return; }
       localStorage.setItem('gmc_token', data.token);
       localStorage.setItem('gmc_user', data.username);
-      onLogin(data.token, data.username);
+      localStorage.setItem('gmc_role', data.role || 'viewer');
+      onLogin(data.token, data.role || 'viewer');
     } catch {
       setError('Connection error');
     } finally {
