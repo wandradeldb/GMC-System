@@ -31,6 +31,9 @@ app.use(express.json());
 // Auth routes — public (login endpoint)
 app.use('/api/v1', authRouter);
 
+// Public endpoints — before requireAuth
+app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
+
 // All other API routes — protected
 // requireProjectAccess guards any route with :id or :projectId param against other users' projects
 app.use('/api/v1', requireAuth, requireProjectAccess, boqRouter);
@@ -43,8 +46,6 @@ app.use('/api/v1', requireAuth, requireProjectAccess, qsCostsRouter);
 app.use('/api/v1', requireAuth, requireProjectAccess, assessmentRouter);
 app.use('/api/v1', requireAuth, requireProjectAccess, subAssessmentRouter);
 app.use('/api/v1', requireAuth, requireProjectAccess, revenueRouter);
-
-app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
 
 if (isProd) {
   app.get('*', (_req, res) => res.sendFile(path.join(DIST_DIR, 'index.html')));
