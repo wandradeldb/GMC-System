@@ -3,7 +3,7 @@ const cors    = require('cors');
 const path    = require('path');
 const fs      = require('fs');
 
-const { requireAuth } = require('./routes/auth');
+const { requireAuth, requireProjectAccess } = require('./routes/auth');
 const authRouter          = require('./routes/auth');
 const boqRouter           = require('./routes/boq');
 const dasRouter           = require('./routes/das');
@@ -32,16 +32,17 @@ app.use(express.json());
 app.use('/api/v1', authRouter);
 
 // All other API routes — protected
-app.use('/api/v1', requireAuth, boqRouter);
-app.use('/api/v1', requireAuth, dasRouter);
-app.use('/api/v1', requireAuth, subRouter);
-app.use('/api/v1', requireAuth, trackerRouter);
-app.use('/api/v1', requireAuth, payappRouter);
-app.use('/api/v1', requireAuth, importRouter);
-app.use('/api/v1', requireAuth, qsCostsRouter);
-app.use('/api/v1', requireAuth, assessmentRouter);
-app.use('/api/v1', requireAuth, subAssessmentRouter);
-app.use('/api/v1', requireAuth, revenueRouter);
+// requireProjectAccess guards any route with :id or :projectId param against other users' projects
+app.use('/api/v1', requireAuth, requireProjectAccess, boqRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, dasRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, subRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, trackerRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, payappRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, importRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, qsCostsRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, assessmentRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, subAssessmentRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, revenueRouter);
 
 app.get('/api/v1/health', (_req, res) => res.json({ status: 'ok' }));
 

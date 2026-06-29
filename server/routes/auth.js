@@ -14,6 +14,9 @@ function db() {
   // Apply role migration if column missing
   try { con.exec("ALTER TABLE user ADD COLUMN role TEXT NOT NULL DEFAULT 'viewer'"); } catch {}
   try { con.exec("UPDATE user SET role = 'admin' WHERE username = 'admin' AND role = 'viewer'"); } catch {}
+  // Apply project owner migration if column missing
+  try { con.exec('ALTER TABLE project ADD COLUMN owner_id INTEGER REFERENCES user(id)'); } catch {}
+  try { con.exec('UPDATE project SET owner_id = 1 WHERE owner_id IS NULL'); } catch {}
   return con;
 }
 
@@ -89,6 +92,20 @@ router.delete('/auth/users/:id', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
+function requireProjectAccess(req, res, next) {
+  // req.params not yet populated at app.use level — read project id from raw URL
+  const match = req.path.match(/^\/projects\/(\d+)/);
+  if (!match) return next(); // not a project-specific route (e.g. GET /projects list)
+  const projectId = match[1];
+  const con = db();
+  const project = con.prepare(
+    'SELECT id FROM project WHERE id = ? AND owner_id = ?'
+  ).get(projectId, req.user.id);
+  con.close();
+  if (!project) return res.status(404).json({ error: 'Project not found', code: 'NOT_FOUND' });
+  next();
+}
+
 function requireAuth(req, res, next) {
   const header = req.headers.authorization;
   if (!header) return res.status(401).json({ error: 'No token', code: 'UNAUTHORIZED' });
@@ -109,3 +126,4 @@ function requireAdmin(req, res, next) {
 module.exports = router;
 module.exports.requireAuth = requireAuth;
 module.exports.requireAdmin = requireAdmin;
+module.exports.requireProjectAccess = requireProjectAccess;
