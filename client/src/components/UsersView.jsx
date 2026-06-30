@@ -4,13 +4,14 @@ import { apiFetch } from '../apiFetch.js';
 function SeedDemoButton() {
   const [status, setStatus] = useState('idle'); // idle | loading | done | error
   const [results, setResults] = useState([]);
+  const [errMsg, setErrMsg] = useState('');
 
   async function handleSeed() {
     if (!confirm('Duplicate Merlin Park project for all non-admin users?')) return;
     setStatus('loading');
     const r = await apiFetch('/api/v1/auth/admin/seed-demo', { method: 'POST' });
     const d = await r.json();
-    if (!r.ok) { setStatus('error'); return; }
+    if (!r.ok) { setStatus('error'); setErrMsg(d.error || 'Unknown error'); return; }
     setResults(d.results || []);
     setStatus('done');
   }
@@ -31,7 +32,7 @@ function SeedDemoButton() {
           {r.skipped ? `↩ ${r.username} — already has a copy` : `✓ ${r.username} — project created (id ${r.project_id})`}
         </div>
       ))}
-      {status === 'error' && <div style={{ fontSize: 12, color: '#dc2626' }}>Error creating projects.</div>}
+      {status === 'error' && <div style={{ fontSize: 12, color: '#dc2626' }}>Error: {errMsg}</div>}
     </div>
   );
 }
@@ -67,7 +68,7 @@ export default function UsersView() {
     const data = await r.json();
     setSaving(false);
     if (!r.ok) { setError(data.error); return; }
-    setCreateResult({ username: form.username, demo_project_id: data.demo_project_id });
+    setCreateResult({ username: form.username, demo_project_id: data.demo_project_id, demo_error: data.demo_error });
     setShowCreate(false);
     setForm({ username: '', password: '', role: 'user', seed_demo: true });
     load();
@@ -104,7 +105,7 @@ export default function UsersView() {
           <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✓ User <strong>{createResult.username}</strong> created successfully</div>
           {createResult.demo_project_id
             ? <div style={{ color: '#166534' }}>✓ Demo project (Merlin Park) created — project ID {createResult.demo_project_id}</div>
-            : <div style={{ color: '#92400e' }}>⚠ Demo project was not created (source project not found)</div>
+            : <div style={{ color: '#92400e' }}>⚠ Demo project was not created{createResult.demo_error ? `: ${createResult.demo_error}` : ' (source project not found)'}</div>
           }
         </div>
       )}
