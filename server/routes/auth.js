@@ -148,6 +148,29 @@ router.delete('/auth/users/:id', requireAuth, requireAdmin, (req, res) => {
 // Duplicates project_id=1 for every non-admin user that doesn't already have a copy
 router.post('/auth/admin/seed-demo', requireAuth, requireAdmin, (req, res) => {
   const con = db();
+
+  // Dynamic copy helper: copies all rows WHERE filterCol=filterVal into same table,
+  // substituting filterCol with newVal, and optionally remapping FK columns.
+  // Returns map of old_id → new_id.
+  function copyRows(table, filterCol, filterVal, newVal, fkRemaps) {
+    const colInfo = con.prepare(`PRAGMA table_info(${table})`).all();
+    const allCols = colInfo.map(c => c.name);
+    const insertCols = allCols.filter(c => c !== 'id');
+    const rows = con.prepare(`SELECT * FROM ${table} WHERE ${filterCol} = ?`).all(filterVal);
+    const idMap = {};
+    for (const row of rows) {
+      const vals = insertCols.map(c => {
+        if (c === filterCol) return newVal;
+        if (fkRemaps && fkRemaps[c] && fkRemaps[c][row[c]] != null) return fkRemaps[c][row[c]];
+        return row[c];
+      });
+      const sql = `INSERT INTO ${table} (${insertCols.join(',')}) VALUES (${insertCols.map(()=>'?').join(',')})`;
+      const r = con.prepare(sql).run(...vals);
+      idMap[row.id] = r.lastInsertRowid;
+    }
+    return idMap;
+  }
+
   try {
     const SOURCE_ID = 1;
     const source = con.prepare('SELECT * FROM project WHERE id = ?').get(SOURCE_ID);
@@ -157,100 +180,60 @@ router.post('/auth/admin/seed-demo', requireAuth, requireAdmin, (req, res) => {
     const results = [];
 
     for (const user of users) {
-      // skip if user already owns a project with same ref
       const existing = con.prepare('SELECT id FROM project WHERE owner_id = ? AND ref = ?').get(user.id, source.ref);
       if (existing) { results.push({ username: user.username, skipped: true, project_id: existing.id }); continue; }
 
-      // duplicate project
-      const p = con.prepare(`INSERT INTO project (ref, name, client, contract_value, status, start_date, end_date, owner_id)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)`).run(source.ref, source.name, source.client, source.contract_value, source.status, source.start_date, source.end_date, user.id);
+      // 1. Create project
+      const p = con.prepare(`INSERT INTO project (ref,name,client,contract_value,status,start_date,end_date,owner_id)
+        VALUES (?,?,?,?,?,?,?,?)`).run(source.ref,source.name,source.client,source.contract_value,source.status,source.start_date,source.end_date,user.id);
       const newPid = p.lastInsertRowid;
 
-      // boq_item
-      const boqItems = con.prepare('SELECT * FROM boq_item WHERE project_id = ?').all(SOURCE_ID);
-      const boqIdMap = {};
-      for (const r of boqItems) {
-        const n = con.prepare(`INSERT INTO boq_item (project_id,schedule,item_ref,description,unit,qty,rate,contract_sum,type,section,iw_cost_code) VALUES (?,?,?,?,?,?,?,?,?,?,?)`).run(newPid,r.schedule,r.item_ref,r.description,r.unit,r.qty,r.rate,r.contract_sum,r.type,r.section,r.iw_cost_code);
-        boqIdMap[r.id] = n.lastInsertRowid;
-      }
+      // 2. boq_item
+      const boqIdMap = copyRows('boq_item','project_id',SOURCE_ID,newPid,null);
 
-      // subcontracts + children
-      const subs = con.prepare('SELECT * FROM subcontract WHERE project_id = ?').all(SOURCE_ID);
-      const subIdMap = {};
-      for (const s of subs) {
-        const n = con.prepare(`INSERT INTO subcontract (project_id,subcontractor_id,ref,name,description,scope,value,start_date,end_date,status) VALUES (?,?,?,?,?,?,?,?,?,?)`).run(newPid,s.subcontractor_id,s.ref,s.name,s.description,s.scope,s.value,s.start_date,s.end_date,s.status);
-        subIdMap[s.id] = n.lastInsertRowid;
-        // sub_boq_item
-        for (const x of con.prepare('SELECT * FROM sub_boq_item WHERE subcontract_id = ?').all(s.id))
-          con.prepare('INSERT INTO sub_boq_item (subcontract_id,boq_item_id,description,qty,rate,amount) VALUES (?,?,?,?,?,?)').run(subIdMap[s.id],boqIdMap[x.boq_item_id]??x.boq_item_id,x.description,x.qty,x.rate,x.amount);
-        // sub_applications + children
-        for (const sa of con.prepare('SELECT * FROM sub_application WHERE subcontract_id = ?').all(s.id)) {
-          const na = con.prepare(`INSERT INTO sub_application (subcontract_id,week_ending,status,submitted_at,assessed_at,approved_at) VALUES (?,?,?,?,?,?)`).run(subIdMap[s.id],sa.week_ending,sa.status,sa.submitted_at,sa.assessed_at,sa.approved_at);
-          const naId = na.lastInsertRowid;
-          for (const x of con.prepare('SELECT * FROM sub_application_item WHERE sub_application_id = ?').all(sa.id))
-            con.prepare('INSERT INTO sub_application_item (sub_application_id,boq_item_id,qty_this,qty_cumulative,rate,amount_this,amount_cumulative) VALUES (?,?,?,?,?,?,?)').run(naId,boqIdMap[x.boq_item_id]??x.boq_item_id,x.qty_this,x.qty_cumulative,x.rate,x.amount_this,x.amount_cumulative);
-          for (const x of con.prepare('SELECT * FROM compensation_event WHERE sub_application_id = ?').all(sa.id))
-            con.prepare('INSERT INTO compensation_event (sub_application_id,ref,description,amount,status) VALUES (?,?,?,?,?)').run(naId,x.ref,x.description,x.amount,x.status);
-          for (const x of con.prepare('SELECT * FROM sub_invoice WHERE sub_application_id = ?').all(sa.id))
-            con.prepare('INSERT INTO sub_invoice (sub_application_id,invoice_ref,amount,vat,received_at) VALUES (?,?,?,?,?)').run(naId,x.invoice_ref,x.amount,x.vat,x.received_at);
+      // 3. subcontract
+      const subIdMap = copyRows('subcontract','project_id',SOURCE_ID,newPid,null);
+      // sub children
+      for (const [oldSubId, newSubId] of Object.entries(subIdMap)) {
+        const sbMap = copyRows('sub_boq_item','subcontract_id',oldSubId,newSubId,{ boq_item_id: boqIdMap });
+        const saMap = copyRows('sub_application','subcontract_id',oldSubId,newSubId,null);
+        for (const [oldSaId, newSaId] of Object.entries(saMap)) {
+          copyRows('sub_application_item','sub_application_id',oldSaId,newSaId,{ sub_boq_item_id: sbMap });
+          copyRows('compensation_event','sub_application_id',oldSaId,newSaId,{ subcontract_id: subIdMap });
+          copyRows('sub_invoice','sub_application_id',oldSaId,newSaId,null);
         }
-        for (const x of con.prepare('SELECT * FROM sub_assessment WHERE subcontract_id = ?').all(s.id))
-          con.prepare('INSERT INTO sub_assessment (subcontract_id,week_ending,amount_assessed,amount_certified,retention,notes) VALUES (?,?,?,?,?,?)').run(subIdMap[s.id],x.week_ending,x.amount_assessed,x.amount_certified,x.retention,x.notes);
       }
 
-      // tracker_we + children
-      const weRows = con.prepare('SELECT * FROM tracker_we WHERE project_id = ?').all(SOURCE_ID);
-      for (const w of weRows) {
-        const nw = con.prepare(`INSERT INTO tracker_we (project_id,week_ending,week_num,prelims_fixed,prelims_time,ae,civil,meica,landscape,commissioning,subs_cost,materials,plant,ohp,margin,efa) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(newPid,w.week_ending,w.week_num,w.prelims_fixed,w.prelims_time,w.ae,w.civil,w.meica,w.landscape,w.commissioning,w.subs_cost,w.materials,w.plant,w.ohp,w.margin,w.efa);
-        for (const x of con.prepare('SELECT * FROM tracker_sub_revenue WHERE tracker_we_id = ?').all(w.id))
-          con.prepare('INSERT INTO tracker_sub_revenue (tracker_we_id,subcontract_id,revenue) VALUES (?,?,?)').run(nw.lastInsertRowid,subIdMap[x.subcontract_id]??x.subcontract_id,x.revenue);
+      // 4. tracker_we (no child tracker_sub_revenue — it uses project_id directly)
+      copyRows('tracker_we','project_id',SOURCE_ID,newPid,null);
+      copyRows('tracker_sub_revenue','project_id',SOURCE_ID,newPid,null);
+
+      // 5. payapp + payapp_item
+      const paIdMap = copyRows('payapp','project_id',SOURCE_ID,newPid,null);
+      for (const [oldPaId, newPaId] of Object.entries(paIdMap))
+        copyRows('payapp_item','payapp_id',oldPaId,newPaId,{ boq_item_id: boqIdMap });
+
+      // 6. payment_run
+      copyRows('payment_run','project_id',SOURCE_ID,newPid,null);
+
+      // 7. das_entry + children
+      const deIdMap = copyRows('das_entry','project_id',SOURCE_ID,newPid,null);
+      for (const [oldDeId, newDeId] of Object.entries(deIdMap)) {
+        copyRows('das_labour','das_entry_id',oldDeId,newDeId,null);
+        copyRows('das_plant','das_entry_id',oldDeId,newDeId,null);
+        copyRows('das_activity','das_entry_id',oldDeId,newDeId,{ boq_item_id: boqIdMap });
       }
+      copyRows('das_next_week','project_id',SOURCE_ID,newPid,null);
 
-      // payapp + payapp_item
-      for (const pa of con.prepare('SELECT * FROM payapp WHERE project_id = ?').all(SOURCE_ID)) {
-        const npa = con.prepare(`INSERT INTO payapp (project_id,app_num,app_date,works_gross_override,retention_pct,cert_num,cert_date,cert_gross,cert_net,notes) VALUES (?,?,?,?,?,?,?,?,?,?)`).run(newPid,pa.app_num,pa.app_date,pa.works_gross_override,pa.retention_pct,pa.cert_num,pa.cert_date,pa.cert_gross,pa.cert_net,pa.notes);
-        for (const x of con.prepare('SELECT * FROM payapp_item WHERE payapp_id = ?').all(pa.id))
-          con.prepare('INSERT INTO payapp_item (payapp_id,boq_item_id,pct_complete,amount) VALUES (?,?,?,?)').run(npa.lastInsertRowid,boqIdMap[x.boq_item_id]??x.boq_item_id,x.pct_complete,x.amount);
-      }
+      // 8. revenue_activity + revenue_week
+      const actIdMap = copyRows('revenue_activity','project_id',SOURCE_ID,newPid,null);
+      copyRows('revenue_week','project_id',SOURCE_ID,newPid,{ activity_id: actIdMap, sub_id: subIdMap });
 
-      // payment_run
-      for (const x of con.prepare('SELECT * FROM payment_run WHERE project_id = ?').all(SOURCE_ID))
-        con.prepare('INSERT INTO payment_run (project_id,run_date,ref,description,amount,type) VALUES (?,?,?,?,?,?)').run(newPid,x.run_date,x.ref,x.description,x.amount,x.type);
-
-      // das_entry + children
-      for (const de of con.prepare('SELECT * FROM das_entry WHERE project_id = ?').all(SOURCE_ID)) {
-        const nde = con.prepare(`INSERT INTO das_entry (project_id,entry_date,weather,notes,status) VALUES (?,?,?,?,?)`).run(newPid,de.entry_date,de.weather,de.notes,de.status);
-        const ndeId = nde.lastInsertRowid;
-        for (const x of con.prepare('SELECT * FROM das_labour WHERE das_entry_id = ?').all(de.id))
-          con.prepare('INSERT INTO das_labour (das_entry_id,trade,name,hours,activity_code,notes) VALUES (?,?,?,?,?,?)').run(ndeId,x.trade,x.name,x.hours,x.activity_code,x.notes);
-        for (const x of con.prepare('SELECT * FROM das_plant WHERE das_entry_id = ?').all(de.id))
-          con.prepare('INSERT INTO das_plant (das_entry_id,plant_type,description,hours,activity_code,notes) VALUES (?,?,?,?,?,?)').run(ndeId,x.plant_type,x.description,x.hours,x.activity_code,x.notes);
-        for (const x of con.prepare('SELECT * FROM das_activity WHERE das_entry_id = ?').all(de.id))
-          con.prepare('INSERT INTO das_activity (das_entry_id,activity_code,description,qty,unit,notes) VALUES (?,?,?,?,?,?)').run(ndeId,x.activity_code,x.description,x.qty,x.unit,x.notes);
-      }
-
-      // das_next_week
-      for (const x of con.prepare('SELECT * FROM das_next_week WHERE project_id = ?').all(SOURCE_ID))
-        con.prepare('INSERT INTO das_next_week (project_id,week_ending,notes) VALUES (?,?,?)').run(newPid,x.week_ending,x.notes);
-
-      // revenue_week + revenue_activity
-      for (const rw of con.prepare('SELECT * FROM revenue_week WHERE project_id = ?').all(SOURCE_ID)) {
-        const nrw = con.prepare('INSERT INTO revenue_week (project_id,week_ending,notes) VALUES (?,?,?)').run(newPid,rw.week_ending,rw.notes);
-        for (const x of con.prepare('SELECT * FROM revenue_activity WHERE revenue_week_id = ?').all(rw.id))
-          con.prepare('INSERT INTO revenue_activity (revenue_week_id,boq_item_id,qty,amount,notes) VALUES (?,?,?,?,?)').run(nrw.lastInsertRowid,boqIdMap[x.boq_item_id]??x.boq_item_id,x.qty,x.amount,x.notes);
-      }
-
-      // qs_cost_transaction
-      for (const x of con.prepare('SELECT * FROM qs_cost_transaction WHERE project_id = ?').all(SOURCE_ID))
-        con.prepare('INSERT INTO qs_cost_transaction (project_id,entry_date,category,description,amount,notes) VALUES (?,?,?,?,?,?)').run(newPid,x.entry_date,x.category,x.description,x.amount,x.notes);
-
-      // excel_sub_cost
-      for (const x of con.prepare('SELECT * FROM excel_sub_cost WHERE project_id = ?').all(SOURCE_ID))
-        con.prepare('INSERT INTO excel_sub_cost (project_id,subcontract_id,week_ending,amount) VALUES (?,?,?,?)').run(newPid,subIdMap[x.subcontract_id]??x.subcontract_id,x.week_ending,x.amount);
-
-      // boq_progress
-      for (const x of con.prepare('SELECT * FROM boq_progress WHERE project_id = ?').all(SOURCE_ID))
-        con.prepare('INSERT INTO boq_progress (project_id,boq_item_id,week_ending,pct_complete,qty_complete,notes) VALUES (?,?,?,?,?,?)').run(newPid,boqIdMap[x.boq_item_id]??x.boq_item_id,x.week_ending,x.pct_complete,x.qty_complete,x.notes);
+      // 9. remaining project-level tables
+      copyRows('qs_cost_transaction','project_id',SOURCE_ID,newPid,null);
+      copyRows('excel_sub_cost','project_id',SOURCE_ID,newPid,null);
+      copyRows('boq_progress','project_id',SOURCE_ID,newPid,{ boq_item_id: boqIdMap });
+      copyRows('sub_assessment','project_id',SOURCE_ID,newPid,null);
 
       results.push({ username: user.username, created: true, project_id: Number(newPid) });
     }
