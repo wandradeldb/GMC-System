@@ -141,7 +141,7 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
           projectId={projectId} subcontractId={subcontractId}
           boqItems={boqItems} apps={apps}
           onSave={async (payload) => {
-            const res = await fetch(
+            const res = await apiFetch(
               `/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications`,
               { method:'POST', headers:{'Content-Type':'application/json'}, body: JSON.stringify(payload) }
             );
