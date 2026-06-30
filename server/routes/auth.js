@@ -79,12 +79,14 @@ router.post('/auth/users', requireAuth, requireAdmin, (req, res) => {
     const newUserId = r.lastInsertRowid;
 
     let demo_project_id = null;
+    let demo_error = null;
     if (seed_demo && role !== 'admin') {
-      try { demo_project_id = seedDemoForUser(con, { id: newUserId, username }); } catch {}
+      try { demo_project_id = seedDemoForUser(con, { id: newUserId, username }); }
+      catch (err) { demo_error = err.message; }
     }
 
     con.close();
-    res.status(201).json({ username, role, demo_project_id });
+    res.status(201).json({ username, role, demo_project_id, demo_error });
   } catch {
     res.status(409).json({ error: 'Username already exists', code: 'DUPLICATE_USER' });
   }
@@ -188,6 +190,7 @@ function seedDemoForUser(con, user) {
     VALUES (?,?,?,?,?,?,?,?)`).run(source.ref, source.name, source.client, source.contract_value,
     source.status, source.start_date, source.end_date, user.id);
   const newPid = p.lastInsertRowid;
+  const SOURCE_ID = source.id;
 
   const boqIdMap = copyRows('boq_item', 'project_id', SOURCE_ID, newPid, null);
   const subIdMap = copyRows('subcontract', 'project_id', SOURCE_ID, newPid, null);
@@ -228,9 +231,6 @@ function seedDemoForUser(con, user) {
 router.post('/auth/admin/seed-demo', requireAuth, requireAdmin, (req, res) => {
   const con = db();
   try {
-    const source = con.prepare('SELECT id FROM project WHERE id = 1').get();
-    if (!source) return res.status(404).json({ error: 'Source project not found' });
-
     const users = con.prepare("SELECT id, username FROM user WHERE role != 'admin'").all();
     const results = [];
     for (const user of users) {
