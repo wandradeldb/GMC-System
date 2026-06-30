@@ -9,6 +9,7 @@ import DashboardView from './components/DashboardView.jsx';
 import RevenueGenerationView from './components/RevenueGenerationView.jsx';
 import LoginView from './components/LoginView.jsx';
 import ProfileView from './components/ProfileView.jsx';
+import ProjectSettingsView from './components/ProjectSettingsView.jsx';
 import UsersView from './components/UsersView.jsx';
 import ProjectsView from './components/ProjectsView.jsx';
 import { apiFetch } from './apiFetch.js';
@@ -36,6 +37,10 @@ const NAV_GROUPS = [
   {
     label: 'Field',
     items: [{ id: 'das', label: 'Daily Allocation', icon: 'ti-clipboard-list' }],
+  },
+  {
+    label: 'Settings',
+    items: [{ id: 'settings', label: 'Project Settings', icon: 'ti-settings', ownerOnly: true }],
   },
 ];
 
@@ -126,21 +131,25 @@ export default function App() {
       {/* Nav — only inside a project */}
       {project && (
         <nav className="sidebar-nav">
-          {NAV_GROUPS.map(group => (
-            <div key={group.label}>
-              <div className="sidebar-nav-section">{group.label}</div>
-              {group.items.map(item => (
-                <button
-                  key={item.id}
-                  className={`sidebar-nav-item${activeNav === item.id && !showAdmin ? ' active' : ''}`}
-                  onClick={() => { setActiveNav(item.id); setShowAdmin(false); setSidebarOpen(false); }}
-                >
-                  <i className={`ti ${item.icon}`} aria-hidden="true" />
-                  {item.label}
-                </button>
-              ))}
-            </div>
-          ))}
+          {NAV_GROUPS.map(group => {
+            const items = group.items.filter(item => !item.ownerOnly || project.access_role === 'owner');
+            if (!items.length) return null;
+            return (
+              <div key={group.label}>
+                <div className="sidebar-nav-section">{group.label}</div>
+                {items.map(item => (
+                  <button
+                    key={item.id}
+                    className={`sidebar-nav-item${activeNav === item.id && !showAdmin && !showProfile ? ' active' : ''}`}
+                    onClick={() => { setActiveNav(item.id); setShowAdmin(false); setShowProfile(false); setSidebarOpen(false); }}
+                  >
+                    <i className={`ti ${item.icon}`} aria-hidden="true" />
+                    {item.label}
+                  </button>
+                ))}
+              </div>
+            );
+          })}
         </nav>
       )}
 
@@ -228,6 +237,7 @@ export default function App() {
         {activeNav === 'tracker'   && <TrackerView projectId={projectId} readOnly={readOnly} onSubCellClick={subName => { setSubDeepLink({ subName }); setActiveNav('sub'); }} />}
         {activeNav === 'payapp'    && <PayAppView projectId={projectId} readOnly={readOnly} />}
         {activeNav === 'qscosts'   && <QSCostsView projectId={projectId} readOnly={readOnly} />}
+        {activeNav === 'settings'  && <ProjectSettingsView project={project} onProjectUpdated={p => setProject(p)} />}
       </>
     );
   }

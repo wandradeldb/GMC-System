@@ -51,6 +51,31 @@ router.get('/projects/:id', (req, res) => {
   res.json(project);
 });
 
+// PUT /api/v1/projects/:id  — owner only
+router.put('/projects/:id', (req, res) => {
+  if (req.projectRole !== 'owner') {
+    return res.status(403).json({ error: 'Only the project owner can edit settings', code: 'FORBIDDEN' });
+  }
+  const { name, ref, client, contract_value, start_date, end_date, status } = req.body || {};
+  if (!name?.trim() || !ref?.trim()) {
+    return res.status(400).json({ error: 'Name and Reference are required', code: 'MISSING_FIELDS' });
+  }
+  const validStatuses = ['active', 'closed', 'on_hold', 'completed'];
+  const safeStatus = validStatuses.includes(status) ? status : 'active';
+  const con = db();
+  con.prepare(`
+    UPDATE project SET name=?, ref=?, client=?, contract_value=?, start_date=?, end_date=?, status=?
+    WHERE id=?
+  `).run(
+    name.trim(), ref.trim(), client?.trim() || null,
+    parseFloat(contract_value) || 0,
+    start_date || null, end_date || null,
+    safeStatus, req.params.id
+  );
+  con.close();
+  res.json({ ok: true });
+});
+
 // GET /api/v1/projects/:id/boq
 // Query params: ?schedule=1  ?group=schedule
 router.get('/projects/:id/boq', (req, res) => {
