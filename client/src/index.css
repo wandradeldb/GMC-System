@@ -923,6 +923,33 @@ input, select, textarea, button { touch-action: manipulation; }
 .btn-secondary { background: #f1f5f9; color: #475569; border: 1px solid #e2e8f0; padding: 8px 18px; border-radius: 6px; font-size: 14px; font-weight: 600; cursor: pointer; }
 .btn-secondary:hover { background: #e2e8f0; }
 
+/* ── Profile page ────────────────────────────────────────── */
+.profile-page { max-width: 520px; margin: 0 auto; padding: 32px 24px; }
+.profile-card {
+  display: flex; align-items: center; gap: 20px;
+  background: #fff; border: 1px solid #e2e8f0; border-radius: 12px;
+  padding: 24px; margin-bottom: 28px;
+}
+.profile-avatar-lg {
+  width: 56px; height: 56px; border-radius: 50%;
+  background: #6366f1; color: #fff;
+  font-size: 20px; font-weight: 600;
+  display: flex; align-items: center; justify-content: center;
+  flex-shrink: 0;
+}
+.profile-username { font-size: 18px; font-weight: 700; color: #1a1a2e; margin-bottom: 6px; }
+.profile-role-badge {
+  font-size: 12px; font-weight: 600; padding: 3px 10px; border-radius: 99px;
+  background: #e0f2fe; color: #0369a1;
+}
+.profile-role-badge.admin { background: #1a1a2e; color: #fff; }
+
+.profile-section { background: #fff; border: 1px solid #e2e8f0; border-radius: 12px; padding: 24px; }
+.profile-section-title { font-size: 16px; font-weight: 700; color: #1a1a2e; margin-bottom: 20px; }
+.profile-form { display: flex; flex-direction: column; }
+.profile-form-footer { display: flex; justify-content: flex-end; margin-top: 8px; }
+.form-success { color: #166534; font-size: 13px; background: #dcfce7; border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; }
+
 /* share button on project card */
 .project-card-share-btn {
   margin-top: 10px; align-self: flex-start;

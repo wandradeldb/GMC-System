@@ -8,6 +8,7 @@ import QSCostsView from './components/QSCostsView.jsx';
 import DashboardView from './components/DashboardView.jsx';
 import RevenueGenerationView from './components/RevenueGenerationView.jsx';
 import LoginView from './components/LoginView.jsx';
+import ProfileView from './components/ProfileView.jsx';
 import UsersView from './components/UsersView.jsx';
 import ProjectsView from './components/ProjectsView.jsx';
 import { apiFetch } from './apiFetch.js';
@@ -52,6 +53,7 @@ export default function App() {
   const [showAdmin,   setShowAdmin]  = useState(false);
   const [subDeepLink, setSubDeepLink] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [showProfile, setShowProfile] = useState(false);
 
   function handleLogin(tok, userRole, user) {
     setToken(tok);
@@ -71,6 +73,7 @@ export default function App() {
     setProject(proj);
     setActiveNav('dashboard');
     setShowAdmin(false);
+    setShowProfile(false);
     setSidebarOpen(false);
   }
 
@@ -78,6 +81,7 @@ export default function App() {
     setProject(null);
     setActiveNav('dashboard');
     setShowAdmin(false);
+    setShowProfile(false);
     setSidebarOpen(false);
   }
 
@@ -90,6 +94,8 @@ export default function App() {
   // breadcrumb label for current view
   const currentNavLabel = showAdmin
     ? 'Admin Panel'
+    : showProfile
+    ? 'My Profile'
     : !project
     ? 'My Projects'
     : NAV_GROUPS.flatMap(g => g.items).find(n => n.id === activeNav)?.label ?? '';
@@ -147,11 +153,18 @@ export default function App() {
           <div className="sidebar-username">{user}</div>
           <div className="sidebar-userrole">{isAdmin ? 'Administrator' : 'User'}</div>
         </div>
+        <button
+          className="sidebar-icon-btn"
+          title="My Profile"
+          onClick={() => { setShowProfile(true); setShowAdmin(false); setProject(null); setSidebarOpen(false); }}
+        >
+          <i className="ti ti-user-circle" aria-hidden="true" />
+        </button>
         {isAdmin && (
           <button
             className="sidebar-icon-btn"
             title="Admin Panel"
-            onClick={() => { setShowAdmin(true); setProject(null); setSidebarOpen(false); }}
+            onClick={() => { setShowAdmin(true); setShowProfile(false); setProject(null); setSidebarOpen(false); }}
           >
             <i className="ti ti-settings" aria-hidden="true" />
           </button>
@@ -172,19 +185,13 @@ export default function App() {
 
       <nav className="breadcrumb-nav" aria-label="breadcrumb">
         <span className="bc-item bc-link" onClick={handleBackToProjects}>My Projects</span>
-        {(project || showAdmin) && (
+        {showProfile && <><span className="bc-sep">›</span><span className="bc-item bc-current">My Profile</span></>}
+        {showAdmin && !showProfile && <><span className="bc-sep">›</span><span className="bc-item bc-current">Admin Panel</span></>}
+        {project && !showProfile && !showAdmin && (
           <>
             <span className="bc-sep">›</span>
-            {project
-              ? <span className="bc-item bc-link" onClick={handleBackToProjects}>{project.name}</span>
-              : <span className="bc-item">{showAdmin ? 'Admin Panel' : ''}</span>
-            }
-          </>
-        )}
-        {project && currentNavLabel && (
-          <>
-            <span className="bc-sep">›</span>
-            <span className="bc-item bc-current">{currentNavLabel}</span>
+            <span className="bc-item bc-link" onClick={handleBackToProjects}>{project.name}</span>
+            {currentNavLabel && <><span className="bc-sep">›</span><span className="bc-item bc-current">{currentNavLabel}</span></>}
           </>
         )}
       </nav>
@@ -195,7 +202,9 @@ export default function App() {
 
   // Main content
   let content;
-  if (showAdmin && isAdmin) {
+  if (showProfile) {
+    content = <ProfileView username={user} role={role} />;
+  } else if (showAdmin && isAdmin) {
     content = (
       <div className="admin-panel">
         <div className="admin-panel-header">

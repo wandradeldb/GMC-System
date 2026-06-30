@@ -88,6 +88,26 @@ router.put('/auth/users/:id/password', requireAuth, requireAdmin, (req, res) => 
   res.json({ ok: true });
 });
 
+// PUT /api/v1/auth/me/password  — any logged-in user changes their own password
+router.put('/auth/me/password', requireAuth, (req, res) => {
+  const { current_password, new_password } = req.body || {};
+  if (!current_password || !new_password)
+    return res.status(400).json({ error: 'current_password and new_password required', code: 'MISSING_FIELDS' });
+  if (new_password.length < 6)
+    return res.status(400).json({ error: 'New password must be at least 6 characters', code: 'TOO_SHORT' });
+
+  const con  = db();
+  const user = con.prepare('SELECT id, password FROM user WHERE id = ?').get(req.user.id);
+  if (!user || !bcrypt.compareSync(current_password, user.password)) {
+    con.close();
+    return res.status(401).json({ error: 'Current password is incorrect', code: 'INVALID_CREDENTIALS' });
+  }
+  const hash = bcrypt.hashSync(new_password, 10);
+  con.prepare('UPDATE user SET password = ? WHERE id = ?').run(hash, req.user.id);
+  con.close();
+  res.json({ ok: true });
+});
+
 // DELETE /api/v1/auth/users/:id
 router.delete('/auth/users/:id', requireAuth, requireAdmin, (req, res) => {
   const con  = db();
