@@ -106,8 +106,9 @@ router.post('/projects/:id/duplicate', (req, res) => {
 
     const SOURCE_ID = source.id;
     const newName = `${source.name} (copy)`;
+    const newRef  = `${source.ref} (copy)`;
     const p = con.prepare(`INSERT INTO project (ref,name,client,contract_value,status,start_date,end_date,owner_id)
-      VALUES (?,?,?,?,?,?,?,?)`).run(source.ref, newName, source.client, source.contract_value,
+      VALUES (?,?,?,?,?,?,?,?)`).run(newRef, newName, source.client, source.contract_value,
       source.status, source.start_date, source.end_date, req.user.id);
     const newPid = p.lastInsertRowid;
 
