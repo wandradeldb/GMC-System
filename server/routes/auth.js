@@ -153,10 +153,12 @@ router.delete('/auth/users/:id', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-// Shared helper: duplicate project_id=1 for a single user. Returns new project_id or null if skipped.
+// Shared helper: duplicate the admin's first project for a single user. Returns new project_id or null if skipped.
 function seedDemoForUser(con, user) {
-  const SOURCE_ID = 1;
-  const source = con.prepare('SELECT * FROM project WHERE id = ?').get(SOURCE_ID);
+  const adminUser = con.prepare("SELECT id FROM user WHERE username = 'admin'").get();
+  const source = adminUser
+    ? con.prepare('SELECT * FROM project WHERE owner_id = ? ORDER BY id LIMIT 1').get(adminUser.id)
+    : con.prepare('SELECT * FROM project ORDER BY id LIMIT 1').get();
   if (!source) return null;
 
   const existing = con.prepare('SELECT id FROM project WHERE owner_id = ? AND ref = ?').get(user.id, source.ref);
