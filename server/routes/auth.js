@@ -19,6 +19,10 @@ function db() {
   // Apply project owner migration if column missing
   try { con.exec('ALTER TABLE project ADD COLUMN owner_id INTEGER REFERENCES user(id)'); } catch {}
   try { con.exec('UPDATE project SET owner_id = 1 WHERE owner_id IS NULL'); } catch {}
+  // Profile fields
+  try { con.exec("ALTER TABLE user ADD COLUMN full_name TEXT"); } catch {}
+  try { con.exec("ALTER TABLE user ADD COLUMN email TEXT"); } catch {}
+  try { con.exec("ALTER TABLE user ADD COLUMN phone TEXT"); } catch {}
   // Project members table
   try { con.exec(`CREATE TABLE IF NOT EXISTS project_member (
     project_id INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
@@ -84,6 +88,25 @@ router.put('/auth/users/:id/password', requireAuth, requireAdmin, (req, res) => 
   const hash = bcrypt.hashSync(password, 10);
   const con  = db();
   con.prepare('UPDATE user SET password = ? WHERE id = ?').run(hash, req.params.id);
+  con.close();
+  res.json({ ok: true });
+});
+
+// GET /api/v1/auth/me — fetch own profile
+router.get('/auth/me', requireAuth, (req, res) => {
+  const con  = db();
+  const user = con.prepare('SELECT id, username, role, full_name, email, phone, created_at FROM user WHERE id = ?').get(req.user.id);
+  con.close();
+  if (!user) return res.status(404).json({ error: 'User not found' });
+  res.json(user);
+});
+
+// PUT /api/v1/auth/me — update own profile info
+router.put('/auth/me', requireAuth, (req, res) => {
+  const { full_name = '', email = '', phone = '' } = req.body || {};
+  const con = db();
+  con.prepare('UPDATE user SET full_name = ?, email = ?, phone = ? WHERE id = ?')
+     .run(full_name.trim(), email.trim(), phone.trim(), req.user.id);
   con.close();
   res.json({ ok: true });
 });
