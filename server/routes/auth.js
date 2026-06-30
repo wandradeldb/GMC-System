@@ -66,7 +66,7 @@ router.get('/auth/users', requireAuth, requireAdmin, (req, res) => {
 
 // POST /api/v1/auth/users
 router.post('/auth/users', requireAuth, requireAdmin, (req, res) => {
-  const { username, password, role = 'user' } = req.body || {};
+  const { username, password, role = 'user', seed_demo = false } = req.body || {};
   if (!username || !password)
     return res.status(400).json({ error: 'Username and password required', code: 'MISSING_FIELDS' });
   if (!['admin', 'user'].includes(role))
@@ -75,9 +75,16 @@ router.post('/auth/users', requireAuth, requireAdmin, (req, res) => {
   const hash = bcrypt.hashSync(password, 10);
   try {
     const con = db();
-    con.prepare('INSERT INTO user (username, password, role) VALUES (?, ?, ?)').run(username, hash, role);
+    const r = con.prepare('INSERT INTO user (username, password, role) VALUES (?, ?, ?)').run(username, hash, role);
+    const newUserId = r.lastInsertRowid;
+
+    let demo_project_id = null;
+    if (seed_demo && role !== 'admin') {
+      try { demo_project_id = seedDemoForUser(con, { id: newUserId, username }); } catch {}
+    }
+
     con.close();
-    res.status(201).json({ username, role });
+    res.status(201).json({ username, role, demo_project_id });
   } catch {
     res.status(409).json({ error: 'Username already exists', code: 'DUPLICATE_USER' });
   }
@@ -146,18 +153,18 @@ router.delete('/auth/users/:id', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-// POST /api/v1/auth/admin/seed-demo
-// Duplicates project_id=1 for every non-admin user that doesn't already have a copy
-router.post('/auth/admin/seed-demo', requireAuth, requireAdmin, (req, res) => {
-  const con = db();
+// Shared helper: duplicate project_id=1 for a single user. Returns new project_id or null if skipped.
+function seedDemoForUser(con, user) {
+  const SOURCE_ID = 1;
+  const source = con.prepare('SELECT * FROM project WHERE id = ?').get(SOURCE_ID);
+  if (!source) return null;
 
-  // Dynamic copy helper: copies all rows WHERE filterCol=filterVal into same table,
-  // substituting filterCol with newVal, and optionally remapping FK columns.
-  // Returns map of old_id → new_id.
+  const existing = con.prepare('SELECT id FROM project WHERE owner_id = ? AND ref = ?').get(user.id, source.ref);
+  if (existing) return null; // already has a copy
+
   function copyRows(table, filterCol, filterVal, newVal, fkRemaps) {
     const colInfo = con.prepare(`PRAGMA table_info(${table})`).all();
-    const allCols = colInfo.map(c => c.name);
-    const insertCols = allCols.filter(c => c !== 'id');
+    const insertCols = colInfo.map(c => c.name).filter(c => c !== 'id');
     const rows = con.prepare(`SELECT * FROM ${table} WHERE ${filterCol} = ?`).all(filterVal);
     const idMap = {};
     for (const row of rows) {
@@ -166,80 +173,70 @@ router.post('/auth/admin/seed-demo', requireAuth, requireAdmin, (req, res) => {
         if (fkRemaps && fkRemaps[c] && fkRemaps[c][row[c]] != null) return fkRemaps[c][row[c]];
         return row[c];
       });
-      const sql = `INSERT INTO ${table} (${insertCols.join(',')}) VALUES (${insertCols.map(()=>'?').join(',')})`;
+      const sql = `INSERT INTO ${table} (${insertCols.join(',')}) VALUES (${insertCols.map(() => '?').join(',')})`;
       const r = con.prepare(sql).run(...vals);
       idMap[row.id] = r.lastInsertRowid;
     }
     return idMap;
   }
 
+  const p = con.prepare(`INSERT INTO project (ref,name,client,contract_value,status,start_date,end_date,owner_id)
+    VALUES (?,?,?,?,?,?,?,?)`).run(source.ref, source.name, source.client, source.contract_value,
+    source.status, source.start_date, source.end_date, user.id);
+  const newPid = p.lastInsertRowid;
+
+  const boqIdMap = copyRows('boq_item', 'project_id', SOURCE_ID, newPid, null);
+  const subIdMap = copyRows('subcontract', 'project_id', SOURCE_ID, newPid, null);
+  for (const [oldSubId, newSubId] of Object.entries(subIdMap)) {
+    const sbMap = copyRows('sub_boq_item', 'subcontract_id', oldSubId, newSubId, { boq_item_id: boqIdMap });
+    const saMap = copyRows('sub_application', 'subcontract_id', oldSubId, newSubId, null);
+    for (const [oldSaId, newSaId] of Object.entries(saMap)) {
+      copyRows('sub_application_item', 'sub_application_id', oldSaId, newSaId, { sub_boq_item_id: sbMap });
+      copyRows('compensation_event', 'sub_application_id', oldSaId, newSaId, { subcontract_id: subIdMap });
+      copyRows('sub_invoice', 'sub_application_id', oldSaId, newSaId, null);
+    }
+  }
+  copyRows('tracker_we', 'project_id', SOURCE_ID, newPid, null);
+  copyRows('tracker_sub_revenue', 'project_id', SOURCE_ID, newPid, null);
+  const paIdMap = copyRows('payapp', 'project_id', SOURCE_ID, newPid, null);
+  for (const [oldPaId, newPaId] of Object.entries(paIdMap))
+    copyRows('payapp_item', 'payapp_id', oldPaId, newPaId, { boq_item_id: boqIdMap });
+  copyRows('payment_run', 'project_id', SOURCE_ID, newPid, null);
+  const deIdMap = copyRows('das_entry', 'project_id', SOURCE_ID, newPid, null);
+  for (const [oldDeId, newDeId] of Object.entries(deIdMap)) {
+    copyRows('das_labour', 'das_entry_id', oldDeId, newDeId, null);
+    copyRows('das_plant', 'das_entry_id', oldDeId, newDeId, null);
+    copyRows('das_activity', 'das_entry_id', oldDeId, newDeId, { boq_item_id: boqIdMap });
+  }
+  copyRows('das_next_week', 'project_id', SOURCE_ID, newPid, null);
+  const actIdMap = copyRows('revenue_activity', 'project_id', SOURCE_ID, newPid, null);
+  copyRows('revenue_week', 'project_id', SOURCE_ID, newPid, { activity_id: actIdMap, sub_id: subIdMap });
+  copyRows('qs_cost_transaction', 'project_id', SOURCE_ID, newPid, null);
+  copyRows('excel_sub_cost', 'project_id', SOURCE_ID, newPid, null);
+  copyRows('boq_progress', 'project_id', SOURCE_ID, newPid, { boq_item_id: boqIdMap });
+  copyRows('sub_assessment', 'project_id', SOURCE_ID, newPid, null);
+
+  return Number(newPid);
+}
+
+// POST /api/v1/auth/admin/seed-demo
+// Duplicates project_id=1 for every non-admin user that doesn't already have a copy
+router.post('/auth/admin/seed-demo', requireAuth, requireAdmin, (req, res) => {
+  const con = db();
   try {
-    const SOURCE_ID = 1;
-    const source = con.prepare('SELECT * FROM project WHERE id = ?').get(SOURCE_ID);
+    const source = con.prepare('SELECT id FROM project WHERE id = 1').get();
     if (!source) return res.status(404).json({ error: 'Source project not found' });
 
     const users = con.prepare("SELECT id, username FROM user WHERE role != 'admin'").all();
     const results = [];
-
     for (const user of users) {
-      const existing = con.prepare('SELECT id FROM project WHERE owner_id = ? AND ref = ?').get(user.id, source.ref);
-      if (existing) { results.push({ username: user.username, skipped: true, project_id: existing.id }); continue; }
-
-      // 1. Create project
-      const p = con.prepare(`INSERT INTO project (ref,name,client,contract_value,status,start_date,end_date,owner_id)
-        VALUES (?,?,?,?,?,?,?,?)`).run(source.ref,source.name,source.client,source.contract_value,source.status,source.start_date,source.end_date,user.id);
-      const newPid = p.lastInsertRowid;
-
-      // 2. boq_item
-      const boqIdMap = copyRows('boq_item','project_id',SOURCE_ID,newPid,null);
-
-      // 3. subcontract
-      const subIdMap = copyRows('subcontract','project_id',SOURCE_ID,newPid,null);
-      // sub children
-      for (const [oldSubId, newSubId] of Object.entries(subIdMap)) {
-        const sbMap = copyRows('sub_boq_item','subcontract_id',oldSubId,newSubId,{ boq_item_id: boqIdMap });
-        const saMap = copyRows('sub_application','subcontract_id',oldSubId,newSubId,null);
-        for (const [oldSaId, newSaId] of Object.entries(saMap)) {
-          copyRows('sub_application_item','sub_application_id',oldSaId,newSaId,{ sub_boq_item_id: sbMap });
-          copyRows('compensation_event','sub_application_id',oldSaId,newSaId,{ subcontract_id: subIdMap });
-          copyRows('sub_invoice','sub_application_id',oldSaId,newSaId,null);
-        }
+      const newId = seedDemoForUser(con, user);
+      if (newId) results.push({ username: user.username, created: true, project_id: newId });
+      else {
+        const ex = con.prepare('SELECT id FROM project WHERE owner_id = ?').get(user.id);
+        results.push({ username: user.username, skipped: true, project_id: ex?.id });
       }
-
-      // 4. tracker_we (no child tracker_sub_revenue — it uses project_id directly)
-      copyRows('tracker_we','project_id',SOURCE_ID,newPid,null);
-      copyRows('tracker_sub_revenue','project_id',SOURCE_ID,newPid,null);
-
-      // 5. payapp + payapp_item
-      const paIdMap = copyRows('payapp','project_id',SOURCE_ID,newPid,null);
-      for (const [oldPaId, newPaId] of Object.entries(paIdMap))
-        copyRows('payapp_item','payapp_id',oldPaId,newPaId,{ boq_item_id: boqIdMap });
-
-      // 6. payment_run
-      copyRows('payment_run','project_id',SOURCE_ID,newPid,null);
-
-      // 7. das_entry + children
-      const deIdMap = copyRows('das_entry','project_id',SOURCE_ID,newPid,null);
-      for (const [oldDeId, newDeId] of Object.entries(deIdMap)) {
-        copyRows('das_labour','das_entry_id',oldDeId,newDeId,null);
-        copyRows('das_plant','das_entry_id',oldDeId,newDeId,null);
-        copyRows('das_activity','das_entry_id',oldDeId,newDeId,{ boq_item_id: boqIdMap });
-      }
-      copyRows('das_next_week','project_id',SOURCE_ID,newPid,null);
-
-      // 8. revenue_activity + revenue_week
-      const actIdMap = copyRows('revenue_activity','project_id',SOURCE_ID,newPid,null);
-      copyRows('revenue_week','project_id',SOURCE_ID,newPid,{ activity_id: actIdMap, sub_id: subIdMap });
-
-      // 9. remaining project-level tables
-      copyRows('qs_cost_transaction','project_id',SOURCE_ID,newPid,null);
-      copyRows('excel_sub_cost','project_id',SOURCE_ID,newPid,null);
-      copyRows('boq_progress','project_id',SOURCE_ID,newPid,{ boq_item_id: boqIdMap });
-      copyRows('sub_assessment','project_id',SOURCE_ID,newPid,null);
-
-      results.push({ username: user.username, created: true, project_id: Number(newPid) });
     }
-
     con.close();
     res.json({ ok: true, results });
   } catch (err) {

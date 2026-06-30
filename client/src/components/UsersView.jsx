@@ -41,10 +41,11 @@ export default function UsersView() {
   const [loading,    setLoading]    = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [resetUser,  setResetUser]  = useState(null); // { id, username }
-  const [form,       setForm]       = useState({ username: '', password: '', role: 'user' });
+  const [form,       setForm]       = useState({ username: '', password: '', role: 'user', seed_demo: true });
   const [newPass,    setNewPass]    = useState('');
   const [error,      setError]      = useState('');
   const [saving,     setSaving]     = useState(false);
+  const [createResult, setCreateResult] = useState(null);
 
   async function load() {
     setLoading(true);
@@ -66,8 +67,9 @@ export default function UsersView() {
     const data = await r.json();
     setSaving(false);
     if (!r.ok) { setError(data.error); return; }
+    setCreateResult({ username: form.username, demo_project_id: data.demo_project_id });
     setShowCreate(false);
-    setForm({ username: '', password: '', role: 'user' });
+    setForm({ username: '', password: '', role: 'user', seed_demo: true });
     load();
   }
 
@@ -92,10 +94,20 @@ export default function UsersView() {
   return (
     <div style={{ padding: '24px 32px', maxWidth: 700 }}>
       <SeedDemoButton />
-      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: createResult ? 12 : 24 }}>
         <h2 style={{ margin: 0, fontSize: 22, color: '#1a1a2e' }}>User Management</h2>
-        <button className="btn-primary" onClick={() => setShowCreate(true)}>+ New User</button>
+        <button className="btn-primary" onClick={() => { setShowCreate(true); setCreateResult(null); }}>+ New User</button>
       </div>
+
+      {createResult && (
+        <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 10, padding: '14px 18px', marginBottom: 20, fontSize: 13 }}>
+          <div style={{ fontWeight: 700, color: '#166534', marginBottom: 4 }}>✓ User <strong>{createResult.username}</strong> created successfully</div>
+          {createResult.demo_project_id
+            ? <div style={{ color: '#166534' }}>✓ Demo project (Merlin Park) created — project ID {createResult.demo_project_id}</div>
+            : <div style={{ color: '#92400e' }}>⚠ Demo project was not created (source project not found)</div>
+          }
+        </div>
+      )}
 
       {loading ? <p style={{ color: '#6b7280' }}>Loading…</p> : (
         <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 14 }}>
@@ -152,6 +164,17 @@ export default function UsersView() {
                 <option value="user">User</option>
                 <option value="admin">Admin</option>
               </select>
+              {form.role === 'user' && (
+                <label style={{ display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', padding: '10px 14px', background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, fontSize: 13 }}>
+                  <input type="checkbox" checked={form.seed_demo}
+                    onChange={e => setForm(f => ({ ...f, seed_demo: e.target.checked }))}
+                    style={{ width: 16, height: 16, accentColor: '#16a34a', cursor: 'pointer' }} />
+                  <div>
+                    <div style={{ fontWeight: 600, color: '#166534' }}>Create demo project</div>
+                    <div style={{ color: '#4ade80', fontSize: 12 }}>Duplicates Merlin Park with all data for this user</div>
+                  </div>
+                </label>
+              )}
               {error && <div style={{ color: '#dc2626', fontSize: 13 }}>{error}</div>}
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>
                 <button type="button" className="btn-secondary" onClick={() => setShowCreate(false)}>Cancel</button>
