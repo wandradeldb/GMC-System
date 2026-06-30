@@ -667,9 +667,10 @@ body {
 
 /* Toolbar */
 .tracker-toolbar {
-  display: flex; align-items: center; gap: 12px;
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
   padding: 8px 16px; background: #fff; border-bottom: 1px solid #e5e7eb;
 }
+.tracker-toolbar .sc-title { flex-shrink: 0; white-space: nowrap; }
 
 /* Tracker matrix */
 .tracker-scroll-wrap {

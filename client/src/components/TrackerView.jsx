@@ -122,6 +122,9 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
   const [showEntry,   setShowEntry]   = useState(false);
   const [entryWE,     setEntryWE]     = useState('');
   const [selectedWE,  setSelectedWE]  = useState('');
+  const [reportFrom,  setReportFrom]  = useState('');
+  const [reportTo,    setReportTo]    = useState('');
+  const [exporting,   setExporting]   = useState(false);
   const tableRef = useRef(null);
 
   const load = useCallback(() => {
@@ -191,6 +194,32 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
 
   const openEntry = (we) => { setEntryWE(we); setShowEntry(true); };
 
+  const exportPeriodPDF = async () => {
+    setExporting(true);
+    try {
+      const params = new URLSearchParams();
+      if (reportFrom) params.set('from', reportFrom);
+      if (reportTo)   params.set('to', reportTo);
+      const res = await apiFetch(`/api/v1/projects/${projectId}/reports/period-pdf?${params}`);
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        alert(err.error || 'Failed to generate report');
+        return;
+      }
+      const blob = await res.blob();
+      const url  = URL.createObjectURL(blob);
+      const a    = document.createElement('a');
+      a.href = url;
+      a.download = res.headers.get('content-disposition')?.match(/filename="(.+)"/)?.[1] || 'GMC-Report.pdf';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } finally {
+      setExporting(false);
+    }
+  };
+
   // WE dropdown: 4 weeks before today's Friday, today's friday, 2 after
   const todayFri = todayFriday();
   const weOptions = fridayRange(todayFri, 4, 2);
@@ -226,7 +255,17 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
       {/* ── Toolbar ──────────────────────────────────────────────── */}
       <div className="tracker-toolbar">
         <h2 className="sc-title">Weekly Cost Tracker</h2>
-        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:8, flexWrap:'wrap' }}>
+          <input type="date" value={reportFrom} onChange={e => setReportFrom(e.target.value)}
+            title="Report from"
+            style={{ padding:'6px 8px', borderRadius:8, border:'1px solid #d1d5db', fontSize:12 }} />
+          <span style={{ fontSize:12, color:'#6b7280' }}>→</span>
+          <input type="date" value={reportTo} onChange={e => setReportTo(e.target.value)}
+            title="Report to"
+            style={{ padding:'6px 8px', borderRadius:8, border:'1px solid #d1d5db', fontSize:12 }} />
+          <button className="btn-secondary" onClick={exportPeriodPDF} disabled={exporting}>
+            {exporting ? 'Generating…' : '📄 Export PDF'}
+          </button>
           <select value={activeWE} onChange={e => setSelectedWE(e.target.value)}
             style={{ padding:'7px 10px', borderRadius:8, border:'1px solid #d1d5db', fontSize:13, background:'#fff', cursor:'pointer' }}>
             {weOptions.map(w => (

@@ -131,9 +131,8 @@ function recalcWeek(con, projectId, weekEnding) {
 
 // â”€â”€ GET /projects/:pid/tracker  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Returns all tracker_we rows ordered by week_ending ASC (columns for the UI)
-router.get('/projects/:pid/tracker', (req, res) => {
-  const con  = db();
-  const rows = con.prepare('SELECT * FROM tracker_we WHERE project_id=? ORDER BY week_ending ASC').all(req.params.pid);
+function buildTrackerReport(con, pid) {
+  const rows = con.prepare('SELECT * FROM tracker_we WHERE project_id=? ORDER BY week_ending ASC').all(pid);
 
   // Pull QS import costs per week (Material + Plant from qs_cost_transaction)
   const qsRows = con.prepare(`
@@ -141,7 +140,7 @@ router.get('/projects/:pid/tracker', (req, res) => {
       ROUND(SUM(CASE WHEN cost_category='Material' THEN cost ELSE 0 END),2) AS qs_mat,
       ROUND(SUM(CASE WHEN cost_category='Plant'    THEN cost ELSE 0 END),2) AS qs_plant
     FROM qs_cost_transaction WHERE project_id=? GROUP BY week_ending
-  `).all(req.params.pid);
+  `).all(pid);
   const qsMap = {};
   qsRows.forEach(r => { qsMap[r.week_ending] = r; });
 
@@ -152,7 +151,7 @@ router.get('/projects/:pid/tracker', (req, res) => {
     JOIN subcontract sc ON sc.id = a.subcontract_id
     WHERE sc.project_id=? AND a.status != 'draft'
     GROUP BY a.week_ending
-  `).all(req.params.pid);
+  `).all(pid);
   const subCostMap = {};
   subCostRows.forEach(r => { subCostMap[r.week_ending] = r.live_subs; });
 
@@ -188,8 +187,8 @@ router.get('/projects/:pid/tracker', (req, res) => {
   const latest   = enriched[enriched.length - 1] || null;
   const previous = enriched[enriched.length - 2] || null;
 
-  const contractValue = (con.prepare('SELECT contract_value FROM project WHERE id=?').get(req.params.pid) || {}).contract_value || 0;
-  const totalBOQ      = (con.prepare('SELECT COALESCE(SUM(qty*rate),0) AS t FROM boq_item WHERE project_id=?').get(req.params.pid) || {}).t || 0;
+  const contractValue = (con.prepare('SELECT contract_value FROM project WHERE id=?').get(pid) || {}).contract_value || 0;
+  const totalBOQ      = (con.prepare('SELECT COALESCE(SUM(qty*rate),0) AS t FROM boq_item WHERE project_id=?').get(pid) || {}).t || 0;
 
   // â”€â”€ Sub breakdown per week â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
   // Get all registered subcontracts for this project
@@ -197,7 +196,7 @@ router.get('/projects/:pid/tracker', (req, res) => {
     SELECT sc.id, sc.ref, sc.description, s.name AS sub_name
     FROM subcontract sc JOIN subcontractor s ON s.id = sc.subcontractor_id
     WHERE sc.project_id=? ORDER BY sc.ref
-  `).all(req.params.pid);
+  `).all(pid);
 
   // Cost-Payment per sub per WE â€” primeiro tenta sub_assessment (Excel import),
   // depois fallback para sub_application (aplicaÃ§Ãµes formais)
@@ -205,7 +204,7 @@ router.get('/projects/:pid/tracker', (req, res) => {
     SELECT sub_name, week_ending, ROUND(SUM(gmc_assessment),2) AS cost_payment
     FROM sub_assessment WHERE project_id=? AND week_ending IS NOT NULL
     GROUP BY sub_name, week_ending
-  `).all(req.params.pid);
+  `).all(pid);
   // index: sheet_name_norm + WE â†’ cost_payment
   const assessMap = {};
   assessRows.forEach(r => { assessMap[`${r.sub_name}__${r.week_ending}`] = r.cost_payment; });
@@ -219,7 +218,7 @@ router.get('/projects/:pid/tracker', (req, res) => {
     JOIN subcontractor s ON s.id = sc.subcontractor_id
     WHERE sc.project_id=? AND a.status != 'draft'
     GROUP BY sc.id, a.week_ending
-  `).all(req.params.pid);
+  `).all(pid);
   const payMap = {};
   subPayments.forEach(r => { payMap[`${r.sub_id}__${r.week_ending}`] = { cost_payment: r.cost_payment, sub_name: r.sub_name }; });
 
@@ -232,7 +231,7 @@ router.get('/projects/:pid/tracker', (req, res) => {
     JOIN subcontractor s ON s.id = sc.subcontractor_id
     WHERE sc.project_id=? AND a.status = 'draft'
     GROUP BY sc.id, a.week_ending
-  `).all(req.params.pid);
+  `).all(pid);
   const plannedMap = {};
   plannedPayments.forEach(r => { plannedMap[`${r.sub_id}__${r.week_ending}`] = r.planned_cost; });
 
@@ -244,13 +243,13 @@ router.get('/projects/:pid/tracker', (req, res) => {
     FROM qs_cost_transaction
     WHERE project_id=? AND week_ending IS NOT NULL
     GROUP BY week_ending, gang_name
-  `).all(req.params.pid);
+  `).all(pid);
 
   // Revenue manually entered per sub per WE
   const subRevRows = con.prepare(`
     SELECT week_ending, sub_name, revenue_generated, gmc_op_plant, misc_subbies_cost, misc_subbies_revenue
     FROM tracker_sub_revenue WHERE project_id=?
-  `).all(req.params.pid);
+  `).all(pid);
   // index: sub_name + WE â†’ revenue_generated
   const revMap = {};
   subRevRows.forEach(r => { revMap[`${r.sub_name}__${r.week_ending}`] = r; });
@@ -316,8 +315,14 @@ router.get('/projects/:pid/tracker', (req, res) => {
                                  misc_subbies_revenue: misc.misc_subbies_revenue || 0 };
   });
 
+  return { rows: enriched, summary: { latest, previous, contractValue, totalBOQ }, sub_lines: subLines, subs };
+}
+
+router.get('/projects/:pid/tracker', (req, res) => {
+  const con  = db();
+  const data = buildTrackerReport(con, req.params.pid);
   con.close();
-  res.json({ rows: enriched, summary: { latest, previous, contractValue, totalBOQ }, sub_lines: subLines });
+  res.json(data);
 });
 
 // â”€â”€ GET /projects/:pid/tracker/:we  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -524,3 +529,5 @@ router.use((err, _req, res, _next) => {
 });
 
 module.exports = router;
+module.exports.buildTrackerReport = buildTrackerReport;
+module.exports.db = db;
