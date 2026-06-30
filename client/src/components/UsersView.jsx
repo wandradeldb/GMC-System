@@ -1,6 +1,41 @@
 import { useState, useEffect } from 'react';
 import { apiFetch } from '../apiFetch.js';
 
+function SeedDemoButton() {
+  const [status, setStatus] = useState('idle'); // idle | loading | done | error
+  const [results, setResults] = useState([]);
+
+  async function handleSeed() {
+    if (!confirm('Duplicate Merlin Park project for all non-admin users?')) return;
+    setStatus('loading');
+    const r = await apiFetch('/api/v1/auth/admin/seed-demo', { method: 'POST' });
+    const d = await r.json();
+    if (!r.ok) { setStatus('error'); return; }
+    setResults(d.results || []);
+    setStatus('done');
+  }
+
+  return (
+    <div style={{ background: '#f8fafc', border: '1px solid #e2e8f0', borderRadius: 10, padding: '16px 20px', marginBottom: 24 }}>
+      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: results.length ? 12 : 0 }}>
+        <div>
+          <div style={{ fontWeight: 700, color: '#1a1a2e', fontSize: 14 }}>Demo Project Setup</div>
+          <div style={{ fontSize: 12, color: '#64748b', marginTop: 2 }}>Duplicates Merlin Park for each user (skips if already has a copy)</div>
+        </div>
+        <button className="btn-primary" onClick={handleSeed} disabled={status === 'loading'} style={{ whiteSpace: 'nowrap' }}>
+          {status === 'loading' ? 'Creating…' : '⚡ Seed Demo Projects'}
+        </button>
+      </div>
+      {status === 'done' && results.map(r => (
+        <div key={r.username} style={{ fontSize: 12, padding: '4px 0', color: r.skipped ? '#64748b' : '#166534' }}>
+          {r.skipped ? `↩ ${r.username} — already has a copy` : `✓ ${r.username} — project created (id ${r.project_id})`}
+        </div>
+      ))}
+      {status === 'error' && <div style={{ fontSize: 12, color: '#dc2626' }}>Error creating projects.</div>}
+    </div>
+  );
+}
+
 export default function UsersView() {
   const [users,      setUsers]      = useState([]);
   const [loading,    setLoading]    = useState(true);
@@ -56,6 +91,7 @@ export default function UsersView() {
 
   return (
     <div style={{ padding: '24px 32px', maxWidth: 700 }}>
+      <SeedDemoButton />
       <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 24 }}>
         <h2 style={{ margin: 0, fontSize: 22, color: '#1a1a2e' }}>User Management</h2>
         <button className="btn-primary" onClick={() => setShowCreate(true)}>+ New User</button>
