@@ -148,30 +148,32 @@ export default function App() {
 
       {/* Footer */}
       <div className="sidebar-footer">
-        <div className="sidebar-avatar">{initials(user)}</div>
-        <div className="sidebar-user-info">
-          <div className="sidebar-username">{user}</div>
-          <div className="sidebar-userrole">{isAdmin ? 'Administrator' : 'User'}</div>
+        <div className="sidebar-footer-user">
+          <div className="sidebar-avatar">{initials(user)}</div>
+          <div className="sidebar-user-info">
+            <div className="sidebar-username">{user}</div>
+            <div className="sidebar-userrole">{isAdmin ? 'Administrator' : 'User'}</div>
+          </div>
         </div>
-        <button
-          className="sidebar-icon-btn"
-          title="My Profile"
-          onClick={() => { setShowProfile(true); setShowAdmin(false); setProject(null); setSidebarOpen(false); }}
-        >
-          <i className="ti ti-user-circle" aria-hidden="true" />
-        </button>
-        {isAdmin && (
+        <div className="sidebar-footer-actions">
           <button
-            className="sidebar-icon-btn"
-            title="Admin Panel"
-            onClick={() => { setShowAdmin(true); setShowProfile(false); setProject(null); setSidebarOpen(false); }}
+            className="sidebar-action-btn"
+            onClick={() => { setShowProfile(true); setShowAdmin(false); setProject(null); setSidebarOpen(false); }}
           >
-            <i className="ti ti-settings" aria-hidden="true" />
+            My Profile
           </button>
-        )}
-        <button className="sidebar-icon-btn sidebar-logout-btn" title="Sign out" onClick={handleLogout}>
-          <i className="ti ti-logout" aria-hidden="true" />
-        </button>
+          {isAdmin && (
+            <button
+              className="sidebar-action-btn"
+              onClick={() => { setShowAdmin(true); setShowProfile(false); setProject(null); setSidebarOpen(false); }}
+            >
+              Admin Panel
+            </button>
+          )}
+          <button className="sidebar-action-btn sidebar-action-logout" onClick={handleLogout}>
+            Sign out
+          </button>
+        </div>
       </div>
     </aside>
   );

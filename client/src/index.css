@@ -97,8 +97,7 @@ body {
 .sidebar-spacer { flex: 1; }
 
 .sidebar-footer {
-  display: flex; align-items: center; gap: 8px;
-  padding: 12px 12px;
+  display: flex; flex-direction: column;
   border-top: 1px solid rgba(255,255,255,0.07);
   flex-shrink: 0;
 }
@@ -115,6 +114,19 @@ body {
 .sidebar-icon-btn  { background: none; border: none; cursor: pointer; color: rgba(255,255,255,0.35); font-size: 16px; padding: 4px; border-radius: 4px; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
 .sidebar-icon-btn:hover { background: rgba(255,255,255,0.08); color: rgba(255,255,255,0.8); }
 .sidebar-logout-btn:hover { color: #f87171; }
+
+.sidebar-footer-user { display: flex; align-items: center; gap: 8px; padding: 10px 12px 6px; }
+.sidebar-footer-actions { display: flex; flex-direction: column; padding: 0 8px 10px; gap: 2px; }
+.sidebar-action-btn {
+  background: none; border: none; cursor: pointer;
+  text-align: left; width: 100%;
+  font-size: 12px; color: rgba(255,255,255,0.45);
+  padding: 6px 8px; border-radius: 5px;
+  transition: background 0.12s, color 0.12s;
+}
+.sidebar-action-btn:hover { background: rgba(255,255,255,0.07); color: rgba(255,255,255,0.85); }
+.sidebar-action-logout { color: rgba(248,113,113,0.6); }
+.sidebar-action-logout:hover { background: rgba(248,113,113,0.1); color: #f87171; }
 
 /* ── App body ─────────────────────────────────────────────── */
 .app-body {
