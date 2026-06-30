@@ -6,7 +6,7 @@ export default function UsersView() {
   const [loading,    setLoading]    = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [resetUser,  setResetUser]  = useState(null); // { id, username }
-  const [form,       setForm]       = useState({ username: '', password: '', role: 'viewer' });
+  const [form,       setForm]       = useState({ username: '', password: '', role: 'user' });
   const [newPass,    setNewPass]    = useState('');
   const [error,      setError]      = useState('');
   const [saving,     setSaving]     = useState(false);
@@ -32,7 +32,7 @@ export default function UsersView() {
     setSaving(false);
     if (!r.ok) { setError(data.error); return; }
     setShowCreate(false);
-    setForm({ username: '', password: '', role: 'viewer' });
+    setForm({ username: '', password: '', role: 'user' });
     load();
   }
 
@@ -113,8 +113,8 @@ export default function UsersView() {
                 value={form.password} onChange={e => setForm(f => ({ ...f, password: e.target.value }))} />
               <select className="login-input" value={form.role}
                 onChange={e => setForm(f => ({ ...f, role: e.target.value }))}>
-                <option value="viewer">Viewer (read-only)</option>
-                <option value="admin">Admin (full access)</option>
+                <option value="user">User</option>
+                <option value="admin">Admin</option>
               </select>
               {error && <div style={{ color: '#dc2626', fontSize: 13 }}>{error}</div>}
               <div style={{ display: 'flex', gap: 8, justifyContent: 'flex-end', marginTop: 4 }}>

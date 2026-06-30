@@ -18,6 +18,7 @@ export default function UserMenu({ username, role, onLogout, onAdmin, onProfile 
   }, []);
 
   const isAdmin = role === 'admin';
+  const roleLabel = isAdmin ? 'Administrator' : 'User';
 
   return (
     <div className="user-menu" ref={ref}>
@@ -31,7 +32,7 @@ export default function UserMenu({ username, role, onLogout, onAdmin, onProfile 
             <span className="user-dropdown-avatar">{initials(username)}</span>
             <div>
               <div className="user-dropdown-name">{username}</div>
-              <div className="user-dropdown-role">{isAdmin ? 'Administrator' : 'Viewer'}</div>
+              <div className="user-dropdown-role">{roleLabel}</div>
             </div>
           </div>
           <div className="user-dropdown-divider" />

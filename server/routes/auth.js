@@ -12,8 +12,10 @@ function db() {
   const con = new DatabaseSync(DB_PATH, { open: true });
   con.exec('PRAGMA foreign_keys = ON');
   // Apply role migration if column missing
-  try { con.exec("ALTER TABLE user ADD COLUMN role TEXT NOT NULL DEFAULT 'viewer'"); } catch {}
-  try { con.exec("UPDATE user SET role = 'admin' WHERE username = 'admin' AND role = 'viewer'"); } catch {}
+  try { con.exec("ALTER TABLE user ADD COLUMN role TEXT NOT NULL DEFAULT 'user'"); } catch {}
+  try { con.exec("UPDATE user SET role = 'admin' WHERE username = 'admin' AND role IN ('viewer','user')"); } catch {}
+  // Rename system role viewer → user
+  try { con.exec("UPDATE user SET role = 'user' WHERE role = 'viewer'"); } catch {}
   // Apply project owner migration if column missing
   try { con.exec('ALTER TABLE project ADD COLUMN owner_id INTEGER REFERENCES user(id)'); } catch {}
   try { con.exec('UPDATE project SET owner_id = 1 WHERE owner_id IS NULL'); } catch {}
@@ -41,11 +43,11 @@ router.post('/auth/login', (req, res) => {
     return res.status(401).json({ error: 'Invalid credentials', code: 'INVALID_CREDENTIALS' });
 
   const token = jwt.sign(
-    { id: user.id, username: user.username, role: user.role || 'viewer' },
+    { id: user.id, username: user.username, role: user.role || 'user' },
     SECRET,
     { expiresIn: EXPIRES }
   );
-  res.json({ token, username: user.username, role: user.role || 'viewer' });
+  res.json({ token, username: user.username, role: user.role || 'user' });
 });
 
 // GET /api/v1/auth/users
@@ -58,10 +60,10 @@ router.get('/auth/users', requireAuth, requireAdmin, (req, res) => {
 
 // POST /api/v1/auth/users
 router.post('/auth/users', requireAuth, requireAdmin, (req, res) => {
-  const { username, password, role = 'viewer' } = req.body || {};
+  const { username, password, role = 'user' } = req.body || {};
   if (!username || !password)
     return res.status(400).json({ error: 'Username and password required', code: 'MISSING_FIELDS' });
-  if (!['admin', 'viewer'].includes(role))
+  if (!['admin', 'user'].includes(role))
     return res.status(400).json({ error: 'Invalid role', code: 'INVALID_ROLE' });
 
   const hash = bcrypt.hashSync(password, 10);
