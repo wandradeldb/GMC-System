@@ -166,8 +166,8 @@ export default function App() {
   const slimTopbar = (
     <header className="slim-topbar">
       {/* Mobile hamburger */}
-      <button className="sidebar-hamburger" onClick={() => setSidebarOpen(o => !o)}>
-        <i className="ti ti-menu-2" aria-hidden="true" />
+      <button className="sidebar-hamburger" onClick={() => setSidebarOpen(o => !o)} aria-label="Open menu">
+        ☰
       </button>
 
       <nav className="breadcrumb-nav" aria-label="breadcrumb">
