@@ -1,8 +1,32 @@
 import { useState, useEffect } from 'react';
 import { apiFetch } from '../apiFetch.js';
 
+const DDI_OPTIONS = [
+  { code: '+353', flag: '🇮🇪', label: 'Ireland' },
+  { code: '+44',  flag: '🇬🇧', label: 'United Kingdom' },
+  { code: '+49',  flag: '🇩🇪', label: 'Germany' },
+  { code: '+33',  flag: '🇫🇷', label: 'France' },
+  { code: '+34',  flag: '🇪🇸', label: 'Spain' },
+  { code: '+351', flag: '🇵🇹', label: 'Portugal' },
+  { code: '+39',  flag: '🇮🇹', label: 'Italy' },
+  { code: '+31',  flag: '🇳🇱', label: 'Netherlands' },
+  { code: '+32',  flag: '🇧🇪', label: 'Belgium' },
+  { code: '+41',  flag: '🇨🇭', label: 'Switzerland' },
+  { code: '+43',  flag: '🇦🇹', label: 'Austria' },
+  { code: '+48',  flag: '🇵🇱', label: 'Poland' },
+  { code: '+55',  flag: '🇧🇷', label: 'Brazil' },
+];
+
+function splitPhone(phone) {
+  const match = DDI_OPTIONS.find(d => phone.startsWith(d.code));
+  if (match) return { ddi: match.code, number: phone.slice(match.code.length).trim() };
+  return { ddi: '+353', number: phone };
+}
+
 export default function ProfileView({ username, role }) {
   const [profile, setProfile] = useState({ full_name: '', email: '', phone: '' });
+  const [ddi, setDdi] = useState('+353');
+  const [phoneNum, setPhoneNum] = useState('');
   const [profileSaving, setProfileSaving] = useState(false);
   const [profileSuccess, setProfileSuccess] = useState(false);
   const [profileError, setProfileError] = useState('');
@@ -15,7 +39,12 @@ export default function ProfileView({ username, role }) {
   useEffect(() => {
     apiFetch('/api/v1/auth/me')
       .then(r => r.json())
-      .then(d => setProfile({ full_name: d.full_name || '', email: d.email || '', phone: d.phone || '' }))
+      .then(d => {
+        const { ddi: savedDdi, number } = splitPhone(d.phone || '');
+        setDdi(savedDdi);
+        setPhoneNum(number);
+        setProfile({ full_name: d.full_name || '', email: d.email || '', phone: d.phone || '' });
+      })
       .catch(() => {});
   }, []);
 
@@ -23,10 +52,11 @@ export default function ProfileView({ username, role }) {
     e.preventDefault();
     setProfileError(''); setProfileSuccess(false);
     setProfileSaving(true);
+    const fullPhone = phoneNum.trim() ? `${ddi} ${phoneNum.trim()}` : '';
     const r = await apiFetch('/api/v1/auth/me', {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(profile),
+      body: JSON.stringify({ ...profile, phone: fullPhone }),
     });
     setProfileSaving(false);
     if (!r.ok) { const d = await r.json(); setProfileError(d.error || 'Error saving profile.'); return; }
@@ -96,11 +126,25 @@ export default function ProfileView({ username, role }) {
             </div>
             <div className="form-row">
               <label>Phone</label>
-              <input
-                value={profile.phone}
-                onChange={e => setProfile(p => ({ ...p, phone: e.target.value }))}
-                placeholder="e.g. +353 87 123 4567"
-              />
+              <div className="phone-input-row">
+                <select
+                  className="phone-ddi-select"
+                  value={ddi}
+                  onChange={e => setDdi(e.target.value)}
+                >
+                  {DDI_OPTIONS.map(d => (
+                    <option key={d.code} value={d.code}>
+                      {d.flag} {d.code}
+                    </option>
+                  ))}
+                </select>
+                <input
+                  className="phone-number-input"
+                  value={phoneNum}
+                  onChange={e => setPhoneNum(e.target.value)}
+                  placeholder="87 123 4567"
+                />
+              </div>
             </div>
           </div>
           {profileError   && <p className="form-error">{profileError}</p>}

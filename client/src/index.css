@@ -963,6 +963,19 @@ input, select, textarea, button { touch-action: manipulation; }
 .profile-form-footer { display: flex; justify-content: flex-end; margin-top: 8px; }
 .form-success { color: #166534; font-size: 13px; background: #dcfce7; border-radius: 6px; padding: 8px 12px; margin-bottom: 8px; }
 
+.phone-input-row { display: flex; gap: 0; }
+.phone-ddi-select {
+  padding: 8px 8px; border: 1px solid #cbd5e1; border-right: none;
+  border-radius: 6px 0 0 6px; font-size: 14px; background: #f8fafc;
+  color: #374151; cursor: pointer; flex-shrink: 0; outline: none;
+}
+.phone-ddi-select:focus { border-color: #3b82f6; }
+.phone-number-input {
+  flex: 1; padding: 8px 10px; border: 1px solid #cbd5e1;
+  border-radius: 0 6px 6px 0; font-size: 14px; outline: none;
+}
+.phone-number-input:focus { border-color: #3b82f6; box-shadow: 0 0 0 2px rgba(59,130,246,0.15); }
+
 /* share button on project card */
 .project-card-share-btn {
   margin-top: 10px; align-self: flex-start;
