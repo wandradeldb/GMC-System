@@ -680,44 +680,44 @@ body {
 }
 .tracker-table {
   border-collapse: collapse; width: max-content; min-width: 100%;
-  font-size: 13px; font-variant-numeric: tabular-nums;
+  font-size: 11px; font-variant-numeric: tabular-nums;
 }
 .tracker-row-label-head {
   position: sticky; left: 0; top: 0; z-index: 5;
-  background: #1a1a2e; color: #fff; font-size: 10px; font-weight: 600;
+  background: #1a1a2e; color: #fff; font-size: 9px; font-weight: 600;
   letter-spacing: .06em; text-transform: uppercase;
-  padding: 8px 14px; width: 200px; min-width: 200px; text-align: left;
+  padding: 6px 10px; width: 170px; min-width: 170px; text-align: left;
   border-right: none;
 }
 .tracker-col-head {
   position: sticky; top: 0; z-index: 3;
-  background: #1a1a2e; color: #fff; padding: 6px 8px; text-align: center;
-  border-left: 1px solid #374151; min-width: 110px; white-space: nowrap;
+  background: #1a1a2e; color: #fff; padding: 5px 6px; text-align: center;
+  border-left: 1px solid #374151; min-width: 88px; white-space: nowrap;
 }
-.tracker-cum-head { background: #374151; border-left: 2px solid #9ca3af; border-right: 2px solid #9ca3af; position: sticky; left: 200px; z-index: 4; }
-.tracker-we-label { font-size: 12px; font-weight: 600; }
-.tracker-we-num   { font-size: 10px; color: rgba(255,255,255,.55); margin-top: 1px; }
+.tracker-cum-head { background: #374151; border-left: 2px solid #9ca3af; border-right: 2px solid #9ca3af; position: sticky; left: 170px; z-index: 4; }
+.tracker-we-label { font-size: 10px; font-weight: 700; color: #93c5fd; }
+.tracker-we-num   { font-size: 9px; color: rgba(255,255,255,.55); margin-top: 1px; }
 .tracker-edit-btn {
-  display: inline-block; margin-top: 4px; padding: 2px 8px;
+  display: inline-block; margin-top: 3px; padding: 1px 6px;
   background: rgba(255,255,255,.1); color: rgba(255,255,255,.8);
   border: 1px solid rgba(255,255,255,.2); border-radius: 4px;
-  font-size: 10px; cursor: pointer; letter-spacing: .03em;
+  font-size: 9px; cursor: pointer; letter-spacing: .03em;
 }
 .tracker-edit-btn:hover { background: rgba(255,255,255,.2); }
 
 .tracker-row-label {
   position: sticky; left: 0; z-index: 2;
-  background: #fff; padding: 5px 14px; font-size: 12.5px;
+  background: #fff; padding: 4px 10px; font-size: 11px;
   border-right: none; border-bottom: 1px solid #e5e7eb;
-  white-space: nowrap; width: 200px; min-width: 200px; max-width: 200px; overflow: hidden; text-overflow: ellipsis;
+  white-space: nowrap; width: 170px; min-width: 170px; max-width: 170px; overflow: hidden; text-overflow: ellipsis;
 }
 .tracker-cum-cell {
   border-left: 2px solid #9ca3af; border-right: 2px solid #9ca3af; background: #f0f4f8;
-  position: sticky; left: 200px; z-index: 2;
+  position: sticky; left: 170px; z-index: 2;
 }
 .tracker-cell {
-  padding: 5px 10px; text-align: right; border-left: 1px solid #e5e7eb;
-  border-bottom: 1px solid #e5e7eb; font-size: 12.5px; white-space: nowrap;
+  padding: 4px 8px; text-align: right; border-left: 1px solid #e5e7eb;
+  border-bottom: 1px solid #e5e7eb; font-size: 11px; white-space: nowrap;
 }
 .tracker-section-row td { border-bottom: none; }
 .zero { color: #d1d5db; font-weight: 400; }
