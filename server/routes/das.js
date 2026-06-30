@@ -96,17 +96,19 @@ router.put('/projects/:id/das/:date', (req, res) => {
     let entryId;
     if (existing) {
       con.prepare(`
-        UPDATE das_entry SET site_agent=?, weather=?, work_type=?, visitors=?, general_notes=?, status=?
+        UPDATE das_entry SET site_agent=?, weather=?, work_type=?, visitors=?, general_notes=?, status=?, photo_url=?
         WHERE id=?
       `).run(hdr.site_agent||'', hdr.weather||null, hdr.work_type||'Contract',
-             hdr.visitors||null, hdr.general_notes||null, hdr.status||'draft', existing.id);
+             hdr.visitors||null, hdr.general_notes||null, hdr.status||'draft',
+             hdr.photo_url||null, existing.id);
       entryId = existing.id;
     } else {
       const r = con.prepare(`
-        INSERT INTO das_entry (project_id, entry_date, site_agent, weather, work_type, visitors, general_notes, status)
-        VALUES (?,?,?,?,?,?,?,?)
+        INSERT INTO das_entry (project_id, entry_date, site_agent, weather, work_type, visitors, general_notes, status, photo_url)
+        VALUES (?,?,?,?,?,?,?,?,?)
       `).run(req.params.id, req.params.date, hdr.site_agent||'', hdr.weather||null,
-             hdr.work_type||'Contract', hdr.visitors||null, hdr.general_notes||null, hdr.status||'draft');
+             hdr.work_type||'Contract', hdr.visitors||null, hdr.general_notes||null, hdr.status||'draft',
+             hdr.photo_url||null);
       entryId = r.lastInsertRowid;
     }
 

@@ -23,6 +23,8 @@ function db() {
   try { con.exec("ALTER TABLE user ADD COLUMN full_name TEXT"); } catch {}
   try { con.exec("ALTER TABLE user ADD COLUMN email TEXT"); } catch {}
   try { con.exec("ALTER TABLE user ADD COLUMN phone TEXT"); } catch {}
+  // DAS photo
+  try { con.exec("ALTER TABLE das_entry ADD COLUMN photo_url TEXT"); } catch {}
   // Project members table
   try { con.exec(`CREATE TABLE IF NOT EXISTS project_member (
     project_id INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,

@@ -1,5 +1,5 @@
 import { apiFetch } from '../apiFetch.js';
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import NextWeekForm from './NextWeekForm.jsx';
 
 const ACTIVITY_CODES = ['A','B','C','D','E','F','G'];
@@ -16,7 +16,7 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
   const [loading,  setLoading]  = useState(true);
   const [saving,   setSaving]   = useState(false);
   const [saved,    setSaved]    = useState(false);
-  const [entry,    setEntry]    = useState({ site_agent:'', weather:'Fine', work_type:'Contract', visitors:'', general_notes:'', status:'draft' });
+  const [entry,    setEntry]    = useState({ site_agent:'', weather:'Fine', work_type:'Contract', visitors:'', general_notes:'', status:'draft', photo_url: null });
   const [labour,   setLabour]   = useState([]);
   const [plant,    setPlant]    = useState([]);
   const [activities, setActivities] = useState([]);
@@ -117,9 +117,43 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
   );
 }
 
+/* ── Photo compress helper ───────────────────────────────────────────────── */
+function compressImage(file, maxPx = 1200, quality = 0.75) {
+  return new Promise((resolve) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      let { width, height } = img;
+      if (width > maxPx || height > maxPx) {
+        if (width > height) { height = Math.round(height * maxPx / width); width = maxPx; }
+        else { width = Math.round(width * maxPx / height); height = maxPx; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = width; canvas.height = height;
+      canvas.getContext('2d').drawImage(img, 0, 0, width, height);
+      resolve(canvas.toDataURL('image/jpeg', quality));
+    };
+    img.src = url;
+  });
+}
+
 /* ── Header Section ──────────────────────────────────────────────────────── */
 function HeaderSection({ entry, setEntry, disabled }) {
   const set = (k, v) => setEntry(e => ({ ...e, [k]: v }));
+  const fileRef = useRef();
+  const [compressing, setCompressing] = useState(false);
+
+  async function handlePhoto(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCompressing(true);
+    const dataUrl = await compressImage(file);
+    set('photo_url', dataUrl);
+    setCompressing(false);
+    e.target.value = '';
+  }
+
   return (
     <div className="section-grid">
       <Field label="Site Agent" required>
@@ -148,6 +182,30 @@ function HeaderSection({ entry, setEntry, disabled }) {
       <Field label="General Notes" span2>
         <textarea rows={3} value={entry.general_notes || ''} onChange={e => set('general_notes', e.target.value)}
           placeholder="Site diary notes, issues, instructions received…" disabled={disabled} />
+      </Field>
+      <Field label="Site Photo" span2>
+        <div className="das-photo-wrap">
+          {entry.photo_url ? (
+            <div className="das-photo-preview">
+              <img src={entry.photo_url} alt="Site photo" className="das-photo-img" />
+              {!disabled && (
+                <button className="das-photo-remove" onClick={() => set('photo_url', null)} title="Remove photo">✕</button>
+              )}
+            </div>
+          ) : (
+            <button className="das-photo-btn" onClick={() => fileRef.current?.click()} disabled={disabled || compressing}>
+              {compressing ? 'Processing…' : '📷  Add Photo'}
+            </button>
+          )}
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/*"
+            capture="environment"
+            style={{ display: 'none' }}
+            onChange={handlePhoto}
+          />
+        </div>
       </Field>
     </div>
   );
