@@ -55,6 +55,50 @@ body {
 .topbar-project-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
 .topbar-readonly-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: rgba(251,191,36,0.2); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); white-space: nowrap; }
 
+/* ── User avatar + dropdown ──────────────────────────────── */
+.user-menu { position: relative; flex-shrink: 0; }
+.user-avatar-btn { background: none; border: none; cursor: pointer; padding: 0; }
+.user-avatar {
+  display: flex; align-items: center; justify-content: center;
+  width: 34px; height: 34px; border-radius: 50%;
+  background: #3b82f6; color: #fff;
+  font-size: 13px; font-weight: 700; letter-spacing: 0.03em;
+  user-select: none;
+}
+.user-avatar:hover { background: #2563eb; }
+
+.user-dropdown {
+  position: absolute; right: 0; top: calc(100% + 10px);
+  background: #fff; border: 1px solid #e2e8f0;
+  border-radius: 10px; box-shadow: 0 8px 24px rgba(0,0,0,0.12);
+  min-width: 210px; z-index: 2000; overflow: hidden;
+}
+.user-dropdown-header {
+  display: flex; align-items: center; gap: 12px;
+  padding: 14px 16px;
+}
+.user-dropdown-avatar {
+  display: flex; align-items: center; justify-content: center;
+  width: 38px; height: 38px; border-radius: 50%;
+  background: #3b82f6; color: #fff;
+  font-size: 14px; font-weight: 700; flex-shrink: 0;
+}
+.user-dropdown-name  { font-size: 14px; font-weight: 600; color: #1a1a2e; }
+.user-dropdown-role  { font-size: 12px; color: #64748b; margin-top: 1px; }
+.user-dropdown-divider { height: 1px; background: #f1f5f9; }
+.user-dropdown-item {
+  display: block; width: 100%; text-align: left;
+  padding: 10px 16px; background: none; border: none;
+  font-size: 14px; color: #374151; cursor: pointer;
+}
+.user-dropdown-item:hover { background: #f8fafc; }
+.user-dropdown-logout { color: #dc2626; }
+.user-dropdown-logout:hover { background: #fff5f5; }
+
+/* ── Admin panel ─────────────────────────────────────────── */
+.admin-panel { max-width: 900px; margin: 0 auto; padding: 32px 24px; }
+.admin-panel-header { margin-bottom: 28px; }
+
 .topbar-nav-btn {
   padding: 7px 13px;
   border: none;
