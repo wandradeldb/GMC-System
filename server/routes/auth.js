@@ -165,7 +165,8 @@ function seedDemoForUser(con, user) {
   `).get();
   if (!source) return null;
 
-  const existing = con.prepare('SELECT id FROM project WHERE owner_id = ? AND ref = ?').get(user.id, source.ref);
+  const demoRef = `${source.ref} (demo-${user.username})`;
+  const existing = con.prepare('SELECT id FROM project WHERE owner_id = ? AND ref = ?').get(user.id, demoRef);
   if (existing) return null; // already has a copy
 
   function copyRows(table, filterCol, filterVal, newVal, fkRemaps) {
@@ -187,7 +188,7 @@ function seedDemoForUser(con, user) {
   }
 
   const p = con.prepare(`INSERT INTO project (ref,name,client,contract_value,status,start_date,end_date,owner_id)
-    VALUES (?,?,?,?,?,?,?,?)`).run(source.ref, source.name, source.client, source.contract_value,
+    VALUES (?,?,?,?,?,?,?,?)`).run(demoRef, source.name, source.client, source.contract_value,
     source.status, source.start_date, source.end_date, user.id);
   const newPid = p.lastInsertRowid;
   const SOURCE_ID = source.id;
@@ -234,11 +235,15 @@ router.post('/auth/admin/seed-demo', requireAuth, requireAdmin, (req, res) => {
     const users = con.prepare("SELECT id, username FROM user WHERE role != 'admin'").all();
     const results = [];
     for (const user of users) {
-      const newId = seedDemoForUser(con, user);
-      if (newId) results.push({ username: user.username, created: true, project_id: newId });
-      else {
-        const ex = con.prepare('SELECT id FROM project WHERE owner_id = ?').get(user.id);
-        results.push({ username: user.username, skipped: true, project_id: ex?.id });
+      try {
+        const newId = seedDemoForUser(con, user);
+        if (newId) results.push({ username: user.username, created: true, project_id: newId });
+        else {
+          const ex = con.prepare('SELECT id FROM project WHERE owner_id = ?').get(user.id);
+          results.push({ username: user.username, skipped: true, project_id: ex?.id });
+        }
+      } catch (err) {
+        results.push({ username: user.username, error: err.message });
       }
     }
     con.close();
