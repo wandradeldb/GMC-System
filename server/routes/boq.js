@@ -76,6 +76,83 @@ router.put('/projects/:id', (req, res) => {
   res.json({ ok: true });
 });
 
+// POST /api/v1/projects/:id/duplicate — owner only
+router.post('/projects/:id/duplicate', (req, res) => {
+  if (req.projectRole !== 'owner') {
+    return res.status(403).json({ error: 'Only the project owner can duplicate', code: 'FORBIDDEN' });
+  }
+  const con = db();
+  try {
+    const source = con.prepare('SELECT * FROM project WHERE id = ?').get(req.params.id);
+    if (!source) return res.status(404).json({ error: 'Project not found', code: 'NOT_FOUND' });
+
+    function copyRows(table, filterCol, filterVal, newVal, fkRemaps) {
+      const colInfo = con.prepare(`PRAGMA table_info(${table})`).all();
+      const insertCols = colInfo.map(c => c.name).filter(c => c !== 'id');
+      const rows = con.prepare(`SELECT * FROM ${table} WHERE ${filterCol} = ?`).all(filterVal);
+      const idMap = {};
+      for (const row of rows) {
+        const vals = insertCols.map(c => {
+          if (c === filterCol) return newVal;
+          if (fkRemaps && fkRemaps[c] && fkRemaps[c][row[c]] != null) return fkRemaps[c][row[c]];
+          return row[c];
+        });
+        const sql = `INSERT INTO ${table} (${insertCols.join(',')}) VALUES (${insertCols.map(() => '?').join(',')})`;
+        const r = con.prepare(sql).run(...vals);
+        idMap[row.id] = r.lastInsertRowid;
+      }
+      return idMap;
+    }
+
+    const SOURCE_ID = source.id;
+    const newName = `${source.name} (copy)`;
+    const p = con.prepare(`INSERT INTO project (ref,name,client,contract_value,status,start_date,end_date,owner_id)
+      VALUES (?,?,?,?,?,?,?,?)`).run(source.ref, newName, source.client, source.contract_value,
+      source.status, source.start_date, source.end_date, req.user.id);
+    const newPid = p.lastInsertRowid;
+
+    const boqIdMap = copyRows('boq_item', 'project_id', SOURCE_ID, newPid, null);
+    const subIdMap = copyRows('subcontract', 'project_id', SOURCE_ID, newPid, null);
+    for (const [oldSubId, newSubId] of Object.entries(subIdMap)) {
+      const sbMap = copyRows('sub_boq_item', 'subcontract_id', oldSubId, newSubId, { boq_item_id: boqIdMap });
+      const saMap = copyRows('sub_application', 'subcontract_id', oldSubId, newSubId, null);
+      for (const [oldSaId, newSaId] of Object.entries(saMap)) {
+        copyRows('sub_application_item', 'sub_application_id', oldSaId, newSaId, { sub_boq_item_id: sbMap });
+        copyRows('compensation_event', 'sub_application_id', oldSaId, newSaId, { subcontract_id: subIdMap });
+        copyRows('sub_invoice', 'sub_application_id', oldSaId, newSaId, null);
+      }
+    }
+    copyRows('tracker_we', 'project_id', SOURCE_ID, newPid, null);
+    copyRows('tracker_sub_revenue', 'project_id', SOURCE_ID, newPid, null);
+    const paIdMap = copyRows('payapp', 'project_id', SOURCE_ID, newPid, null);
+    for (const [oldPaId, newPaId] of Object.entries(paIdMap))
+      copyRows('payapp_item', 'payapp_id', oldPaId, newPaId, { boq_item_id: boqIdMap });
+    copyRows('payment_run', 'project_id', SOURCE_ID, newPid, null);
+    const deIdMap = copyRows('das_entry', 'project_id', SOURCE_ID, newPid, null);
+    for (const [oldDeId, newDeId] of Object.entries(deIdMap)) {
+      copyRows('das_labour', 'das_entry_id', oldDeId, newDeId, null);
+      copyRows('das_plant', 'das_entry_id', oldDeId, newDeId, null);
+      copyRows('das_activity', 'das_entry_id', oldDeId, newDeId, { boq_item_id: boqIdMap });
+    }
+    copyRows('das_next_week', 'project_id', SOURCE_ID, newPid, null);
+    const actIdMap = copyRows('revenue_activity', 'project_id', SOURCE_ID, newPid, null);
+    copyRows('revenue_week', 'project_id', SOURCE_ID, newPid, { activity_id: actIdMap, sub_id: subIdMap });
+    copyRows('qs_cost_transaction', 'project_id', SOURCE_ID, newPid, null);
+    copyRows('excel_sub_cost', 'project_id', SOURCE_ID, newPid, null);
+    copyRows('boq_progress', 'project_id', SOURCE_ID, newPid, { boq_item_id: boqIdMap });
+    copyRows('sub_assessment', 'project_id', SOURCE_ID, newPid, null);
+
+    const newProject = con.prepare(`
+      SELECT id, ref, name, client, contract_value, status, start_date, end_date FROM project WHERE id = ?
+    `).get(newPid);
+    con.close();
+    res.status(201).json(newProject);
+  } catch (err) {
+    try { con.close(); } catch {}
+    res.status(500).json({ error: err.message });
+  }
+});
+
 // GET /api/v1/projects/:id/boq
 // Query params: ?schedule=1  ?group=schedule
 router.get('/projects/:id/boq', (req, res) => {

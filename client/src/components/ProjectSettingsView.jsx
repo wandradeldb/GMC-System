@@ -18,9 +18,21 @@ export default function ProjectSettingsView({ project, onProjectUpdated }) {
     end_date:       project.end_date       || '',
     status:         project.status         || 'active',
   });
-  const [saving,  setSaving]  = useState(false);
-  const [success, setSuccess] = useState(false);
-  const [error,   setError]   = useState('');
+  const [saving,      setSaving]      = useState(false);
+  const [success,     setSuccess]     = useState(false);
+  const [error,       setError]       = useState('');
+  const [duplicating, setDuplicating] = useState(false);
+  const [dupSuccess,  setDupSuccess]  = useState(null);
+
+  async function handleDuplicate() {
+    if (!confirm(`Duplicate "${project.name}"? A copy will be created with all data.`)) return;
+    setDuplicating(true); setDupSuccess(null);
+    const r = await apiFetch(`/api/v1/projects/${project.id}/duplicate`, { method: 'POST' });
+    setDuplicating(false);
+    if (!r.ok) { const d = await r.json(); setError(d.error || 'Error duplicating project.'); return; }
+    const newProj = await r.json();
+    setDupSuccess(newProj);
+  }
 
   async function handleSave(e) {
     e.preventDefault();
@@ -60,6 +72,22 @@ export default function ProjectSettingsView({ project, onProjectUpdated }) {
         }}>
           {STATUS_OPTIONS.find(s => s.value === form.status)?.label}
         </span>
+      </div>
+
+      <div className="profile-section" style={{ marginBottom: 12 }}>
+        <h2 className="profile-section-title">Duplicate Project</h2>
+        <p style={{ fontSize: 13, color: '#6b7280', margin: '0 0 14px' }}>
+          Creates an exact copy of this project with all data — BOQ, subcontracts, tracker, DAS, applications. Use it to start a new project from this baseline or create a demo copy.
+        </p>
+        {dupSuccess && (
+          <div style={{ background: '#f0fdf4', border: '1px solid #86efac', borderRadius: 8, padding: '12px 16px', marginBottom: 14, fontSize: 13 }}>
+            <div style={{ fontWeight: 700, color: '#166534' }}>✓ Project duplicated successfully</div>
+            <div style={{ color: '#166534', marginTop: 2 }}>"{dupSuccess.name}" created — go to My Projects to open and rename it.</div>
+          </div>
+        )}
+        <button className="btn-secondary" onClick={handleDuplicate} disabled={duplicating}>
+          {duplicating ? 'Duplicating…' : '⧉ Duplicate this project'}
+        </button>
       </div>
 
       <div className="profile-section">
