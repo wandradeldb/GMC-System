@@ -153,12 +153,14 @@ router.delete('/auth/users/:id', requireAuth, requireAdmin, (req, res) => {
   res.json({ ok: true });
 });
 
-// Shared helper: duplicate the admin's first project for a single user. Returns new project_id or null if skipped.
+// Shared helper: duplicate the project with the most BOQ items for a single user. Returns new project_id or null if skipped.
 function seedDemoForUser(con, user) {
-  const adminUser = con.prepare("SELECT id FROM user WHERE username = 'admin'").get();
-  const source = adminUser
-    ? con.prepare('SELECT * FROM project WHERE owner_id = ? ORDER BY id LIMIT 1').get(adminUser.id)
-    : con.prepare('SELECT * FROM project ORDER BY id LIMIT 1').get();
+  // Pick the project with the most BOQ data — that's the real Merlin Park
+  const source = con.prepare(`
+    SELECT p.* FROM project p
+    LEFT JOIN boq_item b ON b.project_id = p.id
+    GROUP BY p.id ORDER BY COUNT(b.id) DESC LIMIT 1
+  `).get();
   if (!source) return null;
 
   const existing = con.prepare('SELECT id FROM project WHERE owner_id = ? AND ref = ?').get(user.id, source.ref);
