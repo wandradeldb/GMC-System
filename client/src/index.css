@@ -52,6 +52,8 @@ body {
   padding: 4px 8px; border-radius: 4px;
   transition: background 0.15s;
 }
+.topbar-logo-btn { background: none; border: none; cursor: pointer; padding: 0; flex-shrink: 0; display: flex; align-items: center; }
+.topbar-logo-btn:hover { opacity: 0.85; }
 .topbar-project-btn:hover { background: rgba(255,255,255,0.1); color: #fff; }
 .topbar-readonly-badge { font-size: 11px; font-weight: 600; padding: 2px 8px; border-radius: 99px; background: rgba(251,191,36,0.2); color: #fbbf24; border: 1px solid rgba(251,191,36,0.3); white-space: nowrap; }
 
@@ -897,6 +899,7 @@ input, select, textarea, button { touch-action: manipulation; }
 .project-card-name   { font-size: 17px; font-weight: 700; color: #1a1a2e; line-height: 1.3; }
 .project-card-client { font-size: 13px; color: #64748b; }
 .project-card-value  { font-size: 20px; font-weight: 700; color: #1e40af; margin-top: 8px; }
+.project-card-logo   { height: 28px; width: auto; margin-top: 12px; opacity: 0.18; align-self: flex-end; }
 .project-card-status { font-size: 11px; font-weight: 600; padding: 2px 9px; border-radius: 99px; background: #dcfce7; color: #166534; text-transform: capitalize; white-space: nowrap; }
 
 .projects-empty-state { text-align: center; padding: 64px 0; color: #64748b; }

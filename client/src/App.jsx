@@ -69,7 +69,9 @@ export default function App() {
 
   const topbar = (subtitle, showNav) => (
     <header className="topbar">
-      <img src="/gmc-logo.png" alt="GMC" style={{ height: 36, width: 'auto', flexShrink: 0 }} />
+      <button onClick={handleBackToProjects} className="topbar-logo-btn" title="My Projects">
+        <img src="/gmc-logo.png" alt="GMC" style={{ height: 36, width: 'auto', display: 'block' }} />
+      </button>
       <span className="topbar-sep" />
       {project ? (
         <button className="topbar-project topbar-project-btn" onClick={handleBackToProjects} title="Back to projects">
