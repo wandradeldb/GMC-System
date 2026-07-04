@@ -410,13 +410,17 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
   const [itemNotes,  setItemNotes] = useState({});
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState(null);
+  // Toda nova aplicação começa travada — o utilizador tem de confirmar a WE antes de editar %
+  const [weConfirmed, setWeConfirmed] = useState(false);
 
   // Generate WE options
   const weOptions = fridayRange(defaultWE, 8, 2);
 
-  // Trava: não deixa editar % se a WE escolhida já tem uma aplicação (evita perder trabalho no Save)
+  const handleWeChange = (val) => { setWeekEnding(val); setWeConfirmed(false); };
+
+  // Trava: precisa confirmar a WE; e nunca destrava se a semana escolhida já tem uma aplicação
   const weConflict = apps.find(a => (a.week_ending || a.period) === weekEnding);
-  const weLocked   = !!weConflict;
+  const weLocked   = !!weConflict || !weConfirmed;
 
   // Cap: cumulativo (prev + this) não pode ultrapassar 100%
   const setPct = (id, field, val) => {
@@ -473,13 +477,20 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
           <h3 style={{ margin:0, fontSize:15, color:'#1a1a2e' }}>App {nextAppNum} — Manual Assessment</h3>
           <label style={{ fontSize:13, fontWeight:600, color:'#374151' }}>
             WE:&nbsp;
-            <select value={weekEnding} onChange={e=>setWeekEnding(e.target.value)}
+            <select value={weekEnding} onChange={e=>handleWeChange(e.target.value)}
               style={{ padding:'4px 8px', borderRadius:6, fontSize:13,
                 border: weLocked ? '1px solid #dc2626' : '1px solid #d1d5db',
                 background: weLocked ? '#fef2f2' : '#fff' }}>
               {weOptions.map(we => <option key={we} value={we}>{fmtDate(we)}</option>)}
             </select>
           </label>
+          {!weConflict && (
+            <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, fontWeight:600,
+              color: weConfirmed ? '#166534' : '#92400e', cursor:'pointer' }}>
+              <input type="checkbox" checked={weConfirmed} onChange={e => setWeConfirmed(e.target.checked)} />
+              ✓ Confirm this is the correct Week Ending
+            </label>
+          )}
           <label style={{ fontSize:13, fontWeight:600, color:'#374151' }}>
             Status:&nbsp;
             <select value={appStatus} onChange={e=>setAppStatus(e.target.value)}
@@ -507,11 +518,17 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
             </button>
           </div>
         </div>
-        {weLocked && (
+        {weConflict && (
           <div style={{ background:'#fef2f2', color:'#991b1b', border:'1px solid #fecaca', padding:'8px 12px',
             borderRadius:6, marginTop:8, fontSize:13, fontWeight:600 }}>
             ⚠ Week Ending {fmtDate(weekEnding)} already has App #{weConflict.application_number} (status: {STATUS_STYLE[weConflict.status]?.label || weConflict.status}).
             Choose a different Week Ending to enable the % fields below.
+          </div>
+        )}
+        {!weConflict && !weConfirmed && (
+          <div style={{ background:'#fffbeb', color:'#92400e', border:'1px solid #fde68a', padding:'8px 12px',
+            borderRadius:6, marginTop:8, fontSize:13, fontWeight:600 }}>
+            ⚠ Check the Week Ending above and tick "Confirm this is the correct Week Ending" to unlock the % fields below.
           </div>
         )}
         {error && <div style={{ background:'#fee2e2', color:'#991b1b', padding:'6px 12px', borderRadius:6, marginTop:8, fontSize:13 }}>{error}</div>}
