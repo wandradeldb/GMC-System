@@ -254,6 +254,12 @@ router.post('/auth/admin/seed-demo', requireAuth, requireAdmin, (req, res) => {
   }
 });
 
+// Routes a 'site' member (field team, e.g. Site Agent) may reach — Daily Allocation Sheet only, no financial modules
+const SITE_ROLE_ALLOWED = [
+  /^\/projects\/\d+\/das(\/|$)/,     // DAS list/date/suggestions/subs
+  /^\/projects\/\d+\/next-week\//,   // next-week planning (part of the daily diary flow)
+];
+
 function requireProjectAccess(req, res, next) {
   // req.params not yet populated at app.use level — read project id from raw URL
   const match = req.path.match(/^\/projects\/(\d+)/);
@@ -269,7 +275,15 @@ function requireProjectAccess(req, res, next) {
   `).get(projectId, req.user.id, projectId, req.user.id);
   con.close();
   if (!access) return res.status(404).json({ error: 'Project not found', code: 'NOT_FOUND' });
-  req.projectRole = access.role; // 'owner' | 'editor' | 'viewer'
+  req.projectRole = access.role; // 'owner' | 'editor' | 'viewer' | 'site'
+
+  if (access.role === 'site') {
+    const isBasicProjectInfo = req.path === `/projects/${projectId}` && req.method === 'GET';
+    const isAllowed = isBasicProjectInfo || SITE_ROLE_ALLOWED.some(re => re.test(req.path));
+    if (!isAllowed) {
+      return res.status(403).json({ error: 'Site team access is limited to the Daily Allocation Sheet', code: 'FORBIDDEN' });
+    }
+  }
   next();
 }
 
@@ -308,7 +322,7 @@ router.get('/projects/:id/members', requireAuth, (req, res) => {
 router.post('/projects/:id/members', requireAuth, (req, res) => {
   const { username, role = 'viewer' } = req.body || {};
   if (!username) return res.status(400).json({ error: 'username required', code: 'MISSING_FIELDS' });
-  if (!['editor', 'viewer'].includes(role)) return res.status(400).json({ error: 'role must be editor or viewer', code: 'INVALID_ROLE' });
+  if (!['editor', 'viewer', 'site'].includes(role)) return res.status(400).json({ error: 'role must be editor, viewer or site', code: 'INVALID_ROLE' });
   const con = db();
   const isOwner = con.prepare('SELECT id FROM project WHERE id = ? AND owner_id = ?').get(req.params.id, req.user.id);
   if (!isOwner) { con.close(); return res.status(403).json({ error: 'Only the project owner can add members', code: 'FORBIDDEN' }); }

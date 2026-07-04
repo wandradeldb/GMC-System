@@ -85,6 +85,22 @@ router.get('/das/site-agents', (_req, res) => {
 
 // â”€â”€ DAS_ENTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// GET /projects/:id/das/subs — trimmed subcontractor list for the DAS Sub picker.
+// Deliberately excludes contract_value/certified totals — this is the only subcontract
+// data a 'site' (field-team) member is allowed to see, so it must never carry financials.
+router.get('/projects/:id/das/subs', (req, res) => {
+  const con = db();
+  assertProject(con, req.params.id);
+  const rows = con.prepare(`
+    SELECT sc.id, sc.ref, s.name AS subcontractor_name
+    FROM subcontract sc JOIN subcontractor s ON s.id = sc.subcontractor_id
+    WHERE sc.project_id = ?
+    ORDER BY sc.ref
+  `).all(req.params.id);
+  con.close();
+  res.json(rows);
+});
+
 // GET /projects/:id/das  â€“ list entries (summary)
 router.get('/projects/:id/das', (req, res) => {
   const con = db();

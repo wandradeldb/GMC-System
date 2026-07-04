@@ -22,7 +22,9 @@ router.get('/projects', (req, res) => {
     ORDER BY p.id
   `).all(req.user.id, req.user.id, req.user.id, req.user.id);
   con.close();
-  res.json(rows);
+  // Site team (field-only members) never see financial figures, not even on the project card
+  const safeRows = rows.map(r => r.access_role === 'site' ? { ...r, contract_value: null } : r);
+  res.json(safeRows);
 });
 
 // POST /api/v1/projects — create a new project owned by the authenticated user
@@ -48,6 +50,7 @@ router.get('/projects/:id', (req, res) => {
   `).get(req.params.id);
   con.close();
   if (!project) return res.status(404).json({ error: 'Project not found', code: 'NOT_FOUND' });
+  if (req.projectRole === 'site') project.contract_value = null;
   res.json(project);
 });
 

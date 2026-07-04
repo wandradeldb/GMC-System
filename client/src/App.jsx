@@ -83,7 +83,7 @@ export default function App() {
 
   function handleSelectProject(proj) {
     setProject(proj);
-    setActiveNav('dashboard');
+    setActiveNav(proj.access_role === 'site' ? 'das' : 'dashboard');
     setShowAdmin(false);
     setShowProfile(false);
     setSidebarOpen(false);
@@ -139,7 +139,10 @@ export default function App() {
       {project && (
         <nav className="sidebar-nav">
           {NAV_GROUPS.map(group => {
-            const items = group.items.filter(item => !item.ownerOnly || project.access_role === 'owner');
+            const items = group.items.filter(item => {
+              if (project.access_role === 'site') return item.id === 'das'; // field team: diary only, no financial modules
+              return !item.ownerOnly || project.access_role === 'owner';
+            });
             if (!items.length) return null;
             return (
               <div key={group.label}>
@@ -233,6 +236,9 @@ export default function App() {
     );
   } else if (!project) {
     content = <ProjectsView onSelectProject={handleSelectProject} />;
+  } else if (project.access_role === 'site') {
+    // Field team: Daily Allocation Sheet only, regardless of whatever activeNav might be set to
+    content = <DASView projectId={project.id} readOnly={false} />;
   } else {
     const projectId = project.id;
     content = (

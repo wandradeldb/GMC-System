@@ -57,7 +57,7 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
   useEffect(() => { loadSuggestions(); }, [loadSuggestions]);
 
   useEffect(() => {
-    apiFetch(`/api/v1/projects/${projectId}/subcontracts`).then(r => r.json()).then(setSubcontracts);
+    apiFetch(`/api/v1/projects/${projectId}/das/subs`).then(r => r.json()).then(setSubcontracts);
   }, [projectId]);
 
   useEffect(() => {

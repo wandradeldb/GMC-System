@@ -99,7 +99,9 @@ export default function ProjectsView({ onSelectProject }) {
               </div>
               <div className="project-card-name">{p.name}</div>
               <div className="project-card-client">{p.client || '—'}</div>
-              <div className="project-card-value">{fmt(p.contract_value)}</div>
+              {p.access_role !== 'site' && (
+                <div className="project-card-value">{fmt(p.contract_value)}</div>
+              )}
               <img src="/gmc-logo.png" alt="" className="project-card-logo" />
               {p.access_role === 'owner' && (
                 <button className="project-card-share-btn" onClick={e => openShare(e, p)}>
@@ -177,6 +179,7 @@ export default function ProjectsView({ onSelectProject }) {
                 <select value={shareForm.role} onChange={e => setShareForm(f => ({ ...f, role: e.target.value }))}>
                   <option value="viewer">Viewer</option>
                   <option value="editor">Editor</option>
+                  <option value="site">Site Team (Diary only)</option>
                 </select>
                 <button type="submit" className="btn-primary">Add</button>
               </form>
