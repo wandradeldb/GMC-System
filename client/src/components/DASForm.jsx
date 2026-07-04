@@ -1,5 +1,5 @@
 import { apiFetch } from '../apiFetch.js';
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import NextWeekForm from './NextWeekForm.jsx';
 
 const ACTIVITY_CODES = ['A','B','C','D','E','F','G'];
@@ -21,6 +21,14 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
   const [plant,    setPlant]    = useState([]);
   const [activities, setActivities] = useState([]);
   const [activeTab, setActiveTab]   = useState('header');
+  // Histórico do projeto (nomes, máquinas, atividades já digitados antes) — alimenta os autocompletes
+  const [suggestions, setSuggestions] = useState({ workers:[], plant:[], plantDescriptions:[], operators:[], activities:[], units:[], siteAgents:[] });
+
+  const loadSuggestions = useCallback(() => {
+    apiFetch(`/api/v1/projects/${projectId}/das/suggestions`).then(r => r.json()).then(setSuggestions);
+  }, [projectId]);
+
+  useEffect(() => { loadSuggestions(); }, [loadSuggestions]);
 
   useEffect(() => {
     setLoading(true);
@@ -47,6 +55,7 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
     setSaving(false);
     setSaved(true);
     onSaved?.();
+    loadSuggestions(); // atualiza o histórico com o que acabou de ser digitado
     setTimeout(() => setSaved(false), 2500);
   };
 
@@ -97,16 +106,16 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
 
       <div className="das-tab-content">
         {activeTab === 'header' && (
-          <HeaderSection entry={entry} setEntry={setEntry} disabled={isSubmitted} />
+          <HeaderSection entry={entry} setEntry={setEntry} disabled={isSubmitted} suggestions={suggestions} />
         )}
         {activeTab === 'labour' && (
-          <LabourSection rows={labour} setRows={setLabour} disabled={isSubmitted} />
+          <LabourSection rows={labour} setRows={setLabour} disabled={isSubmitted} suggestions={suggestions} />
         )}
         {activeTab === 'plant' && (
-          <PlantSection rows={plant} setRows={setPlant} disabled={isSubmitted} />
+          <PlantSection rows={plant} setRows={setPlant} disabled={isSubmitted} suggestions={suggestions} />
         )}
         {activeTab === 'activities' && (
-          <ActivitiesSection rows={activities} setRows={setActivities} disabled={isSubmitted} />
+          <ActivitiesSection rows={activities} setRows={setActivities} disabled={isSubmitted} suggestions={suggestions} />
         )}
       </div>
 
@@ -139,7 +148,7 @@ function compressImage(file, maxPx = 1200, quality = 0.75) {
 }
 
 /* ── Header Section ──────────────────────────────────────────────────────── */
-function HeaderSection({ entry, setEntry, disabled }) {
+function HeaderSection({ entry, setEntry, disabled, suggestions }) {
   const set = (k, v) => setEntry(e => ({ ...e, [k]: v }));
   const fileRef = useRef();
   const [compressing, setCompressing] = useState(false);
@@ -157,7 +166,11 @@ function HeaderSection({ entry, setEntry, disabled }) {
   return (
     <div className="section-grid">
       <Field label="Site Agent" required>
-        <input value={entry.site_agent || ''} onChange={e => set('site_agent', e.target.value)} disabled={disabled} />
+        <input value={entry.site_agent || ''} onChange={e => set('site_agent', e.target.value)} disabled={disabled}
+          list="dl-site-agents" />
+        <datalist id="dl-site-agents">
+          {suggestions.siteAgents.map(n => <option key={n} value={n} />)}
+        </datalist>
       </Field>
       <Field label="Weather">
         <select value={entry.weather || ''} onChange={e => set('weather', e.target.value)} disabled={disabled}>
@@ -212,10 +225,16 @@ function HeaderSection({ entry, setEntry, disabled }) {
 }
 
 /* ── Labour Section ──────────────────────────────────────────────────────── */
-function LabourSection({ rows, setRows, disabled }) {
+function LabourSection({ rows, setRows, disabled, suggestions }) {
   const add    = () => setRows(r => [...r, emptyLabour()]);
   const remove = i => setRows(r => r.filter((_, j) => j !== i));
   const set    = (i, k, v) => setRows(r => r.map((row, j) => j === i ? { ...row, [k]: v } : row));
+
+  // Escolheu um nome já conhecido? Preenche o trade dele automaticamente — menos um campo pra mexer
+  const setWorkerName = (i, name) => {
+    const known = suggestions.workers.find(w => w.name.toLowerCase() === name.trim().toLowerCase());
+    setRows(r => r.map((row, j) => j === i ? { ...row, worker_name: name, trade: known ? known.trade : row.trade } : row));
+  };
 
   const totalHours = rows.reduce((a, r) => a + (parseFloat(r.hours_worked) || 0), 0);
   const totalOT    = rows.reduce((a, r) => a + (parseFloat(r.overtime_hours) || 0), 0);
@@ -241,7 +260,7 @@ function LabourSection({ rows, setRows, disabled }) {
           <tbody>
             {rows.map((row, i) => (
               <tr key={i}>
-                <td><input value={row.worker_name} onChange={e => set(i,'worker_name',e.target.value)} disabled={disabled} placeholder="Full name" /></td>
+                <td><input value={row.worker_name} onChange={e => setWorkerName(i, e.target.value)} disabled={disabled} placeholder="Full name" list="dl-workers" /></td>
                 <td>
                   <select value={row.trade} onChange={e => set(i,'trade',e.target.value)} disabled={disabled}>
                     {TRADES.map(t => <option key={t}>{t}</option>)}
@@ -266,15 +285,28 @@ function LabourSection({ rows, setRows, disabled }) {
           </tbody>
         </table>
       )}
+      <datalist id="dl-workers">
+        {suggestions.workers.map(w => <option key={w.name} value={w.name} />)}
+      </datalist>
     </div>
   );
 }
 
 /* ── Plant Section ───────────────────────────────────────────────────────── */
-function PlantSection({ rows, setRows, disabled }) {
+function PlantSection({ rows, setRows, disabled, suggestions }) {
   const add    = () => setRows(r => [...r, emptyPlant()]);
   const remove = i => setRows(r => r.filter((_, j) => j !== i));
   const set    = (i, k, v) => setRows(r => r.map((row, j) => j === i ? { ...row, [k]: v } : row));
+
+  // Escolheu um ref já conhecido? Preenche descrição/operador se ainda estiverem vazios
+  const setPlantRef = (i, ref) => {
+    const known = suggestions.plant.find(p => p.ref.toLowerCase() === ref.trim().toLowerCase());
+    setRows(r => r.map((row, j) => j === i ? {
+      ...row, plant_ref: ref,
+      description: (!row.description && known) ? known.description : row.description,
+      operator:    (!row.operator    && known) ? known.operator    : row.operator,
+    } : row));
+  };
 
   return (
     <div>
@@ -298,9 +330,9 @@ function PlantSection({ rows, setRows, disabled }) {
           <tbody>
             {rows.map((row, i) => (
               <tr key={i}>
-                <td><input value={row.plant_ref || ''} onChange={e => set(i,'plant_ref',e.target.value)} disabled={disabled} placeholder="e.g. P001" style={{width:70}} /></td>
-                <td><input value={row.description} onChange={e => set(i,'description',e.target.value)} disabled={disabled} placeholder="e.g. 360 Excavator 20T" /></td>
-                <td><input value={row.operator || ''} onChange={e => set(i,'operator',e.target.value)} disabled={disabled} placeholder="Operator name" /></td>
+                <td><input value={row.plant_ref || ''} onChange={e => setPlantRef(i, e.target.value)} disabled={disabled} placeholder="e.g. P001" style={{width:70}} list="dl-plant-refs" /></td>
+                <td><input value={row.description} onChange={e => set(i,'description',e.target.value)} disabled={disabled} placeholder="e.g. 360 Excavator 20T" list="dl-plant-desc" /></td>
+                <td><input value={row.operator || ''} onChange={e => set(i,'operator',e.target.value)} disabled={disabled} placeholder="Operator name" list="dl-operators" /></td>
                 <td><input type="number" min="0" max="24" step="0.5" value={row.hours_worked} onChange={e => set(i,'hours_worked',e.target.value)} disabled={disabled} style={{width:60}} /></td>
                 <td><input type="number" min="0" max="24" step="0.5" value={row.hours_idle} onChange={e => set(i,'hours_idle',e.target.value)} disabled={disabled} style={{width:60}} /></td>
                 <td>
@@ -320,15 +352,33 @@ function PlantSection({ rows, setRows, disabled }) {
           </tbody>
         </table>
       )}
+      <datalist id="dl-plant-refs">
+        {suggestions.plant.map(p => <option key={p.ref} value={p.ref} />)}
+      </datalist>
+      <datalist id="dl-plant-desc">
+        {suggestions.plantDescriptions.map(d => <option key={d} value={d} />)}
+      </datalist>
+      <datalist id="dl-operators">
+        {suggestions.operators.map(o => <option key={o} value={o} />)}
+      </datalist>
     </div>
   );
 }
 
 /* ── Activities Section ──────────────────────────────────────────────────── */
-function ActivitiesSection({ rows, setRows, disabled }) {
+function ActivitiesSection({ rows, setRows, disabled, suggestions }) {
   const add    = () => setRows(r => [...r, emptyActivity()]);
   const remove = i => setRows(r => r.filter((_, j) => j !== i));
   const set    = (i, k, v) => setRows(r => r.map((row, j) => j === i ? { ...row, [k]: v } : row));
+
+  // Descrição já usada antes? Preenche a unidade se ainda estiver vazia
+  const setDescription = (i, desc) => {
+    const known = suggestions.activities.find(a => a.description.toLowerCase() === desc.trim().toLowerCase());
+    setRows(r => r.map((row, j) => j === i ? {
+      ...row, description: desc,
+      unit: (!row.unit && known) ? known.unit : row.unit,
+    } : row));
+  };
 
   // Group by code for display
   const grouped = ACTIVITY_CODES.reduce((acc, c) => {
@@ -369,9 +419,9 @@ function ActivitiesSection({ rows, setRows, disabled }) {
                         {SERVICE_CATS.map(c => <option key={c}>{c}</option>)}
                       </select>
                     </td>
-                    <td><input value={row.description} onChange={e => set(row._idx,'description',e.target.value)} disabled={disabled} placeholder="Describe work done today…" style={{minWidth:220}} /></td>
+                    <td><input value={row.description} onChange={e => setDescription(row._idx, e.target.value)} disabled={disabled} placeholder="Describe work done today…" style={{minWidth:220}} list="dl-activities" /></td>
                     <td><input type="number" step="any" min="0" value={row.qty_today || ''} onChange={e => set(row._idx,'qty_today',e.target.value)} disabled={disabled} style={{width:70}} placeholder="—" /></td>
-                    <td><input value={row.unit || ''} onChange={e => set(row._idx,'unit',e.target.value)} disabled={disabled} style={{width:55}} placeholder="m, m², nr…" /></td>
+                    <td><input value={row.unit || ''} onChange={e => set(row._idx,'unit',e.target.value)} disabled={disabled} style={{width:55}} placeholder="m, m², nr…" list="dl-units" /></td>
                     <td>
                       <select value={row.work_type} onChange={e => set(row._idx,'work_type',e.target.value)} disabled={disabled} style={{width:100}}>
                         <option>Contract</option><option>Daywork</option>
@@ -388,6 +438,12 @@ function ActivitiesSection({ rows, setRows, disabled }) {
       )}
 
       {/* Ungrouped new rows (no code assigned yet shows at bottom) */}
+      <datalist id="dl-activities">
+        {suggestions.activities.map(a => <option key={a.description} value={a.description} />)}
+      </datalist>
+      <datalist id="dl-units">
+        {suggestions.units.map(u => <option key={u} value={u} />)}
+      </datalist>
     </div>
   );
 }

@@ -55,6 +55,65 @@ router.get('/projects/:id/das', (req, res) => {
   res.json(entries);
 });
 
+// GET /projects/:id/das/suggestions â€“ historical values for autocomplete (workers, plant, activities)
+// Reduces re-typing for the field team: names/plant/descriptions used before show up as suggestions.
+router.get('/projects/:id/das/suggestions', (req, res) => {
+  const con = db();
+  assertProject(con, req.params.id);
+
+  const labourRows = con.prepare(`
+    SELECT dl.worker_name, dl.trade
+    FROM das_labour dl JOIN das_entry de ON de.id = dl.das_entry_id
+    WHERE de.project_id = ? AND dl.worker_name != ''
+    ORDER BY de.entry_date DESC
+  `).all(req.params.id);
+
+  const plantRows = con.prepare(`
+    SELECT dp.plant_ref, dp.description, dp.operator
+    FROM das_plant dp JOIN das_entry de ON de.id = dp.das_entry_id
+    WHERE de.project_id = ?
+    ORDER BY de.entry_date DESC
+  `).all(req.params.id);
+
+  const activityRows = con.prepare(`
+    SELECT da.description, da.unit, da.service_category
+    FROM das_activity da JOIN das_entry de ON de.id = da.das_entry_id
+    WHERE de.project_id = ? AND da.description != ''
+    ORDER BY de.entry_date DESC
+  `).all(req.params.id);
+
+  const siteAgentRows = con.prepare(`
+    SELECT DISTINCT site_agent FROM das_entry WHERE project_id=? AND site_agent != '' ORDER BY entry_date DESC
+  `).all(req.params.id);
+
+  con.close();
+
+  // Dedup keeping the first (most recent, since rows are ordered DESC) occurrence per key
+  const dedupBy = (rows, key) => {
+    const seen = new Set();
+    const out = [];
+    for (const r of rows) {
+      const k = (r[key] || '').trim();
+      if (!k || seen.has(k.toLowerCase())) continue;
+      seen.add(k.toLowerCase());
+      out.push(r);
+    }
+    return out;
+  };
+  const uniqStrings = arr => [...new Set(arr.map(v => (v || '').trim()).filter(Boolean))];
+
+  res.json({
+    workers:          dedupBy(labourRows, 'worker_name').map(r => ({ name: r.worker_name, trade: r.trade })),
+    plant:            dedupBy(plantRows.filter(r => r.plant_ref), 'plant_ref')
+                        .map(r => ({ ref: r.plant_ref, description: r.description, operator: r.operator })),
+    plantDescriptions: uniqStrings(plantRows.map(r => r.description)),
+    operators:        uniqStrings(plantRows.map(r => r.operator)),
+    activities:       dedupBy(activityRows, 'description').map(r => ({ description: r.description, unit: r.unit, service_category: r.service_category })),
+    units:            uniqStrings(activityRows.map(r => r.unit)),
+    siteAgents:       siteAgentRows.map(r => r.site_agent),
+  });
+});
+
 // GET /projects/:id/das/:date  â€“ get or create entry for a date
 router.get('/projects/:id/das/:date', (req, res) => {
   const con = db();
