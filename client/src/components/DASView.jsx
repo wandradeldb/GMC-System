@@ -18,6 +18,40 @@ function nextMonday(dateStr) {
   return toISODate(d);
 }
 
+// Monday of the week containing dateStr
+function mondayOf(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  const day = d.getDay(); // 0=Sun..6=Sat
+  d.setDate(d.getDate() + (day === 0 ? -6 : 1 - day));
+  return d;
+}
+
+// Week Ending (Friday) of the week containing dateStr
+function weekEndingOf(dateStr) {
+  const mon = mondayOf(dateStr);
+  mon.setDate(mon.getDate() + 4);
+  return toISODate(mon);
+}
+
+// Monday..Saturday (6 days) of the week ending on weFriday
+function daysOfWeek(weFriday) {
+  const fri = new Date(weFriday + 'T12:00:00');
+  const mon = new Date(fri); mon.setDate(fri.getDate() - 4);
+  return Array.from({ length: 6 }, (_, i) => {
+    const d = new Date(mon); d.setDate(mon.getDate() + i);
+    return toISODate(d);
+  });
+}
+
+// Range of Week Endings (Fridays) around a reference Friday
+function friRange(refWE, before = 8, after = 2) {
+  return Array.from({ length: before + after + 1 }, (_, i) => {
+    const d = new Date(refWE + 'T12:00:00');
+    d.setDate(d.getDate() + (i - before) * 7);
+    return toISODate(d);
+  });
+}
+
 export default function DASView({ projectId, readOnly }) {
   const [selectedDate, setSelectedDate] = useState(toISODate(new Date()));
   const [entries, setEntries]           = useState([]);
@@ -33,37 +67,43 @@ export default function DASView({ projectId, readOnly }) {
 
   const handleSaved = () => { loadEntries(); };
 
+  const currentWE = weekEndingOf(selectedDate);
+  const weOptions = friRange(weekEndingOf(toISODate(new Date())), 8, 2);
+  const dayFmt = d => new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { weekday: 'short', day: 'numeric', month: 'short' });
+  const weFmt  = d => new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { day: 'numeric', month: 'short' });
+
   return (
     <div>
       <div className="das-toolbar">
         <div className="das-date-nav">
-          <button className="icon-btn" onClick={() => {
-            const d = new Date(selectedDate + 'T12:00:00');
-            d.setDate(d.getDate() - 1);
-            setSelectedDate(toISODate(d));
-          }}>‹</button>
-          <input
-            type="date"
-            value={selectedDate}
-            onChange={e => setSelectedDate(e.target.value)}
-            className="date-input"
-          />
-          <button className="icon-btn" onClick={() => {
-            const d = new Date(selectedDate + 'T12:00:00');
-            d.setDate(d.getDate() + 1);
-            setSelectedDate(toISODate(d));
-          }}>›</button>
+          <label className="das-we-label">
+            WE:&nbsp;
+            <select value={currentWE} onChange={e => {
+              const mon = new Date(e.target.value + 'T12:00:00');
+              mon.setDate(mon.getDate() - 4);
+              setSelectedDate(toISODate(mon));
+            }}>
+              {weOptions.map(we => <option key={we} value={we}>{weFmt(we)}</option>)}
+            </select>
+          </label>
+          <div className="das-day-picker">
+            {daysOfWeek(currentWE).map(d => (
+              <button key={d} type="button"
+                className={`das-day-btn ${d === selectedDate ? 'active' : ''}`}
+                onClick={() => setSelectedDate(d)}>
+                {dayFmt(d)}
+              </button>
+            ))}
+          </div>
           <button className="btn-ghost" onClick={() => setSelectedDate(toISODate(new Date()))}>Today</button>
         </div>
 
-        <div className="das-view-tabs">
-          <button className={`tab-btn ${view === 'form' ? 'active' : ''}`} onClick={() => setView('form')}>
-            Daily Entry
+        {!readOnly && (
+          <button className={`tab-btn ${view === 'list' ? 'active' : ''}`}
+            onClick={() => setView(v => v === 'list' ? 'form' : 'list')}>
+            {view === 'list' ? '← Back to Entry' : `History (${entries.length})`}
           </button>
-          <button className={`tab-btn ${view === 'list' ? 'active' : ''}`} onClick={() => setView('list')}>
-            History ({entries.length})
-          </button>
-        </div>
+        )}
       </div>
 
       {view === 'form' && !readOnly ? (

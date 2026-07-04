@@ -416,12 +416,24 @@ body {
   display: flex; align-items: center; justify-content: space-between;
   margin-bottom: 16px; flex-wrap: wrap; gap: 12px;
 }
-.das-date-nav { display: flex; align-items: center; gap: 8px; }
+.das-date-nav { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; }
 .date-input {
   padding: 7px 10px; border: 1px solid #d1d5db; border-radius: 6px;
   font-size: 14px; font-weight: 600; color: #1a1a2e; outline: none;
 }
 .date-input:focus { border-color: #1d4ed8; }
+.das-we-label { font-size: 13px; font-weight: 600; color: #374151; display: flex; align-items: center; }
+.das-we-label select {
+  padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px;
+  font-size: 13px; font-weight: 600; color: #1a1a2e;
+}
+.das-day-picker { display: flex; gap: 4px; flex-wrap: wrap; }
+.das-day-btn {
+  padding: 6px 10px; border: 1px solid #d1d5db; border-radius: 6px;
+  background: #fff; cursor: pointer; font-size: 12px; color: #374151; white-space: nowrap;
+}
+.das-day-btn:hover { background: #f9fafb; }
+.das-day-btn.active { background: #1d4ed8; border-color: #1d4ed8; color: #fff; font-weight: 600; }
 .icon-btn {
   width: 32px; height: 32px; border: 1px solid #d1d5db; border-radius: 6px;
   background: #fff; cursor: pointer; font-size: 18px; line-height: 1;
@@ -538,10 +550,35 @@ body {
 .das-step.active .das-step-label  { color: #1d4ed8; }
 .das-step.done .das-step-circle   { border-color: #16a34a; background: #16a34a; color: #fff; }
 .das-step.done .das-step-label    { color: #166534; }
+.das-step:disabled { cursor: not-allowed; opacity: 0.5; }
 .das-step-line {
   width: 32px; flex: 0 0 auto; height: 2px; background: #e5e7eb; margin: 0 2px 16px;
 }
 .das-step-line.done { background: #16a34a; }
+
+/* Orienta o próximo passo — pisca sutilmente sem travar a navegação livre */
+.das-step.pulse .das-step-circle { animation: das-step-pulse 1.6s ease-in-out infinite; }
+@keyframes das-step-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(29,78,216,0.45); }
+  50%      { box-shadow: 0 0 0 6px rgba(29,78,216,0); }
+}
+
+/* Confirmar o dia certo — trava as seções até marcar */
+.das-confirm-day {
+  display: flex; align-items: center; gap: 6px; font-size: 12px; font-weight: 600;
+  color: #92400e; cursor: pointer; white-space: nowrap;
+}
+.das-lock-alert {
+  background: #fffbeb; color: #92400e; border: 1px solid #fde68a; border-radius: 6px;
+  padding: 8px 12px; margin-bottom: 16px; font-size: 13px; font-weight: 600;
+}
+
+/* "Next" button — guides the site agent to the next step, doesn't force it */
+.btn-next {
+  padding: 8px 20px; border-radius: 6px; border: none; background: #1d4ed8; color: #fff;
+  font-weight: 600; font-size: 13px; cursor: pointer; margin-top: 14px;
+}
+.btn-next:hover { background: #1e40af; }
 
 @media (max-width: 400px) {
   .das-step-circle { width: 24px; height: 24px; font-size: 11px; }
@@ -562,8 +599,42 @@ body {
   border-color: #f97316; background: #fff7ed; color: #c2410c; cursor: default;
 }
 
+/* ── DAS Worker/Plant cards (Labour & Plant) — full day or split AM/PM ── */
+.worker-cards { display: flex; flex-direction: column; gap: 12px; }
+.worker-card { border: 1px solid #e5e7eb; border-radius: 8px; padding: 10px 12px; background: #f8fafc; }
+.worker-card-row {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap; margin-bottom: 8px;
+}
+.worker-card-name { flex: 1; min-width: 140px; }
+.worker-card-row select { padding: 6px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+.worker-card-split-toggle { display: flex; gap: 0; width: fit-content; margin-bottom: 8px; }
+.worker-card-split-toggle button {
+  padding: 5px 12px; border: 1px solid #d1d5db; background: #fff; font-size: 12px; color: #6b7280; cursor: pointer;
+}
+.worker-card-split-toggle button:first-child { border-radius: 6px 0 0 6px; }
+.worker-card-split-toggle button:last-child  { border-radius: 0 6px 6px 0; border-left: none; }
+.worker-card-split-toggle button.active { background: #1a1a2e; color: #fff; border-color: #1a1a2e; font-weight: 600; }
+.worker-card-segment {
+  display: flex; gap: 8px; align-items: center; flex-wrap: wrap;
+  padding: 6px 0; border-top: 1px dashed #e5e7eb;
+}
+.worker-card-segment:first-of-type { border-top: none; }
+.worker-card-segment select, .worker-card-segment input { padding: 5px 8px; border: 1px solid #d1d5db; border-radius: 6px; font-size: 13px; }
+.segment-label { font-size: 11px; font-weight: 700; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; width: 70px; flex-shrink: 0; }
+
 /* ── DAS Photo ── */
 .das-photo-wrap { display: flex; flex-direction: column; gap: 8px; }
+
+/* ── DAS Site Stopped / Delayed (commercial & legal claim record) ── */
+.das-stoppage-box {
+  background: #fef2f2; border: 1px solid #fecaca; border-radius: 8px;
+  padding: 12px 14px; margin-bottom: 20px;
+}
+.das-stoppage-toggle {
+  display: flex; align-items: center; gap: 8px; font-size: 13px; font-weight: 600;
+  color: #991b1b; cursor: pointer;
+}
+.das-stoppage-box textarea { width: 100%; margin-top: 10px; box-sizing: border-box; }
 .das-photo-btn {
   display: inline-flex; align-items: center; gap: 8px;
   padding: 10px 20px; border-radius: 8px; font-size: 14px; font-weight: 600;

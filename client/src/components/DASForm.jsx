@@ -8,20 +8,41 @@ const SERVICE_CATS   = ['Pump Station','Manhole','Pipework','Preliminaries','MEI
 const WEATHER_OPTS   = ['Fine','Overcast','Light Rain','Heavy Rain','Wind','Frost','Snow'];
 const TRADES         = ['Site Agent','Ganger','Labourer','Carpenter','Fitter','Electrician','Welder','Driver','Groundworker','Other'];
 
-const emptyLabour   = () => ({ worker_name:'', trade:'Labourer', hours_worked:8, overtime_hours:0, activity_code:'A', work_type:'Contract', notes:'' });
-const emptyPlant    = () => ({ plant_ref:'', description:'', operator:'', hours_worked:8, hours_idle:0, activity_code:'A', work_type:'Contract', notes:'' });
+const emptyLabour   = () => ({ worker_name:'', trade:'Labourer', subcontract_id:null, period:'full', hours_worked:8, overtime_hours:0, activity_code:'A', work_type:'Contract', notes:'' });
+const emptyPlant    = () => ({ plant_ref:'', description:'', operator:'', subcontract_id:null, period:'full', hours_worked:8, hours_idle:0, activity_code:'A', work_type:'Contract', notes:'' });
 const emptyActivity = () => ({ activity_code:'A', service_category:'Pump Station', description:'', qty_today:'', unit:'', work_type:'Contract', notes:'' });
+
+// Group flat segment rows into per-person/per-item cards — 2 segments (am/pm) = a split day
+// Pairs an 'am' row with the immediately-following 'pm' row of the SAME entity (worker/plant item)
+// into one card; everything else stays a single-segment ('full') card. Adjacency-based (not name-based)
+// so two different blank/new rows never get accidentally merged just for sharing an empty name.
+function groupSegments(rows, sameEntity) {
+  const groups = [];
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i], next = rows[i + 1];
+    if (row.period === 'am' && next && next.period === 'pm' && sameEntity(row, next)) {
+      groups.push({ rows: [{ ...row, _idx: i }, { ...next, _idx: i + 1 }] });
+      i++; // consumed the paired pm row
+    } else {
+      groups.push({ rows: [{ ...row, _idx: i }] });
+    }
+  }
+  return groups;
+}
 
 export default function DASForm({ projectId, date, showNextWeek, nextMonday, onSaved }) {
   const [loading,  setLoading]  = useState(true);
   const [saving,   setSaving]   = useState(false);
   const [saved,    setSaved]    = useState(false);
-  const [entry,    setEntry]    = useState({ site_agent:'', site_agent_code:'', weather:'Fine', work_type:'Contract', visitors:'', general_notes:'', status:'draft', photo_url: null });
+  const [entry,    setEntry]    = useState({ site_agent:'', site_agent_code:'', weather:'Fine', work_type:'Contract', general_notes:'', status:'draft', photo_url: null, stoppage_reason:'' });
   const [labour,   setLabour]   = useState([]);
   const [plant,    setPlant]    = useState([]);
   const [activities, setActivities] = useState([]);
   const [subs,     setSubs]     = useState([]); // subcontractors on site today
-  const [activeTab, setActiveTab]   = useState('labour');
+  const [activeTab, setActiveTab]   = useState('sub');
+  // Trava até o site agent confirmar que é o dia certo — reseta sempre que a data muda
+  const [dayConfirmed, setDayConfirmed] = useState(false);
+  useEffect(() => { setDayConfirmed(false); }, [date]);
   // Histórico do projeto (nomes, máquinas, atividades já digitados antes) — alimenta os autocompletes
   const [suggestions, setSuggestions] = useState({ workers:[], plant:[], plantDescriptions:[], operators:[], activities:[], units:[], siteAgents:[] });
   // Subcontratados do projeto (pra clicar e escolher — não é pra digitar)
@@ -80,6 +101,15 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
   if (loading) return <div className="state-box"><div className="icon">⏳</div><p>Loading…</p></div>;
 
   const isSubmitted = entry.status === 'submitted';
+  const locked = !dayConfirmed && !isSubmitted;
+  const sectionDisabled = isSubmitted || locked;
+  const goNext = () => {
+    const i = DAS_STEPS.findIndex(s => s.key === activeTab);
+    if (i >= 0 && i < DAS_STEPS.length - 1) setActiveTab(DAS_STEPS[i + 1].key);
+  };
+  // Contagem por pessoa/item (não por linha crua) — um dia dividido AM/PM ainda conta como 1
+  const workerCount = groupSegments(labour, (a, b) => a.worker_name === b.worker_name && a.subcontract_id === b.subcontract_id).length;
+  const plantCount  = groupSegments(plant, (a, b) => a.plant_ref === b.plant_ref && a.description === b.description && a.subcontract_id === b.subcontract_id).length;
 
   return (
     <div className="das-form">
@@ -90,11 +120,17 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
           <span className={`das-status ${isSubmitted ? 'submitted' : 'draft'}`}>
             {isSubmitted ? 'Submitted' : 'Draft'}
           </span>
+          {!isSubmitted && (
+            <label className="das-confirm-day">
+              <input type="checkbox" checked={dayConfirmed} onChange={e => setDayConfirmed(e.target.checked)} />
+              ✓ Confirm this is the correct day
+            </label>
+          )}
         </div>
         <div className="das-header-right">
           <div className="das-summary-pills">
-            <span className="pill">{labour.length} Workers</span>
-            <span className="pill">{plant.length} Plant</span>
+            <span className="pill">{workerCount} Workers</span>
+            <span className="pill">{plantCount} Plant</span>
             <span className="pill">{subs.length} Subs</span>
             <span className="pill">{activities.length} Activities</span>
           </div>
@@ -109,6 +145,11 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
           </div>
         </div>
       </div>
+      {locked && (
+        <div className="das-lock-alert">
+          ⚠ Check the date above and tick "Confirm this is the correct day" to unlock Sub / Labour / Plant / Activities.
+        </div>
+      )}
 
       {/* Header — sempre visível, logo abaixo da data (não é mais um passo numerado) */}
       <HeaderSection entry={entry} setEntry={setEntry} disabled={isSubmitted} siteAgentList={siteAgentList} />
@@ -117,6 +158,7 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
       <StepProgress
         activeTab={activeTab}
         setActiveTab={setActiveTab}
+        locked={locked}
         done={{
           sub: subs.length > 0,
           labour: labour.length > 0,
@@ -126,17 +168,20 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
       />
 
       <div className="das-tab-content">
+        {activeTab === 'sub' && (
+          <SubSection rows={subs} setRows={setSubs} disabled={sectionDisabled} subcontracts={subcontracts}
+            entry={entry} setEntry={setEntry} onNext={goNext} />
+        )}
         {activeTab === 'labour' && (
-          <LabourSection rows={labour} setRows={setLabour} disabled={isSubmitted} suggestions={suggestions} />
+          <LabourSection rows={labour} setRows={setLabour} disabled={sectionDisabled} suggestions={suggestions}
+            subs={subs} onNext={goNext} />
         )}
         {activeTab === 'plant' && (
-          <PlantSection rows={plant} setRows={setPlant} disabled={isSubmitted} suggestions={suggestions} />
-        )}
-        {activeTab === 'sub' && (
-          <SubSection rows={subs} setRows={setSubs} disabled={isSubmitted} subcontracts={subcontracts} />
+          <PlantSection rows={plant} setRows={setPlant} disabled={sectionDisabled} suggestions={suggestions}
+            subs={subs} onNext={goNext} />
         )}
         {activeTab === 'activities' && (
-          <ActivitiesSection rows={activities} setRows={setActivities} disabled={isSubmitted} suggestions={suggestions}
+          <ActivitiesSection rows={activities} setRows={setActivities} disabled={sectionDisabled} suggestions={suggestions}
             entry={entry} setEntry={setEntry} />
         )}
       </div>
@@ -156,17 +201,20 @@ const DAS_STEPS = [
   { key:'activities', label:'Activities' },
 ];
 
-function StepProgress({ activeTab, setActiveTab, done }) {
+function StepProgress({ activeTab, setActiveTab, done, locked }) {
+  // Pisca o próximo passo ainda incompleto — orienta o site agent sem travar a navegação livre
+  const nextKey = DAS_STEPS.find(s => !done[s.key])?.key;
   return (
     <div className="das-steps">
       {DAS_STEPS.map((s, i) => {
         const isDone   = done[s.key];
         const isActive = activeTab === s.key;
+        const isNext   = !locked && !isActive && s.key === nextKey;
         return (
           <div key={s.key} className="das-step-wrap">
             <button type="button"
-              className={`das-step ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`}
-              onClick={() => setActiveTab(s.key)}>
+              className={`das-step ${isActive ? 'active' : ''} ${isDone ? 'done' : ''} ${isNext ? 'pulse' : ''}`}
+              onClick={() => !locked && setActiveTab(s.key)} disabled={locked}>
               <span className="das-step-circle">{isDone ? '✓' : i + 1}</span>
               <span className="das-step-label">{s.label}</span>
             </button>
@@ -201,8 +249,6 @@ function compressImage(file, maxPx = 1200, quality = 0.75) {
 
 /* ── Header Section — always visible, right below the date, not a numbered step ── */
 function HeaderSection({ entry, setEntry, disabled, siteAgentList }) {
-  const set = (k, v) => setEntry(e => ({ ...e, [k]: v }));
-
   const setSiteAgent = (name) => {
     const known = siteAgentList.find(a => a.name.toLowerCase() === name.trim().toLowerCase());
     setEntry(e => ({ ...e, site_agent: name, site_agent_code: known ? known.code : '' }));
@@ -210,40 +256,55 @@ function HeaderSection({ entry, setEntry, disabled, siteAgentList }) {
 
   return (
     <div className="das-header-fixed">
-      <div className="section-grid">
-        <Field label="Site Agent" required>
-          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-            <input value={entry.site_agent || ''} onChange={e => setSiteAgent(e.target.value)} disabled={disabled}
-              list="dl-site-agents" style={{ flex:1 }} />
-            {entry.site_agent_code && <span className="site-agent-code-badge">{entry.site_agent_code}</span>}
-          </div>
-          <datalist id="dl-site-agents">
-            {siteAgentList.map(a => <option key={a.code || a.name} value={a.name} />)}
-          </datalist>
-        </Field>
-        <Field label="Visitors">
-          <input value={entry.visitors || ''} onChange={e => set('visitors', e.target.value)}
-            placeholder="Names / company" disabled={disabled} />
-        </Field>
-        <Field label="General Notes" span2>
-          <textarea rows={2} value={entry.general_notes || ''} onChange={e => set('general_notes', e.target.value)}
-            placeholder="Site diary notes, issues, instructions received…" disabled={disabled} />
-        </Field>
-      </div>
+      <Field label="Site Agent" required>
+        <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+          <input value={entry.site_agent || ''} onChange={e => setSiteAgent(e.target.value)} disabled={disabled}
+            list="dl-site-agents" style={{ flex:1, maxWidth:340 }} />
+          {entry.site_agent_code && <span className="site-agent-code-badge">{entry.site_agent_code}</span>}
+        </div>
+        <datalist id="dl-site-agents">
+          {siteAgentList.map(a => <option key={a.code || a.name} value={a.name} />)}
+        </datalist>
+      </Field>
     </div>
   );
 }
 
 /* ── Labour Section ──────────────────────────────────────────────────────── */
-function LabourSection({ rows, setRows, disabled, suggestions }) {
-  const add    = () => setRows(r => [...r, emptyLabour()]);
-  const remove = i => setRows(r => r.filter((_, j) => j !== i));
-  const set    = (i, k, v) => setRows(r => r.map((row, j) => j === i ? { ...row, [k]: v } : row));
+function LabourSection({ rows, setRows, disabled, suggestions, subs, onNext }) {
+  const sameWorker = (a, b) => a.worker_name === b.worker_name && a.subcontract_id === b.subcontract_id;
+  const groups = groupSegments(rows, sameWorker);
 
-  // Escolheu um nome já conhecido? Preenche o trade dele automaticamente — menos um campo pra mexer
-  const setWorkerName = (i, name) => {
-    const known = suggestions.workers.find(w => w.name.toLowerCase() === name.trim().toLowerCase());
-    setRows(r => r.map((row, j) => j === i ? { ...row, worker_name: name, trade: known ? known.trade : row.trade } : row));
+  const addBlank = () => setRows(r => [...r, emptyLabour()]);
+  const addKnown = (w) => {
+    if (rows.some(r => r.worker_name.toLowerCase() === w.name.toLowerCase())) return;
+    setRows(r => [...r, { ...emptyLabour(), worker_name: w.name, trade: w.trade || 'Labourer' }]);
+  };
+  const removeGroup = (g) => {
+    const idxs = new Set(g.rows.map(x => x._idx));
+    setRows(r => r.filter((_, j) => !idxs.has(j)));
+  };
+  const setGroupField = (g, k, v) => {
+    const idxs = new Set(g.rows.map(x => x._idx));
+    setRows(r => r.map((row, j) => idxs.has(j) ? { ...row, [k]: v } : row));
+  };
+  const setSegField = (idx, k, v) => setRows(r => r.map((row, j) => j === idx ? { ...row, [k]: v } : row));
+  const toggleSplit = (g, split) => {
+    const idxs = g.rows.map(x => x._idx);
+    setRows(r => {
+      if (split && idxs.length === 1) {
+        const base = r[idxs[0]];
+        const half = Math.round(((parseFloat(base.hours_worked) || 8) / 2) * 10) / 10;
+        const rest = r.filter((_, j) => !idxs.includes(j));
+        return [...rest, { ...base, period: 'am', hours_worked: half }, { ...base, period: 'pm', hours_worked: half }];
+      }
+      if (!split && idxs.length === 2) {
+        const a = r[idxs[0]], b = r[idxs[1]];
+        const rest = r.filter((_, j) => !idxs.includes(j));
+        return [...rest, { ...a, period: 'full', hours_worked: (parseFloat(a.hours_worked) || 0) + (parseFloat(b.hours_worked) || 0) }];
+      }
+      return r;
+    });
   };
 
   const totalHours = rows.reduce((a, r) => a + (parseFloat(r.hours_worked) || 0), 0);
@@ -252,115 +313,185 @@ function LabourSection({ rows, setRows, disabled, suggestions }) {
   return (
     <div>
       <div className="section-toolbar">
-        <span className="section-stat">{rows.length} workers · {totalHours}h normal · {totalOT}h OT</span>
-        {!disabled && <button className="btn-add" onClick={add}>+ Add Worker</button>}
+        <span className="section-stat">{groups.length} workers · {totalHours}h normal · {totalOT}h OT</span>
+        {!disabled && <button className="btn-add" onClick={addBlank}>+ New Worker</button>}
       </div>
 
-      {rows.length === 0 ? (
-        <div className="empty-hint">No labour recorded. Click "Add Worker" to begin.</div>
+      {!disabled && suggestions.workers.length > 0 && (
+        <div className="das-sub-chips" style={{ marginBottom: 16 }}>
+          {suggestions.workers.map(w => {
+            const added = rows.some(r => r.worker_name.toLowerCase() === w.name.toLowerCase());
+            return (
+              <button key={w.name} type="button" className={`das-sub-chip ${added ? 'added' : ''}`}
+                onClick={() => addKnown(w)} disabled={added}>
+                {added ? '✓ ' : '+ '}{w.name}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {groups.length === 0 ? (
+        <div className="empty-hint">No labour recorded. Tap a name above or "+ New Worker" to begin.</div>
       ) : (
-        <table className="inline-table">
-          <thead>
-            <tr>
-              <th>Name</th><th>Trade</th><th>Hours</th><th>OT</th>
-              <th>Code</th><th>Work Type</th><th>Notes</th>
-              {!disabled && <th></th>}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => (
-              <tr key={i}>
-                <td><input value={row.worker_name} onChange={e => setWorkerName(i, e.target.value)} disabled={disabled} placeholder="Full name" list="dl-workers" /></td>
-                <td>
-                  <select value={row.trade} onChange={e => set(i,'trade',e.target.value)} disabled={disabled}>
+        <div className="worker-cards">
+          {groups.map(g => {
+            const first = g.rows[0];
+            const isSplit = g.rows.length === 2;
+            return (
+              <div key={first._idx} className="worker-card">
+                <div className="worker-card-row">
+                  <input value={first.worker_name} onChange={e => setGroupField(g, 'worker_name', e.target.value)}
+                    disabled={disabled} placeholder="Full name" list="dl-workers" className="worker-card-name" />
+                  <select value={first.trade} onChange={e => setGroupField(g, 'trade', e.target.value)} disabled={disabled}>
                     {TRADES.map(t => <option key={t}>{t}</option>)}
                   </select>
-                </td>
-                <td><input type="number" min="0" max="24" step="0.5" value={row.hours_worked} onChange={e => set(i,'hours_worked',e.target.value)} disabled={disabled} style={{width:60}} /></td>
-                <td><input type="number" min="0" max="12" step="0.5" value={row.overtime_hours} onChange={e => set(i,'overtime_hours',e.target.value)} disabled={disabled} style={{width:50}} /></td>
-                <td>
-                  <select value={row.activity_code || ''} onChange={e => set(i,'activity_code',e.target.value)} disabled={disabled} style={{width:110}}>
-                    {ACTIVITY_CODES.map(c => <option key={c} value={c}>{c} — {CODE_LABELS[c]}</option>)}
+                  <select value={first.subcontract_id || ''} disabled={disabled}
+                    onChange={e => setGroupField(g, 'subcontract_id', e.target.value ? Number(e.target.value) : null)}>
+                    <option value="">GMC Direct</option>
+                    {subs.map(s => <option key={s.subcontract_id} value={s.subcontract_id}>{s.sub_name}</option>)}
                   </select>
-                </td>
-                <td>
-                  <select value={row.work_type} onChange={e => set(i,'work_type',e.target.value)} disabled={disabled} style={{width:100}}>
-                    <option>Contract</option><option>Daywork</option>
-                  </select>
-                </td>
-                <td><input value={row.notes || ''} onChange={e => set(i,'notes',e.target.value)} disabled={disabled} placeholder="Notes" /></td>
-                {!disabled && <td><button className="btn-remove" onClick={() => remove(i)}>✕</button></td>}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <input type="number" min="0" max="12" step="0.5" value={first.overtime_hours} title="Overtime hours"
+                    onChange={e => setGroupField(g, 'overtime_hours', e.target.value)} disabled={disabled} style={{ width: 55 }} />
+                  {!disabled && <button className="btn-remove" onClick={() => removeGroup(g)}>✕</button>}
+                </div>
+                <div className="worker-card-split-toggle">
+                  <button type="button" className={!isSplit ? 'active' : ''} onClick={() => toggleSplit(g, false)} disabled={disabled}>Full day</button>
+                  <button type="button" className={isSplit ? 'active' : ''} onClick={() => toggleSplit(g, true)} disabled={disabled}>Split AM/PM</button>
+                </div>
+                {g.rows.map(seg => (
+                  <div key={seg._idx} className="worker-card-segment">
+                    {isSplit && <span className="segment-label">{seg.period === 'am' ? 'Morning' : 'Afternoon'}</span>}
+                    <select value={seg.activity_code || ''} onChange={e => setSegField(seg._idx, 'activity_code', e.target.value)} disabled={disabled}>
+                      {ACTIVITY_CODES.map(c => <option key={c} value={c}>{c} — {CODE_LABELS[c]}</option>)}
+                    </select>
+                    <select value={seg.work_type} onChange={e => setSegField(seg._idx, 'work_type', e.target.value)} disabled={disabled}>
+                      <option>Contract</option><option>Daywork</option>
+                    </select>
+                    <input type="number" min="0" max="24" step="0.5" value={seg.hours_worked}
+                      onChange={e => setSegField(seg._idx, 'hours_worked', e.target.value)} disabled={disabled} style={{ width: 60 }} />
+                    <input value={seg.notes || ''} onChange={e => setSegField(seg._idx, 'notes', e.target.value)} disabled={disabled} placeholder="Notes" />
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
       )}
       <datalist id="dl-workers">
         {suggestions.workers.map(w => <option key={w.name} value={w.name} />)}
       </datalist>
+
+      <button type="button" className="btn-next" onClick={onNext}>Next → Plant</button>
     </div>
   );
 }
 
 /* ── Plant Section ───────────────────────────────────────────────────────── */
-function PlantSection({ rows, setRows, disabled, suggestions }) {
-  const add    = () => setRows(r => [...r, emptyPlant()]);
-  const remove = i => setRows(r => r.filter((_, j) => j !== i));
-  const set    = (i, k, v) => setRows(r => r.map((row, j) => j === i ? { ...row, [k]: v } : row));
+function PlantSection({ rows, setRows, disabled, suggestions, subs, onNext }) {
+  const samePlant = (a, b) => a.plant_ref === b.plant_ref && a.description === b.description && a.subcontract_id === b.subcontract_id;
+  const groups = groupSegments(rows, samePlant);
 
-  // Escolheu um ref já conhecido? Preenche descrição/operador se ainda estiverem vazios
-  const setPlantRef = (i, ref) => {
-    const known = suggestions.plant.find(p => p.ref.toLowerCase() === ref.trim().toLowerCase());
-    setRows(r => r.map((row, j) => j === i ? {
-      ...row, plant_ref: ref,
-      description: (!row.description && known) ? known.description : row.description,
-      operator:    (!row.operator    && known) ? known.operator    : row.operator,
-    } : row));
+  const addBlank = () => setRows(r => [...r, emptyPlant()]);
+  const addKnown = (p) => {
+    if (rows.some(r => (r.plant_ref || '').toLowerCase() === p.ref.toLowerCase())) return;
+    setRows(r => [...r, { ...emptyPlant(), plant_ref: p.ref, description: p.description, operator: p.operator }]);
+  };
+  const removeGroup = (g) => {
+    const idxs = new Set(g.rows.map(x => x._idx));
+    setRows(r => r.filter((_, j) => !idxs.has(j)));
+  };
+  const setGroupField = (g, k, v) => {
+    const idxs = new Set(g.rows.map(x => x._idx));
+    setRows(r => r.map((row, j) => idxs.has(j) ? { ...row, [k]: v } : row));
+  };
+  const setSegField = (idx, k, v) => setRows(r => r.map((row, j) => j === idx ? { ...row, [k]: v } : row));
+  const toggleSplit = (g, split) => {
+    const idxs = g.rows.map(x => x._idx);
+    setRows(r => {
+      if (split && idxs.length === 1) {
+        const base = r[idxs[0]];
+        const half = Math.round(((parseFloat(base.hours_worked) || 8) / 2) * 10) / 10;
+        const rest = r.filter((_, j) => !idxs.includes(j));
+        return [...rest, { ...base, period: 'am', hours_worked: half }, { ...base, period: 'pm', hours_worked: half }];
+      }
+      if (!split && idxs.length === 2) {
+        const a = r[idxs[0]], b = r[idxs[1]];
+        const rest = r.filter((_, j) => !idxs.includes(j));
+        return [...rest, { ...a, period: 'full', hours_worked: (parseFloat(a.hours_worked) || 0) + (parseFloat(b.hours_worked) || 0) }];
+      }
+      return r;
+    });
   };
 
   return (
     <div>
       <div className="section-toolbar">
-        <span className="section-stat">{rows.length} plant items</span>
-        {!disabled && <button className="btn-add" onClick={add}>+ Add Plant</button>}
+        <span className="section-stat">{groups.length} plant items</span>
+        {!disabled && <button className="btn-add" onClick={addBlank}>+ New Plant</button>}
       </div>
 
-      {rows.length === 0 ? (
-        <div className="empty-hint">No plant recorded.</div>
+      {!disabled && suggestions.plant.length > 0 && (
+        <div className="das-sub-chips" style={{ marginBottom: 16 }}>
+          {suggestions.plant.map(p => {
+            const added = rows.some(r => (r.plant_ref || '').toLowerCase() === p.ref.toLowerCase());
+            return (
+              <button key={p.ref} type="button" className={`das-sub-chip ${added ? 'added' : ''}`}
+                onClick={() => addKnown(p)} disabled={added}>
+                {added ? '✓ ' : '+ '}{p.ref} — {p.description}
+              </button>
+            );
+          })}
+        </div>
+      )}
+
+      {groups.length === 0 ? (
+        <div className="empty-hint">No plant recorded. Tap an item above or "+ New Plant" to begin.</div>
       ) : (
-        <table className="inline-table">
-          <thead>
-            <tr>
-              <th>Ref</th><th>Description</th><th>Operator</th>
-              <th>Hrs Worked</th><th>Hrs Idle</th>
-              <th>Code</th><th>Work Type</th><th>Notes</th>
-              {!disabled && <th></th>}
-            </tr>
-          </thead>
-          <tbody>
-            {rows.map((row, i) => (
-              <tr key={i}>
-                <td><input value={row.plant_ref || ''} onChange={e => setPlantRef(i, e.target.value)} disabled={disabled} placeholder="e.g. P001" style={{width:70}} list="dl-plant-refs" /></td>
-                <td><input value={row.description} onChange={e => set(i,'description',e.target.value)} disabled={disabled} placeholder="e.g. 360 Excavator 20T" list="dl-plant-desc" /></td>
-                <td><input value={row.operator || ''} onChange={e => set(i,'operator',e.target.value)} disabled={disabled} placeholder="Operator name" list="dl-operators" /></td>
-                <td><input type="number" min="0" max="24" step="0.5" value={row.hours_worked} onChange={e => set(i,'hours_worked',e.target.value)} disabled={disabled} style={{width:60}} /></td>
-                <td><input type="number" min="0" max="24" step="0.5" value={row.hours_idle} onChange={e => set(i,'hours_idle',e.target.value)} disabled={disabled} style={{width:60}} /></td>
-                <td>
-                  <select value={row.activity_code || ''} onChange={e => set(i,'activity_code',e.target.value)} disabled={disabled} style={{width:110}}>
-                    {ACTIVITY_CODES.map(c => <option key={c} value={c}>{c} — {CODE_LABELS[c]}</option>)}
+        <div className="worker-cards">
+          {groups.map(g => {
+            const first = g.rows[0];
+            const isSplit = g.rows.length === 2;
+            return (
+              <div key={first._idx} className="worker-card">
+                <div className="worker-card-row">
+                  <input value={first.plant_ref || ''} onChange={e => setGroupField(g, 'plant_ref', e.target.value)}
+                    disabled={disabled} placeholder="e.g. P001" style={{ width: 70 }} list="dl-plant-refs" />
+                  <input value={first.description} onChange={e => setGroupField(g, 'description', e.target.value)}
+                    disabled={disabled} placeholder="e.g. 360 Excavator 20T" list="dl-plant-desc" className="worker-card-name" />
+                  <input value={first.operator || ''} onChange={e => setGroupField(g, 'operator', e.target.value)}
+                    disabled={disabled} placeholder="Operator name" list="dl-operators" style={{ width: 130 }} />
+                  <select value={first.subcontract_id || ''} disabled={disabled}
+                    onChange={e => setGroupField(g, 'subcontract_id', e.target.value ? Number(e.target.value) : null)}>
+                    <option value="">GMC Direct</option>
+                    {subs.map(s => <option key={s.subcontract_id} value={s.subcontract_id}>{s.sub_name}</option>)}
                   </select>
-                </td>
-                <td>
-                  <select value={row.work_type} onChange={e => set(i,'work_type',e.target.value)} disabled={disabled} style={{width:100}}>
-                    <option>Contract</option><option>Daywork</option>
-                  </select>
-                </td>
-                <td><input value={row.notes || ''} onChange={e => set(i,'notes',e.target.value)} disabled={disabled} placeholder="Notes" /></td>
-                {!disabled && <td><button className="btn-remove" onClick={() => remove(i)}>✕</button></td>}
-              </tr>
-            ))}
-          </tbody>
-        </table>
+                  <input type="number" min="0" max="24" step="0.5" value={first.hours_idle} title="Idle hours"
+                    onChange={e => setGroupField(g, 'hours_idle', e.target.value)} disabled={disabled} style={{ width: 55 }} />
+                  {!disabled && <button className="btn-remove" onClick={() => removeGroup(g)}>✕</button>}
+                </div>
+                <div className="worker-card-split-toggle">
+                  <button type="button" className={!isSplit ? 'active' : ''} onClick={() => toggleSplit(g, false)} disabled={disabled}>Full day</button>
+                  <button type="button" className={isSplit ? 'active' : ''} onClick={() => toggleSplit(g, true)} disabled={disabled}>Split AM/PM</button>
+                </div>
+                {g.rows.map(seg => (
+                  <div key={seg._idx} className="worker-card-segment">
+                    {isSplit && <span className="segment-label">{seg.period === 'am' ? 'Morning' : 'Afternoon'}</span>}
+                    <select value={seg.activity_code || ''} onChange={e => setSegField(seg._idx, 'activity_code', e.target.value)} disabled={disabled}>
+                      {ACTIVITY_CODES.map(c => <option key={c} value={c}>{c} — {CODE_LABELS[c]}</option>)}
+                    </select>
+                    <select value={seg.work_type} onChange={e => setSegField(seg._idx, 'work_type', e.target.value)} disabled={disabled}>
+                      <option>Contract</option><option>Daywork</option>
+                    </select>
+                    <input type="number" min="0" max="24" step="0.5" value={seg.hours_worked}
+                      onChange={e => setSegField(seg._idx, 'hours_worked', e.target.value)} disabled={disabled} style={{ width: 60 }} />
+                    <input value={seg.notes || ''} onChange={e => setSegField(seg._idx, 'notes', e.target.value)} disabled={disabled} placeholder="Notes" />
+                  </div>
+                ))}
+              </div>
+            );
+          })}
+        </div>
       )}
       <datalist id="dl-plant-refs">
         {suggestions.plant.map(p => <option key={p.ref} value={p.ref} />)}
@@ -371,6 +502,8 @@ function PlantSection({ rows, setRows, disabled, suggestions }) {
       <datalist id="dl-operators">
         {suggestions.operators.map(o => <option key={o} value={o} />)}
       </datalist>
+
+      <button type="button" className="btn-next" onClick={onNext}>Next → Activities</button>
     </div>
   );
 }
@@ -378,10 +511,10 @@ function PlantSection({ rows, setRows, disabled, suggestions }) {
 /* ── Subcontractors Section — tap a sub's name first, then fill their row ─── */
 const emptySubEntry = (sc) => ({
   subcontract_id: sc.id, sub_name: sc.subcontractor_name,
-  workers_count: 1, hours_worked: 8, activity_code: 'A', work_type: 'Contract', description: '', notes: '',
+  work_type: 'Contract', description: '', notes: '',
 });
 
-function SubSection({ rows, setRows, disabled, subcontracts }) {
+function SubSection({ rows, setRows, disabled, subcontracts, entry, setEntry, onNext }) {
   const remove = i => setRows(r => r.filter((_, j) => j !== i));
   const set    = (i, k, v) => setRows(r => r.map((row, j) => j === i ? { ...row, [k]: v } : row));
 
@@ -420,8 +553,7 @@ function SubSection({ rows, setRows, disabled, subcontracts }) {
         <table className="inline-table">
           <thead>
             <tr>
-              <th>Subcontractor</th><th>Workers</th><th>Hours</th>
-              <th>Code</th><th>Work Type</th><th>Description</th><th>Notes</th>
+              <th>Subcontractor</th><th>Work Type</th><th>Description</th><th>Notes</th>
               {!disabled && <th></th>}
             </tr>
           </thead>
@@ -429,13 +561,6 @@ function SubSection({ rows, setRows, disabled, subcontracts }) {
             {rows.map((row, i) => (
               <tr key={i}>
                 <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{row.sub_name}</td>
-                <td><input type="number" min="0" value={row.workers_count} onChange={e => set(i,'workers_count',e.target.value)} disabled={disabled} style={{width:55}} /></td>
-                <td><input type="number" min="0" step="0.5" value={row.hours_worked} onChange={e => set(i,'hours_worked',e.target.value)} disabled={disabled} style={{width:60}} /></td>
-                <td>
-                  <select value={row.activity_code || ''} onChange={e => set(i,'activity_code',e.target.value)} disabled={disabled} style={{width:110}}>
-                    {ACTIVITY_CODES.map(c => <option key={c} value={c}>{c} — {CODE_LABELS[c]}</option>)}
-                  </select>
-                </td>
                 <td>
                   <select value={row.work_type} onChange={e => set(i,'work_type',e.target.value)} disabled={disabled} style={{width:100}}>
                     <option>Contract</option><option>Daywork</option>
@@ -449,6 +574,14 @@ function SubSection({ rows, setRows, disabled, subcontracts }) {
           </tbody>
         </table>
       )}
+
+      <div className="field" style={{ marginTop: 20 }}>
+        <label className="field-label">General Notes</label>
+        <textarea rows={2} value={entry.general_notes || ''} onChange={e => setEntry(en => ({ ...en, general_notes: e.target.value }))}
+          placeholder="Site diary notes, issues, instructions received…" disabled={disabled} />
+      </div>
+
+      <button type="button" className="btn-next" onClick={onNext}>Next → Labour</button>
     </div>
   );
 }
@@ -459,6 +592,7 @@ function ActivitiesSection({ rows, setRows, disabled, suggestions, entry, setEnt
   const remove = i => setRows(r => r.filter((_, j) => j !== i));
   const set    = (i, k, v) => setRows(r => r.map((row, j) => j === i ? { ...row, [k]: v } : row));
   const setEntryField = (k, v) => setEntry(e => ({ ...e, [k]: v }));
+  const [stoppageOpen, setStoppageOpen] = useState(!!(entry.stoppage_reason || '').trim());
 
   const fileRef = useRef();
   const [compressing, setCompressing] = useState(false);
@@ -497,16 +631,6 @@ function ActivitiesSection({ rows, setRows, disabled, suggestions, entry, setEnt
             {WEATHER_OPTS.map(w => <option key={w}>{w}</option>)}
           </select>
         </Field>
-        <Field label="Work Type">
-          <div className="toggle-group">
-            {['Contract','Daywork'].map(t => (
-              <button key={t} className={`toggle-btn ${entry.work_type === t ? 'active' : ''}`}
-                onClick={() => !disabled && setEntryField('work_type', t)} disabled={disabled}>
-                {t}
-              </button>
-            ))}
-          </div>
-        </Field>
         <Field label="Site Photo" span2>
           <div className="das-photo-wrap">
             {entry.photo_url ? (
@@ -531,6 +655,21 @@ function ActivitiesSection({ rows, setRows, disabled, suggestions, entry, setEnt
             />
           </div>
         </Field>
+      </div>
+
+      <div className="das-stoppage-box">
+        <label className="das-stoppage-toggle">
+          <input type="checkbox" checked={stoppageOpen}
+            onChange={e => { setStoppageOpen(e.target.checked); if (!e.target.checked) setEntryField('stoppage_reason', ''); }}
+            disabled={disabled} />
+          ⚠ Site was stopped / delayed today
+        </label>
+        {stoppageOpen && (
+          <textarea rows={2} value={entry.stoppage_reason || ''}
+            onChange={e => setEntryField('stoppage_reason', e.target.value)}
+            placeholder="Reason — e.g. awaiting client decision, access denied, instruction pending…"
+            disabled={disabled} />
+        )}
       </div>
 
       <div className="section-toolbar">

@@ -50,6 +50,13 @@ function db(readonly = false) {
     }
   } catch {}
   try { con.exec('ALTER TABLE das_entry ADD COLUMN site_agent_code TEXT'); } catch {}
+  try { con.exec('ALTER TABLE das_entry ADD COLUMN stoppage_reason TEXT'); } catch {}
+  // subcontract_id: who this worker/plant belongs to (NULL = GMC direct labour/plant)
+  // period: 'full' (whole day, default) | 'am' | 'pm' — lets a worker/plant split into two activities in one day
+  try { con.exec("ALTER TABLE das_labour ADD COLUMN subcontract_id INTEGER REFERENCES subcontract(id) ON DELETE SET NULL"); } catch {}
+  try { con.exec("ALTER TABLE das_labour ADD COLUMN period TEXT NOT NULL DEFAULT 'full' CHECK (period IN ('full','am','pm'))"); } catch {}
+  try { con.exec("ALTER TABLE das_plant  ADD COLUMN subcontract_id INTEGER REFERENCES subcontract(id) ON DELETE SET NULL"); } catch {}
+  try { con.exec("ALTER TABLE das_plant  ADD COLUMN period TEXT NOT NULL DEFAULT 'full' CHECK (period IN ('full','am','pm'))"); } catch {}
   return con;
 }
 
@@ -200,19 +207,19 @@ router.put('/projects/:id/das/:date', (req, res) => {
     let entryId;
     if (existing) {
       con.prepare(`
-        UPDATE das_entry SET site_agent=?, site_agent_code=?, weather=?, work_type=?, visitors=?, general_notes=?, status=?, photo_url=?
+        UPDATE das_entry SET site_agent=?, site_agent_code=?, weather=?, work_type=?, visitors=?, general_notes=?, status=?, photo_url=?, stoppage_reason=?
         WHERE id=?
       `).run(hdr.site_agent||'', hdr.site_agent_code||null, hdr.weather||null, hdr.work_type||'Contract',
              hdr.visitors||null, hdr.general_notes||null, hdr.status||'draft',
-             hdr.photo_url||null, existing.id);
+             hdr.photo_url||null, hdr.stoppage_reason||null, existing.id);
       entryId = existing.id;
     } else {
       const r = con.prepare(`
-        INSERT INTO das_entry (project_id, entry_date, site_agent, site_agent_code, weather, work_type, visitors, general_notes, status, photo_url)
-        VALUES (?,?,?,?,?,?,?,?,?,?)
+        INSERT INTO das_entry (project_id, entry_date, site_agent, site_agent_code, weather, work_type, visitors, general_notes, status, photo_url, stoppage_reason)
+        VALUES (?,?,?,?,?,?,?,?,?,?,?)
       `).run(req.params.id, req.params.date, hdr.site_agent||'', hdr.site_agent_code||null, hdr.weather||null,
              hdr.work_type||'Contract', hdr.visitors||null, hdr.general_notes||null, hdr.status||'draft',
-             hdr.photo_url||null);
+             hdr.photo_url||null, hdr.stoppage_reason||null);
       entryId = r.lastInsertRowid;
     }
 
@@ -223,18 +230,20 @@ router.put('/projects/:id/das/:date', (req, res) => {
     con.prepare('DELETE FROM das_subcontractor WHERE das_entry_id=?').run(entryId);
 
     const insLabour = con.prepare(`
-      INSERT INTO das_labour (das_entry_id,worker_name,trade,hours_worked,overtime_hours,activity_code,work_type,notes,sort_order)
-      VALUES (?,?,?,?,?,?,?,?,?)
+      INSERT INTO das_labour (das_entry_id,worker_name,trade,hours_worked,overtime_hours,activity_code,work_type,notes,sort_order,subcontract_id,period)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?)
     `);
     labour.forEach((l, i) => insLabour.run(entryId, l.worker_name, l.trade, l.hours_worked||0,
-      l.overtime_hours||0, l.activity_code||null, l.work_type||'Contract', l.notes||null, i*10));
+      l.overtime_hours||0, l.activity_code||null, l.work_type||'Contract', l.notes||null, i*10,
+      l.subcontract_id||null, l.period||'full'));
 
     const insPlant = con.prepare(`
-      INSERT INTO das_plant (das_entry_id,plant_ref,description,operator,hours_worked,hours_idle,activity_code,work_type,notes,sort_order)
-      VALUES (?,?,?,?,?,?,?,?,?,?)
+      INSERT INTO das_plant (das_entry_id,plant_ref,description,operator,hours_worked,hours_idle,activity_code,work_type,notes,sort_order,subcontract_id,period)
+      VALUES (?,?,?,?,?,?,?,?,?,?,?,?)
     `);
     plant.forEach((p, i) => insPlant.run(entryId, p.plant_ref||null, p.description, p.operator||null,
-      p.hours_worked||0, p.hours_idle||0, p.activity_code||null, p.work_type||'Contract', p.notes||null, i*10));
+      p.hours_worked||0, p.hours_idle||0, p.activity_code||null, p.work_type||'Contract', p.notes||null, i*10,
+      p.subcontract_id||null, p.period||'full'));
 
     const insActivity = con.prepare(`
       INSERT INTO das_activity (das_entry_id,activity_code,service_category,boq_item_id,description,qty_today,unit,work_type,notes,sort_order)
