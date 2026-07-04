@@ -406,7 +406,8 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
     boqItems.forEach(i => { m[i.id] = { sub: 0, gmc: 0 }; });
     return m;
   });
-  const [notes,  setNotes]  = useState('');
+  const [notes,      setNotes]     = useState('');
+  const [itemNotes,  setItemNotes] = useState({});
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState(null);
 
@@ -447,6 +448,7 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
         sub_boq_item_id: i.id,
         pct_complete_sub: prev + (pcts[i.id]?.sub ?? 0),
         pct_complete_gmc: prev + (pcts[i.id]?.gmc ?? 0),
+        notes: itemNotes[i.id] || null,
       };
     });
     const res = await onSave({ week_ending: weekEnding, status: appStatus, notes, items });
@@ -526,6 +528,7 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
               <th style={{textAlign:'right', background:'#dcfce7', color:'#166534'}}>This App €</th>
               <th style={{textAlign:'right'}}>Cumul €</th>
               <th style={{textAlign:'right', color:'#dc2626'}}>Remaining €</th>
+              <th style={{textAlign:'left'}}>Comments</th>
             </tr>
           </thead>
           <tbody>
@@ -569,6 +572,14 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
                   </td>
                   <td style={{textAlign:'right', color:'#1e40af', fontVariantNumeric:'tabular-nums', fontSize:12}}>€{fmt(cumVal,2)}</td>
                   <td style={{textAlign:'right', color: remVal > 0 ? '#dc2626' : '#16a34a', fontVariantNumeric:'tabular-nums', fontSize:12}}>€{fmt(remVal,2)}</td>
+                  <td style={{padding:'2px 4px'}}>
+                    <input type="text"
+                      value={itemNotes[it.id] || ''}
+                      onChange={e => setItemNotes(n => ({ ...n, [it.id]: e.target.value }))}
+                      placeholder="Comment…"
+                      style={{ width:140, padding:'3px 6px', border:'1px solid #d1d5db',
+                        borderRadius:4, fontSize:12, fontFamily:'inherit' }} />
+                  </td>
                 </tr>
               );
             })}
@@ -586,6 +597,7 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
               <td style={{textAlign:'right', color:'#dc2626'}}>
                 €{fmt(boqItems.reduce((s,i)=>s+Math.round((1-((i.pct_certified||0)+(pcts[i.id]?.gmc||0))/100)*i.contract_value*100)/100,0),2)}
               </td>
+              <td></td>
             </tr>
           </tfoot>
         </table>

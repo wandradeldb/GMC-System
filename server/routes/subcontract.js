@@ -318,8 +318,8 @@ router.post('/projects/:pid/subcontracts/:id/applications', (req, res) => {
     const ins = con.prepare(`
       INSERT INTO sub_application_item
         (sub_application_id, sub_boq_item_id, pct_complete_sub, pct_complete_gmc, pct_prev,
-         qty_complete_sub, qty_complete_gmc, value_sub_computed, value_gmc_computed)
-      VALUES (?,?,?,?,?,?,?,?,?)
+         qty_complete_sub, qty_complete_gmc, value_sub_computed, value_gmc_computed, notes)
+      VALUES (?,?,?,?,?,?,?,?,?,?)
     `);
     let valueSub = 0, valueGmc = 0;
     for (const it of items) {
@@ -341,7 +341,7 @@ router.post('/projects/:pid/subcontracts/:id/applications', (req, res) => {
       // This period value = cumulative minus previous
       const thisSub = Math.round((pctSub - pctPrev) / 100 * boq.qty * boq.rate * 100) / 100;
       const thisGmc = Math.round((pctGmc - pctPrev) / 100 * boq.qty * boq.rate * 100) / 100;
-      ins.run(appId, it.sub_boq_item_id, pctSub, pctGmc, pctPrev, boq.qty * pctSub / 100, boq.qty * pctGmc / 100, valSub, valGmc);
+      ins.run(appId, it.sub_boq_item_id, pctSub, pctGmc, pctPrev, boq.qty * pctSub / 100, boq.qty * pctGmc / 100, valSub, valGmc, it.notes || null);
       valueSub += Math.max(0, thisSub);
       valueGmc += Math.max(0, thisGmc);
     }
