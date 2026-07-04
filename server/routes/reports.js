@@ -12,12 +12,11 @@ const fmtDate = (iso) => {
   return d.toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
-// ── GET /projects/:pid/reports/period-pdf?from=YYYY-MM-DD&to=YYYY-MM-DD ────
-router.get('/projects/:pid/reports/period-pdf', (req, res) => {
-  const { pid } = req.params;
-  const { from, to } = req.query;
+// ── computeReportData ───────────────────────────────────────────────────────
+// Shared aggregation for a project + date range: used by both the JSON
+// preview endpoint and the PDF export.
+function computeReportData(pid, from, to) {
   const con = db();
-
   const project = con.prepare('SELECT * FROM project WHERE id=?').get(pid);
   const { rows, sub_lines, subs } = buildTrackerReport(con, pid);
   con.close();
@@ -25,9 +24,7 @@ router.get('/projects/:pid/reports/period-pdf', (req, res) => {
   const weeks = rows.filter(r =>
     (!from || r.week_ending >= from) && (!to || r.week_ending <= to));
 
-  if (weeks.length === 0) {
-    return res.status(404).json({ error: 'No tracker data in the selected period', code: 'NO_DATA' });
-  }
+  if (weeks.length === 0) return null;
 
   const revTotal    = weeks.reduce((s, r) => s + (r.rev_total_week    || 0), 0);
   const costTotal   = weeks.reduce((s, r) => s + (r.cost_total_week   || 0), 0);
@@ -63,6 +60,44 @@ router.get('/projects/:pid/reports/period-pdf', (req, res) => {
   });
 
   const latest = weeks[weeks.length - 1];
+
+  return { project, weeks, revTotal, costTotal, marginTotal, marginPct, costBreakdown, revBreakdown, subTotals, latest };
+}
+
+// ── GET /projects/:pid/reports/period-data?from=YYYY-MM-DD&to=YYYY-MM-DD ───
+// JSON version of the report, used to render an on-screen preview before export.
+router.get('/projects/:pid/reports/period-data', (req, res) => {
+  const { pid } = req.params;
+  const { from, to } = req.query;
+  const data = computeReportData(pid, from, to);
+  if (!data) return res.status(404).json({ error: 'No tracker data in the selected period', code: 'NO_DATA' });
+
+  const { project, weeks, revTotal, costTotal, marginTotal, marginPct, costBreakdown, revBreakdown, subTotals, latest } = data;
+  const activeSubs = Object.entries(subTotals)
+    .filter(([, t]) => t.cost_payment || t.cost_material || t.revenue_generated)
+    .map(([name, t]) => ({ name, ...t }));
+
+  res.json({
+    project: { name: project.name, ref: project.ref, client: project.client },
+    period: { from: weeks[0].week_ending, to: latest.week_ending, weekCount: weeks.length },
+    weeks: weeks.map(r => ({
+      week_ending: r.week_ending, rev_total_week: r.rev_total_week, cost_total_week: r.cost_total_week,
+      margin_week: r.margin_week, margin_pct: r.margin_pct,
+    })),
+    summary: { revTotal, costTotal, marginTotal, marginPct },
+    costBreakdown, revBreakdown, subs: activeSubs,
+    efa: { revenue: latest.efa_revenue, cost: latest.efa_cost, margin: latest.efa_margin, marginPct: latest.efa_margin_pct, targetPct: latest.target_margin_pct },
+  });
+});
+
+// ── GET /projects/:pid/reports/period-pdf?from=YYYY-MM-DD&to=YYYY-MM-DD ────
+router.get('/projects/:pid/reports/period-pdf', (req, res) => {
+  const { pid } = req.params;
+  const { from, to } = req.query;
+
+  const data = computeReportData(pid, from, to);
+  if (!data) return res.status(404).json({ error: 'No tracker data in the selected period', code: 'NO_DATA' });
+  const { project, weeks, revTotal, costTotal, marginTotal, marginPct, costBreakdown, revBreakdown, subTotals, latest } = data;
 
   const filename = `GMC-Report-${project.ref.replace(/[^\w-]/g, '_')}-${weeks[0].week_ending}_${latest.week_ending}.pdf`;
   res.setHeader('Content-Type', 'application/pdf');

@@ -343,6 +343,34 @@ body {
 .state-box .icon { font-size: 40px; margin-bottom: 12px; }
 .state-box p { font-size: 14px; }
 
+/* ── Period Report Preview ── */
+.report-preview-overlay {
+  position: fixed; inset: 0; background: rgba(17,24,39,0.55);
+  z-index: 2000; display: flex; align-items: flex-start; justify-content: center;
+  padding: 32px 16px; overflow-y: auto;
+}
+.report-preview-panel {
+  background: #fff; border-radius: 10px; width: 100%; max-width: 820px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.3); overflow: hidden;
+}
+.report-preview-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 14px 20px; border-bottom: 1px solid #e5e7eb; position: sticky; top: 0; background: #fff;
+}
+.report-preview-body { padding: 24px 32px 40px; max-height: 80vh; overflow-y: auto; }
+.report-title { font-size: 20px; font-weight: 700; color: #1a1a2e; margin: 0 0 4px; }
+.report-subtitle { font-size: 12px; color: #374151; margin: 0 0 2px; }
+.report-section-title { font-size: 14px; color: #1a1a2e; margin: 20px 0 8px; text-decoration: underline; }
+.report-summary-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 6px 24px; font-size: 13px; }
+.report-summary-grid > div { display: flex; justify-content: space-between; gap: 8px; }
+.report-summary-label { color: #6b7280; }
+.report-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.report-table th { background: #1e40af; color: #fff; text-align: left; padding: 6px 8px; font-weight: 600; }
+.report-table td { padding: 5px 8px; border-bottom: 1px solid #f3f4f6; }
+.report-row-alt { background: #f8faff; }
+.report-list { list-style: none; padding: 0; margin: 0; font-size: 13px; }
+.report-list li { padding: 2px 0; }
+
 /* ═══════════════════════════════════════════════════════════════
    DAS — Daily Allocation Sheet
    ═══════════════════════════════════════════════════════════════ */
