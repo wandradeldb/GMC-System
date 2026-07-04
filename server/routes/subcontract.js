@@ -306,12 +306,12 @@ router.post('/projects/:pid/subcontracts/:id/applications', (req, res) => {
     const sc = con.prepare('SELECT * FROM subcontract WHERE id=? AND project_id=?').get(req.params.id, req.params.pid);
     if (!sc) throw notFound('Subcontract not found');
 
-    const { week_ending, status = 'draft', items = [] } = req.body;
+    const { week_ending, status = 'draft', notes, items = [] } = req.body;
     if (!week_ending) throw badReq('week_ending required');
 
     const nextNum = (con.prepare('SELECT COALESCE(MAX(application_number),0)+1 AS n FROM sub_application WHERE subcontract_id=?').get(sc.id).n);
-    const r = con.prepare('INSERT INTO sub_application (subcontract_id,application_number,week_ending,status) VALUES (?,?,?,?)')
-                 .run(sc.id, nextNum, week_ending, STATUS_FLOW.includes(status) ? status : 'draft');
+    const r = con.prepare('INSERT INTO sub_application (subcontract_id,application_number,week_ending,status,notes) VALUES (?,?,?,?,?)')
+                 .run(sc.id, nextNum, week_ending, STATUS_FLOW.includes(status) ? status : 'draft', notes || null);
     const appId = r.lastInsertRowid;
 
     // For each item, compute pct_prev (last approved pct before this app)

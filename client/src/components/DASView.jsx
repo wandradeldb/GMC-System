@@ -1,6 +1,7 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback } from 'react';
 import DASForm from './DASForm.jsx';
+import { useZoom } from '../zoomContext.js';
 
 function toISODate(d) {
   return d.toISOString().slice(0, 10);
@@ -81,6 +82,7 @@ export default function DASView({ projectId, readOnly }) {
 }
 
 function DASList({ entries, onSelect }) {
+  const zoom = useZoom();
   const fmt = d => new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { weekday:'short', day:'numeric', month:'short', year:'numeric' });
   const statusColor = s => s === 'submitted' ? '#166534' : '#92400e';
 
@@ -89,7 +91,7 @@ function DASList({ entries, onSelect }) {
   );
 
   return (
-    <table className="boq-table" style={{ marginTop: 12 }}>
+    <table className="boq-table" style={{ marginTop: 12, zoom: `${zoom}%` }}>
       <thead>
         <tr>
           <th>Date</th><th>Site Agent</th><th>Weather</th>

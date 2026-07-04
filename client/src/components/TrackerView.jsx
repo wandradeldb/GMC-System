@@ -2,6 +2,7 @@ import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback, useRef, Fragment } from 'react';
 import ProgressSheet from './ProgressSheet.jsx';
 import PeriodReportPreview from './PeriodReportPreview.jsx';
+import { useZoom } from '../zoomContext.js';
 
 // ── helpers ─────────────────────────────────────────────────────────────────
 const fmt = (n, d = 0) => {
@@ -127,6 +128,7 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
   const [reportTo,    setReportTo]    = useState('');
   const [showReport,  setShowReport]  = useState(false);
   const tableRef = useRef(null);
+  const zoom = useZoom();
 
   const load = useCallback(() => {
     apiFetch(`/api/v1/projects/${projectId}/tracker`)
@@ -262,7 +264,7 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
         </div>
       ) : (
         /* ── Tracker Matrix ───────────────────────────────────────── */
-        <div className="tracker-scroll-wrap" ref={tableRef}>
+        <div className="tracker-scroll-wrap" ref={tableRef} style={{ zoom: `${zoom}%` }}>
           <table className="tracker-table">
             <thead>
               <tr>

@@ -1,5 +1,6 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback } from 'react';
+import { useZoom } from '../zoomContext.js';
 
 const fmt  = (n, d = 0) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtD      = d => { if (!d) return '—'; const [y,m,dy] = String(d).split('-'); return `${dy}/${m}/${y}`; };
@@ -11,6 +12,7 @@ const STATUS_COLOR = { draft: '#6b7280', submitted: '#1e40af', certified: '#1665
 const SCH_LABEL = { '1': 'Schedule 1 — Prelims Fixed', '1A': 'Schedule 1A — Prelims Time', '2': 'Schedule 2 — Civil & MEICA' };
 
 export default function PayAppView({ projectId, readOnly }) {
+  const zoom = useZoom();
   const [data,       setData]      = useState(null);
   const [showNew,    setShowNew]   = useState(false);
   const [detail,     setDetail]    = useState(null); // single payapp detail
@@ -95,7 +97,7 @@ export default function PayAppView({ projectId, readOnly }) {
       {payapps.length === 0 ? (
         <div className="state-box"><div className="icon">🧾</div><p>No applications yet. Create the first PayApp.</p></div>
       ) : (
-        <div style={{ padding: '0 12px 32px', overflowX: 'auto', WebkitOverflowScrolling: 'touch' }}>
+        <div style={{ padding: '0 12px 32px', overflowX: 'auto', WebkitOverflowScrolling: 'touch', zoom: `${zoom}%` }}>
           <table className="boq-table" style={{ minWidth: 480 }}>
             <thead>
               <tr>
@@ -317,7 +319,7 @@ function NewPayAppForm({ projectId, onBack }) {
                 });
 
                 return (
-                <div style={{ overflow:'auto', maxHeight:'calc(100vh - 295px)', WebkitOverflowScrolling:'touch' }}>
+                <div style={{ overflow:'auto', maxHeight:'calc(100vh - 295px)', WebkitOverflowScrolling:'touch', zoom: `${zoom}%` }}>
                   <table className="boq-table" style={{ minWidth: 680 + priorApps.length * 70 }}>
                     <thead>
                       <tr>

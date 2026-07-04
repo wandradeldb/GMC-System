@@ -1,5 +1,6 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback } from 'react';
+import { useZoom } from '../zoomContext.js';
 
 const fmt  = (n, d = 2) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtE = (n, d = 0) => `€${fmt(n, d)}`;
@@ -58,6 +59,7 @@ const ROW_ODD  = '#f0f6ff';
 const ROW_EVEN = '#ffd8bb';
 
 export default function RevenueGenerationView({ projectId }) {
+  const zoom = useZoom();
   const [mode, setMode]         = useState('revenue');
   const [weekEnding, setWeek]   = useState(todayFriday());
   const [activities, setActs]   = useState([]);
@@ -258,7 +260,7 @@ export default function RevenueGenerationView({ projectId }) {
       )}
 
       {/* ── Tabela ─── */}
-      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 235px)' }}>
+      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 235px)', zoom: `${zoom}%` }}>
         <table style={{
           borderCollapse: 'collapse',
           minWidth: mode === 'revenue' ? FIXED_W + ALL_WEEKS.length * CW.we : 700,

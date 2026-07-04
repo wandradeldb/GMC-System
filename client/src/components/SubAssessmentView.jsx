@@ -1,5 +1,6 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback } from 'react';
+import { useZoom } from '../zoomContext.js';
 
 const fmt  = (n, d = 2) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtE = (n, d = 0) => n == null ? '—' : `€${fmt(n, d)}`;
@@ -169,6 +170,7 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
 
 // ── Application list ─────────────────────────────────────────────────────────
 function ListView({ apps, boqItems, onNew, onDetail, onCertificate, onStatusChange, onDelete, onImportExcel, importing, importResult }) {
+  const zoom = useZoom();
   const [showImport, setShowImport] = useState(false);
   const [importFile, setImportFile] = useState(null);
   const [importWE,   setImportWE]   = useState('');   // semana escolhida (obrigatória)
@@ -257,7 +259,7 @@ function ListView({ apps, boqItems, onNew, onDetail, onCertificate, onStatusChan
           <p>No applications yet. Use "Import Claim" or "Manual Assessment" to start.</p>
         </div>
       ) : (
-        <div style={{ overflowX:'auto' }}>
+        <div style={{ overflowX:'auto', zoom: `${zoom}%` }}>
           <table className="boq-table">
             <thead>
               <tr>
@@ -322,7 +324,7 @@ function ListView({ apps, boqItems, onNew, onDetail, onCertificate, onStatusChan
 
       {/* BOQ Summary */}
       <h3 style={{ marginTop:28, marginBottom:12, fontSize:16, color:'#1a1a2e' }}>BOQ — Contracted Scope</h3>
-      <div style={{ overflowX:'auto' }}>
+      <div style={{ overflowX:'auto', zoom: `${zoom}%` }}>
         <table className="boq-table">
           <thead>
             <tr>
@@ -393,6 +395,7 @@ function fridayRange(ref, before = 4, after = 2) {
 
 // ── Manual Assessment Form ────────────────────────────────────────────────────
 function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, onCancel }) {
+  const zoom = useZoom();
   const nextAppNum = (apps[0]?.application_number || 0) + 1;
   const defaultWE = todayFriday();
   const [weekEnding, setWeekEnding] = useState(defaultWE);
@@ -403,6 +406,7 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
     boqItems.forEach(i => { m[i.id] = { sub: 0, gmc: 0 }; });
     return m;
   });
+  const [notes,  setNotes]  = useState('');
   const [saving, setSaving] = useState(false);
   const [error,  setError]  = useState(null);
 
@@ -422,10 +426,16 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
   const itemCalc = (it) => {
     const prev  = it.pct_certified || 0;
     const gmc   = pcts[it.id]?.gmc ?? 0;            // % deste período
-    return { prev, gmc, value: Math.round(gmc / 100 * it.contract_value * 100) / 100 };
+    const sub   = pcts[it.id]?.sub ?? 0;            // % deste período (claim do sub)
+    return {
+      prev, gmc, sub,
+      value:    Math.round(gmc / 100 * it.contract_value * 100) / 100,
+      subValue: Math.round(sub / 100 * it.contract_value * 100) / 100,
+    };
   };
 
   const totalGmc = boqItems.reduce((s,i) => s + itemCalc(i).value, 0);
+  const totalSub = boqItems.reduce((s,i) => s + itemCalc(i).subValue, 0);
   const cumGmc   = (apps.find(a=>a.status!=='draft')?.cumulative_gmc || 0) + totalGmc;
 
   const handleSave = async () => {
@@ -439,7 +449,7 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
         pct_complete_gmc: prev + (pcts[i.id]?.gmc ?? 0),
       };
     });
-    const res = await onSave({ week_ending: weekEnding, status: appStatus, items });
+    const res = await onSave({ week_ending: weekEnding, status: appStatus, notes, items });
     setSaving(false);
     if (!res.ok) setError(res.error || 'Error saving');
   };
@@ -472,7 +482,11 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
           </label>
           <div style={{ marginLeft:'auto', display:'flex', gap:14, alignItems:'center' }}>
             <div style={{ textAlign:'right' }}>
-              <div style={{ fontSize:10, color:'#9ca3af' }}>THIS APP</div>
+              <div style={{ fontSize:10, color:'#9ca3af' }}>SUB CLAIMED</div>
+              <div style={{ fontSize:16, fontWeight:700, color:'#92400e' }}>{fmtE(totalSub,2)}</div>
+            </div>
+            <div style={{ textAlign:'right' }}>
+              <div style={{ fontSize:10, color:'#9ca3af' }}>GMC APPROVED</div>
               <div style={{ fontSize:16, fontWeight:700, color:'#1e40af' }}>{fmtE(totalGmc,2)}</div>
             </div>
             <div style={{ textAlign:'right' }}>
@@ -488,14 +502,25 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
         {error && <div style={{ background:'#fee2e2', color:'#991b1b', padding:'6px 12px', borderRadius:6, marginTop:8, fontSize:13 }}>{error}</div>}
       </div>
 
-      <div style={{ overflowX:'auto' }}>
-        <table className="boq-table" style={{ minWidth:900 }}>
+      <div style={{ marginBottom:14 }}>
+        <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:4 }}>
+          Notes / Comments
+        </label>
+        <textarea value={notes} onChange={e => setNotes(e.target.value)}
+          placeholder="Optional notes for this application…" rows={2}
+          style={{ width:'100%', padding:'8px 10px', borderRadius:6, border:'1px solid #d1d5db',
+            fontSize:13, fontFamily:'inherit', resize:'vertical', boxSizing:'border-box' }} />
+      </div>
+
+      <div style={{ overflowX:'auto', zoom: `${zoom}%` }}>
+        <table className="boq-table" style={{ minWidth:1000 }}>
           <thead>
             <tr>
               <th>Ref</th>
               <th>Description</th>
               <th style={{textAlign:'right'}}>Contract €</th>
               <th style={{textAlign:'right', color:'#6b7280'}}>Accum %</th>
+              <th style={{textAlign:'right', background:'#fffbeb', color:'#92400e'}}>Sub €</th>
               <th style={{textAlign:'center', background:'#fef3c7', color:'#92400e'}}>Sub %</th>
               <th style={{textAlign:'center', background:'#dcfce7', color:'#166534'}}>GMC %</th>
               <th style={{textAlign:'right', background:'#dcfce7', color:'#166534'}}>This App €</th>
@@ -515,6 +540,10 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
                   <td style={{maxWidth:240, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:12}} title={it.description}>{it.description}</td>
                   <td style={{textAlign:'right', fontVariantNumeric:'tabular-nums', fontSize:12}}>€{fmt(it.contract_value,2)}</td>
                   <td style={{textAlign:'right', color:'#9ca3af', fontSize:12}}>{fmtP(c.prev)}</td>
+                  {/* Sub € (this period) — value the sub is claiming, for comparison against This App € (GMC) */}
+                  <td style={{textAlign:'right', color: c.subValue > 0 ? '#92400e' : '#9ca3af', fontVariantNumeric:'tabular-nums', fontSize:12, background:'#fffbeb'}}>
+                    {c.subValue > 0 ? fmtE(c.subValue,2) : '—'}
+                  </td>
                   {/* Sub % (this period) */}
                   <td style={{background:'#fffbeb', padding:'2px 4px'}}>
                     <input type="number" min={0} max={Math.max(0, 100 - (c.prev||0))} step={1}
@@ -549,6 +578,7 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
               <td colSpan={2} style={{textAlign:'right', paddingRight:8}}>TOTAL</td>
               <td style={{textAlign:'right'}}>€{fmt(boqItems.reduce((s,i)=>s+(i.contract_value||0),0),2)}</td>
               <td></td>
+              <td style={{textAlign:'right', color:'#92400e'}}>€{fmt(totalSub,2)}</td>
               <td></td>
               <td></td>
               <td style={{textAlign:'right', color:'#166534'}}>€{fmt(totalGmc,2)}</td>
@@ -567,6 +597,7 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
 
 // ── Application Detail ────────────────────────────────────────────────────────
 function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate, onBack }) {
+  const zoom = useZoom();
   const app = detail.app || detail.application;
   const items = detail.items || [];
   const ss = STATUS_STYLE[app.status] || STATUS_STYLE.draft;
@@ -690,6 +721,13 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
         {error && <div style={{ background:'#fee2e2', color:'#991b1b', padding:'6px 12px', borderRadius:6, marginTop:8, fontSize:13 }}>{error}</div>}
       </div>
 
+      {app.notes && (
+        <div style={{ background:'#f8fafc', border:'1px solid #e5e7eb', borderRadius:8, padding:'10px 14px', marginBottom:16, fontSize:13, color:'#374151' }}>
+          <div style={{ fontSize:11, fontWeight:600, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4 }}>Notes</div>
+          {app.notes}
+        </div>
+      )}
+
       {/* Painel de corte do QS (só quando editável) */}
       {editable && (
         <div style={{ background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:8, padding:14, marginBottom:16 }}>
@@ -740,7 +778,7 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
         </div>
       )}
 
-      <div style={{ overflowX:'auto' }}>
+      <div style={{ overflowX:'auto', zoom: `${zoom}%` }}>
         <table className="boq-table" style={{ minWidth:860 }}>
           <thead>
             <tr>

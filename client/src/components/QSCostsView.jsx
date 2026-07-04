@@ -1,5 +1,6 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback, useRef } from 'react';
+import { useZoom } from '../zoomContext.js';
 
 const fmt = n => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 const fmtDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { day:'numeric', month:'short', year:'numeric' }) : '—';
@@ -27,6 +28,7 @@ function CatBadge({ category }) {
 }
 
 export default function QSCostsView({ projectId, readOnly }) {
+  const zoom = useZoom();
   const [data,       setData]       = useState(null);
   const [search,     setSearch]     = useState('');
   const [gang,       setGang]       = useState('');
@@ -248,7 +250,7 @@ export default function QSCostsView({ projectId, readOnly }) {
               : 'No transactions match the current filters.'}</p>
           </div>
         ) : (
-          <div style={{ overflowX:'auto' }}>
+          <div style={{ overflowX:'auto', zoom: `${zoom}%` }}>
             <table className="boq-table" style={{ minWidth:900 }}>
               <thead>
                 <tr>
@@ -319,6 +321,7 @@ export default function QSCostsView({ projectId, readOnly }) {
 
 // ── Weekly summary sub-view ───────────────────────────────────────────────────
 function WeekSummaryView({ projectId }) {
+  const zoom = useZoom();
   const [rows, setRows] = useState([]);
 
   useEffect(() => {
@@ -338,7 +341,7 @@ function WeekSummaryView({ projectId }) {
   if (!weeks.length) return <div className="state-box"><div className="icon">📊</div><p>No weekly data yet.</p></div>;
 
   return (
-    <div style={{ overflowX:'auto', marginTop:8 }}>
+    <div style={{ overflowX:'auto', marginTop:8, zoom: `${zoom}%` }}>
       <table className="boq-table" style={{ minWidth:600 }}>
         <thead>
           <tr>

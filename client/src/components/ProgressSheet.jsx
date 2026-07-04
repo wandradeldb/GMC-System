@@ -1,5 +1,6 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect } from 'react';
+import { useZoom } from '../zoomContext.js';
 
 const fmt = (n, d = 2) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtWE = we => we ? new Date(we + 'T12:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
@@ -7,6 +8,7 @@ const fmtWE = we => we ? new Date(we + 'T12:00:00').toLocaleDateString('en-IE', 
 const SCH_LABEL = { '1': 'Sch 1 — Prelims Fixed', '1A': 'Sch 1A — Prelims Time', '2': 'Sch 2 — WW Pump Stations' };
 
 export default function ProgressSheet({ projectId, weekEnding, onBack }) {
+  const zoom = useZoom();
   const [sheet,    setSheet]    = useState(null);
   const [items,    setItems]    = useState([]);
   const [costs,    setCosts]    = useState({ cost_materials: 0, cost_plant: 0, ohp_allowance: 0 });
@@ -144,7 +146,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
                     <span className="schedule-title">{SCH_LABEL[sch] || `Schedule ${sch}`}</span>
                     <span className="schedule-total" style={{ fontSize: 13 }}>WE Revenue: €{fmt(schRev, 0)}</span>
                   </div>
-                  <table className="boq-table">
+                  <table className="boq-table" style={{ zoom: `${zoom}%` }}>
                     <thead>
                       <tr>
                         <th className="col-ref">Ref</th>

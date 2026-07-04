@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import BOQView from './components/BOQView.jsx';
 import DASView from './components/DASView.jsx';
 import SubcontractView from './components/SubcontractView.jsx';
@@ -13,6 +13,7 @@ import ProjectSettingsView from './components/ProjectSettingsView.jsx';
 import UsersView from './components/UsersView.jsx';
 import ProjectsView from './components/ProjectsView.jsx';
 import { apiFetch } from './apiFetch.js';
+import { ZoomContext } from './zoomContext.js';
 
 const NAV_GROUPS = [
   {
@@ -59,6 +60,12 @@ export default function App() {
   const [subDeepLink, setSubDeepLink] = useState(null);
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [zoom, setZoom] = useState(() => Number(localStorage.getItem('gmc_zoom')) || 100);
+
+  useEffect(() => { localStorage.setItem('gmc_zoom', String(zoom)); }, [zoom]);
+  const zoomOut   = () => setZoom(z => Math.max(70, z - 10));
+  const zoomIn    = () => setZoom(z => Math.min(150, z + 10));
+  const zoomReset = () => setZoom(100);
 
   function handleLogin(tok, userRole, user) {
     setToken(tok);
@@ -249,8 +256,15 @@ export default function App() {
       <div className="app-body">
         {slimTopbar}
         <main className="app-content">
-          {content}
+          <ZoomContext.Provider value={zoom}>
+            {content}
+          </ZoomContext.Provider>
         </main>
+      </div>
+      <div className="zoom-control">
+        <button onClick={zoomOut} disabled={zoom <= 70} aria-label="Zoom out">−</button>
+        <span className="zoom-level" onClick={zoomReset} title="Reset zoom">{zoom}%</span>
+        <button onClick={zoomIn} disabled={zoom >= 150} aria-label="Zoom in">+</button>
       </div>
     </div>
   );

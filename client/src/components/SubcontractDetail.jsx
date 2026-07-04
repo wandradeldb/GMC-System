@@ -1,6 +1,7 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import PaymentCalendar from './PaymentCalendar.jsx';
+import { useZoom } from '../zoomContext.js';
 
 const STATUS_STEPS = ['draft','assessed','approved','invoiced','paid'];
 const STATUS_COLOR = { draft:'#92400e', assessed:'#1e40af', approved:'#166534', invoiced:'#7c3aed', paid:'#065f46' };
@@ -125,6 +126,7 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
 
 /* ── Applications Tab ───────────────────────────────────────────────────── */
 function ApplicationsTab({ applications, onOpen, retention_pct }) {
+  const zoom = useZoom();
   const fmtPeriod = p => {
     if (!p) return '—';
     const [y, m] = p.split('-');
@@ -140,7 +142,7 @@ function ApplicationsTab({ applications, onOpen, retention_pct }) {
       {applications.length === 0 ? (
         <div className="empty-hint">No assessments yet.</div>
       ) : (
-        <table className="boq-table">
+        <table className="boq-table" style={{ zoom: `${zoom}%` }}>
           <thead>
             <tr>
               <th>No.</th><th>Period</th>
@@ -184,6 +186,7 @@ function ApplicationsTab({ applications, onOpen, retention_pct }) {
 
 /* ── BOQ Tab ────────────────────────────────────────────────────────────── */
 function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh }) {
+  const zoom = useZoom();
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState('');
 
@@ -235,7 +238,7 @@ function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh })
       {boqItems.length === 0 ? (
         <div className="empty-hint">No sub BOQ items defined.</div>
       ) : (
-        <div style={{ overflowX:'auto' }}>
+        <div style={{ overflowX:'auto', zoom: `${zoom}%` }}>
           <table className="boq-table">
             <thead>
               <tr>
@@ -292,6 +295,7 @@ function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh })
 
 /* ── App Detail View (read-only) ─────────────────────────────────────────── */
 function AppDetailView({ detail, sc, onBack }) {
+  const zoom = useZoom();
   const app   = detail.application || detail.app;
   const items = detail.items || [];
   const ss    = STATUS_BG[app.status] ? { bg: STATUS_BG[app.status], color: STATUS_COLOR[app.status] } : { bg:'#f3f4f6', color:'#6b7280' };
@@ -332,7 +336,7 @@ function AppDetailView({ detail, sc, onBack }) {
       </div>
 
       {/* Item table */}
-      <div style={{ overflowX:'auto' }}>
+      <div style={{ overflowX:'auto', zoom: `${zoom}%` }}>
         <table className="boq-table" style={{ minWidth:900 }}>
           <thead>
             <tr>
@@ -389,6 +393,7 @@ function AppDetailView({ detail, sc, onBack }) {
 
 /* ── Compensation Events Tab ─────────────────────────────────────────────── */
 function CETab({ ces, subcontractId, projectId, onRefresh }) {
+  const zoom = useZoom();
   const [showForm, setShowForm] = useState(false);
   const [form, setForm] = useState({ ce_ref:'', description:'', sub_value:'', gmc_value:'', status:'submitted', notes:'' });
   const [saving, setSaving] = useState(false);
@@ -443,7 +448,7 @@ function CETab({ ces, subcontractId, projectId, onRefresh }) {
       {ces.length === 0 && !showForm ? (
         <div className="empty-hint">No compensation events raised.</div>
       ) : (
-        <table className="boq-table" style={{ marginTop: 12 }}>
+        <table className="boq-table" style={{ marginTop: 12, zoom: `${zoom}%` }}>
           <thead>
             <tr>
               <th>Ref</th><th>Description</th>
