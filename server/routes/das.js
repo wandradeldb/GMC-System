@@ -14,6 +14,22 @@ const STATUSES       = ['draft','submitted'];
 function db(readonly = false) {
   const con = new DatabaseSync(DB_PATH, { open: true });
   con.exec('PRAGMA foreign_keys = ON');
+  // Self-healing migration (no automated runner in this app — see db/migrations/013_das_subcontractor.sql)
+  try {
+    con.exec(`CREATE TABLE IF NOT EXISTS das_subcontractor (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      das_entry_id    INTEGER NOT NULL REFERENCES das_entry(id) ON DELETE CASCADE,
+      subcontract_id  INTEGER REFERENCES subcontract(id) ON DELETE SET NULL,
+      sub_name        TEXT    NOT NULL,
+      workers_count   INTEGER NOT NULL DEFAULT 0,
+      hours_worked    REAL    NOT NULL DEFAULT 0,
+      activity_code   TEXT    CHECK (activity_code IN ('A','B','C','D','E','F','G')),
+      work_type       TEXT    NOT NULL DEFAULT 'Contract' CHECK (work_type IN ('Contract', 'Daywork')),
+      description     TEXT,
+      notes           TEXT,
+      sort_order      INTEGER NOT NULL DEFAULT 0
+    )`);
+  } catch {}
   return con;
 }
 
@@ -131,12 +147,13 @@ router.get('/projects/:id/das/:date', (req, res) => {
     entry = con.prepare('SELECT * FROM das_entry WHERE id=?').get(r.lastInsertRowid);
   }
 
-  const labour     = con.prepare('SELECT * FROM das_labour   WHERE das_entry_id=? ORDER BY sort_order').all(entry.id);
-  const plant      = con.prepare('SELECT * FROM das_plant    WHERE das_entry_id=? ORDER BY sort_order').all(entry.id);
-  const activities = con.prepare('SELECT * FROM das_activity WHERE das_entry_id=? ORDER BY activity_code, sort_order').all(entry.id);
+  const labour        = con.prepare('SELECT * FROM das_labour        WHERE das_entry_id=? ORDER BY sort_order').all(entry.id);
+  const plant         = con.prepare('SELECT * FROM das_plant         WHERE das_entry_id=? ORDER BY sort_order').all(entry.id);
+  const activities    = con.prepare('SELECT * FROM das_activity      WHERE das_entry_id=? ORDER BY activity_code, sort_order').all(entry.id);
+  const subcontractors = con.prepare('SELECT * FROM das_subcontractor WHERE das_entry_id=? ORDER BY sort_order').all(entry.id);
 
   con.close();
-  res.json({ entry, labour, plant, activities });
+  res.json({ entry, labour, plant, activities, subcontractors });
 });
 
 // PUT /projects/:id/das/:date  â€“ upsert full DAS (header + children)
@@ -145,7 +162,7 @@ router.put('/projects/:id/das/:date', (req, res) => {
   try {
     assertProject(con, req.params.id);
 
-    const { entry: hdr = {}, labour = [], plant = [], activities = [] } = req.body;
+    const { entry: hdr = {}, labour = [], plant = [], activities = [], subcontractors = [] } = req.body;
 
     // Upsert header
     con.exec('BEGIN');
@@ -172,9 +189,10 @@ router.put('/projects/:id/das/:date', (req, res) => {
     }
 
     // Replace children
-    con.prepare('DELETE FROM das_labour   WHERE das_entry_id=?').run(entryId);
-    con.prepare('DELETE FROM das_plant    WHERE das_entry_id=?').run(entryId);
-    con.prepare('DELETE FROM das_activity WHERE das_entry_id=?').run(entryId);
+    con.prepare('DELETE FROM das_labour        WHERE das_entry_id=?').run(entryId);
+    con.prepare('DELETE FROM das_plant         WHERE das_entry_id=?').run(entryId);
+    con.prepare('DELETE FROM das_activity      WHERE das_entry_id=?').run(entryId);
+    con.prepare('DELETE FROM das_subcontractor WHERE das_entry_id=?').run(entryId);
 
     const insLabour = con.prepare(`
       INSERT INTO das_labour (das_entry_id,worker_name,trade,hours_worked,overtime_hours,activity_code,work_type,notes,sort_order)
@@ -197,6 +215,14 @@ router.put('/projects/:id/das/:date', (req, res) => {
     activities.forEach((a, i) => insActivity.run(entryId, a.activity_code, a.service_category,
       a.boq_item_id||null, a.description, a.qty_today||null, a.unit||null,
       a.work_type||'Contract', a.notes||null, i*10));
+
+    const insSub = con.prepare(`
+      INSERT INTO das_subcontractor (das_entry_id,subcontract_id,sub_name,workers_count,hours_worked,activity_code,work_type,description,notes,sort_order)
+      VALUES (?,?,?,?,?,?,?,?,?,?)
+    `);
+    subcontractors.forEach((s, i) => insSub.run(entryId, s.subcontract_id||null, s.sub_name,
+      s.workers_count||0, s.hours_worked||0, s.activity_code||null, s.work_type||'Contract',
+      s.description||null, s.notes||null, i*10));
 
     if (hdr.status === 'submitted') {
       con.prepare("UPDATE das_entry SET submitted_at=strftime('%Y-%m-%dT%H:%M:%SZ','now') WHERE id=?").run(entryId);

@@ -20,15 +20,22 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
   const [labour,   setLabour]   = useState([]);
   const [plant,    setPlant]    = useState([]);
   const [activities, setActivities] = useState([]);
+  const [subs,     setSubs]     = useState([]); // subcontractors on site today
   const [activeTab, setActiveTab]   = useState('header');
   // Histórico do projeto (nomes, máquinas, atividades já digitados antes) — alimenta os autocompletes
   const [suggestions, setSuggestions] = useState({ workers:[], plant:[], plantDescriptions:[], operators:[], activities:[], units:[], siteAgents:[] });
+  // Subcontratados do projeto (pra clicar e escolher — não é pra digitar)
+  const [subcontracts, setSubcontracts] = useState([]);
 
   const loadSuggestions = useCallback(() => {
     apiFetch(`/api/v1/projects/${projectId}/das/suggestions`).then(r => r.json()).then(setSuggestions);
   }, [projectId]);
 
   useEffect(() => { loadSuggestions(); }, [loadSuggestions]);
+
+  useEffect(() => {
+    apiFetch(`/api/v1/projects/${projectId}/subcontracts`).then(r => r.json()).then(setSubcontracts);
+  }, [projectId]);
 
   useEffect(() => {
     setLoading(true);
@@ -40,13 +47,14 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
         setLabour(d.labour);
         setPlant(d.plant);
         setActivities(d.activities);
+        setSubs(d.subcontractors || []);
         setLoading(false);
       });
   }, [projectId, date]);
 
   const save = async (status) => {
     setSaving(true);
-    const body = { entry: { ...entry, status: status || entry.status }, labour, plant, activities };
+    const body = { entry: { ...entry, status: status || entry.status }, labour, plant, activities, subcontractors: subs };
     await apiFetch(`/api/v1/projects/${projectId}/das/${date}`, {
       method: 'PUT',
       headers: { 'Content-Type': 'application/json' },
@@ -81,6 +89,7 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
           <div className="das-summary-pills">
             <span className="pill">{labour.length} Workers</span>
             <span className="pill">{plant.length} Plant</span>
+            <span className="pill">{subs.length} Subs</span>
             <span className="pill">{activities.length} Activities</span>
           </div>
           <div style={{display:'flex', gap:8, marginTop:8}}>
@@ -103,6 +112,7 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
           header: !!(entry.site_agent || '').trim(),
           labour: labour.length > 0,
           plant: plant.length > 0,
+          sub: subs.length > 0,
           activities: activities.length > 0,
         }}
       />
@@ -116,6 +126,9 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
         )}
         {activeTab === 'plant' && (
           <PlantSection rows={plant} setRows={setPlant} disabled={isSubmitted} suggestions={suggestions} />
+        )}
+        {activeTab === 'sub' && (
+          <SubSection rows={subs} setRows={setSubs} disabled={isSubmitted} subcontracts={subcontracts} />
         )}
         {activeTab === 'activities' && (
           <ActivitiesSection rows={activities} setRows={setActivities} disabled={isSubmitted} suggestions={suggestions} />
@@ -134,6 +147,7 @@ const DAS_STEPS = [
   { key:'header',     label:'Header' },
   { key:'labour',     label:'Labour' },
   { key:'plant',      label:'Plant' },
+  { key:'sub',        label:'Sub' },
   { key:'activities', label:'Activities' },
 ];
 
@@ -394,6 +408,84 @@ function PlantSection({ rows, setRows, disabled, suggestions }) {
       <datalist id="dl-operators">
         {suggestions.operators.map(o => <option key={o} value={o} />)}
       </datalist>
+    </div>
+  );
+}
+
+/* ── Subcontractors Section — tap a sub's name first, then fill their row ─── */
+const emptySubEntry = (sc) => ({
+  subcontract_id: sc.id, sub_name: sc.subcontractor_name,
+  workers_count: 1, hours_worked: 8, activity_code: 'A', work_type: 'Contract', description: '', notes: '',
+});
+
+function SubSection({ rows, setRows, disabled, subcontracts }) {
+  const remove = i => setRows(r => r.filter((_, j) => j !== i));
+  const set    = (i, k, v) => setRows(r => r.map((row, j) => j === i ? { ...row, [k]: v } : row));
+
+  const addSub = (sc) => {
+    if (rows.some(r => r.subcontract_id === sc.id)) return; // already on today's list
+    setRows(r => [...r, emptySubEntry(sc)]);
+  };
+
+  return (
+    <div>
+      <div className="section-toolbar">
+        <span className="section-stat">{rows.length} subcontractor{rows.length === 1 ? '' : 's'} on site</span>
+      </div>
+
+      {!disabled && (
+        subcontracts.length === 0 ? (
+          <div className="empty-hint">No subcontracts set up on this project yet.</div>
+        ) : (
+          <div className="das-sub-chips">
+            {subcontracts.map(sc => {
+              const added = rows.some(r => r.subcontract_id === sc.id);
+              return (
+                <button key={sc.id} type="button" className={`das-sub-chip ${added ? 'added' : ''}`}
+                  onClick={() => addSub(sc)} disabled={added}>
+                  {added ? '✓ ' : '+ '}{sc.subcontractor_name}
+                </button>
+              );
+            })}
+          </div>
+        )
+      )}
+
+      {rows.length === 0 ? (
+        <div className="empty-hint">Tap a subcontractor above to add them to today's diary.</div>
+      ) : (
+        <table className="inline-table">
+          <thead>
+            <tr>
+              <th>Subcontractor</th><th>Workers</th><th>Hours</th>
+              <th>Code</th><th>Work Type</th><th>Description</th><th>Notes</th>
+              {!disabled && <th></th>}
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map((row, i) => (
+              <tr key={i}>
+                <td style={{ fontWeight: 600, whiteSpace: 'nowrap' }}>{row.sub_name}</td>
+                <td><input type="number" min="0" value={row.workers_count} onChange={e => set(i,'workers_count',e.target.value)} disabled={disabled} style={{width:55}} /></td>
+                <td><input type="number" min="0" step="0.5" value={row.hours_worked} onChange={e => set(i,'hours_worked',e.target.value)} disabled={disabled} style={{width:60}} /></td>
+                <td>
+                  <select value={row.activity_code || ''} onChange={e => set(i,'activity_code',e.target.value)} disabled={disabled} style={{width:110}}>
+                    {ACTIVITY_CODES.map(c => <option key={c} value={c}>{c} — {CODE_LABELS[c]}</option>)}
+                  </select>
+                </td>
+                <td>
+                  <select value={row.work_type} onChange={e => set(i,'work_type',e.target.value)} disabled={disabled} style={{width:100}}>
+                    <option>Contract</option><option>Daywork</option>
+                  </select>
+                </td>
+                <td><input value={row.description || ''} onChange={e => set(i,'description',e.target.value)} disabled={disabled} placeholder="Work done today…" /></td>
+                <td><input value={row.notes || ''} onChange={e => set(i,'notes',e.target.value)} disabled={disabled} placeholder="Notes" /></td>
+                {!disabled && <td><button className="btn-remove" onClick={() => remove(i)}>✕</button></td>}
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      )}
     </div>
   );
 }

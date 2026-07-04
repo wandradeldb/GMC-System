@@ -540,6 +540,18 @@ body {
   .das-steps { padding: 10px 4px 8px; }
 }
 
+/* ── DAS Subcontractor chips — tap the name first, then fill their row ── */
+.das-sub-chips { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
+.das-sub-chip {
+  padding: 7px 14px; border-radius: 20px; border: 1px solid #d1d5db;
+  background: #fff; color: #374151; font-size: 13px; font-weight: 600;
+  cursor: pointer; white-space: nowrap;
+}
+.das-sub-chip:hover:not(:disabled) { border-color: #f97316; background: #fff7ed; }
+.das-sub-chip.added {
+  border-color: #f97316; background: #fff7ed; color: #c2410c; cursor: default;
+}
+
 /* ── DAS Photo ── */
 .das-photo-wrap { display: flex; flex-direction: column; gap: 8px; }
 .das-photo-btn {
