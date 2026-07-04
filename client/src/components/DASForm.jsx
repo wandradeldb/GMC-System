@@ -42,7 +42,7 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
   const [activeTab, setActiveTab]   = useState('sub');
   // Trava até o site agent confirmar que é o dia certo — reseta sempre que a data muda
   const [dayConfirmed, setDayConfirmed] = useState(false);
-  useEffect(() => { setDayConfirmed(false); }, [date]);
+  useEffect(() => { setDayConfirmed(false); setActiveTab('sub'); }, [date]);
   // Histórico do projeto (nomes, máquinas, atividades já digitados antes) — alimenta os autocompletes
   const [suggestions, setSuggestions] = useState({ workers:[], plant:[], plantDescriptions:[], operators:[], activities:[], units:[], siteAgents:[] });
   // Subcontratados do projeto (pra clicar e escolher — não é pra digitar)
