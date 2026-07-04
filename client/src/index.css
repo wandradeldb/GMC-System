@@ -502,6 +502,44 @@ body {
   border-radius: 0 0 10px 10px; padding: 20px; margin-bottom: 20px;
 }
 
+/* ── DAS Step Progress (airline-booking style) — mobile-first, 4 steps fit one row ── */
+.das-steps {
+  display: flex; align-items: flex-start;
+  background: #fff; border: 1px solid #e5e7eb; border-bottom: none;
+  border-radius: 10px 10px 0 0; padding: 12px 8px 10px;
+}
+.das-step-wrap { display: flex; align-items: center; flex: 1; min-width: 0; }
+.das-step-wrap:last-child { flex: 0 0 auto; }
+.das-step {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+  background: none; border: none; cursor: pointer; padding: 2px 4px;
+  flex-shrink: 0;
+}
+.das-step-circle {
+  width: 28px; height: 28px; border-radius: 50%;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 12px; font-weight: 700; color: #9ca3af;
+  background: #f3f4f6; border: 2px solid #e5e7eb;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+.das-step-label {
+  font-size: 10px; font-weight: 600; color: #9ca3af; white-space: nowrap;
+}
+.das-step.active .das-step-circle { border-color: #1d4ed8; color: #1d4ed8; background: #eff6ff; }
+.das-step.active .das-step-label  { color: #1d4ed8; }
+.das-step.done .das-step-circle   { border-color: #16a34a; background: #16a34a; color: #fff; }
+.das-step.done .das-step-label    { color: #166534; }
+.das-step-line {
+  flex: 1; height: 2px; background: #e5e7eb; margin: 0 2px 16px; min-width: 8px;
+}
+.das-step-line.done { background: #16a34a; }
+
+@media (max-width: 400px) {
+  .das-step-circle { width: 24px; height: 24px; font-size: 11px; }
+  .das-step-label  { font-size: 9px; }
+  .das-steps { padding: 10px 4px 8px; }
+}
+
 /* ── DAS Photo ── */
 .das-photo-wrap { display: flex; flex-direction: column; gap: 8px; }
 .das-photo-btn {

@@ -95,14 +95,17 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
         </div>
       </div>
 
-      {/* Tabs */}
-      <div className="das-tabs">
-        {['header','labour','plant','activities'].map(t => (
-          <button key={t} className={`das-tab ${activeTab === t ? 'active' : ''}`} onClick={() => setActiveTab(t)}>
-            {t === 'header' ? 'Header' : t === 'labour' ? `Labour (${labour.length})` : t === 'plant' ? `Plant (${plant.length})` : `Activities (${activities.length})`}
-          </button>
-        ))}
-      </div>
+      {/* Step progress — like an airline booking flow: numbered, checks off as filled in, tap any step */}
+      <StepProgress
+        activeTab={activeTab}
+        setActiveTab={setActiveTab}
+        done={{
+          header: !!(entry.site_agent || '').trim(),
+          labour: labour.length > 0,
+          plant: plant.length > 0,
+          activities: activities.length > 0,
+        }}
+      />
 
       <div className="das-tab-content">
         {activeTab === 'header' && (
@@ -122,6 +125,36 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
       {showNextWeek && (
         <NextWeekForm projectId={projectId} monday={nextMonday} disabled={isSubmitted} />
       )}
+    </div>
+  );
+}
+
+/* ── Step Progress (airline-booking style: 1→2→3→4, checks off, tap any step) ── */
+const DAS_STEPS = [
+  { key:'header',     label:'Header' },
+  { key:'labour',     label:'Labour' },
+  { key:'plant',      label:'Plant' },
+  { key:'activities', label:'Activities' },
+];
+
+function StepProgress({ activeTab, setActiveTab, done }) {
+  return (
+    <div className="das-steps">
+      {DAS_STEPS.map((s, i) => {
+        const isDone   = done[s.key];
+        const isActive = activeTab === s.key;
+        return (
+          <div key={s.key} className="das-step-wrap">
+            <button type="button"
+              className={`das-step ${isActive ? 'active' : ''} ${isDone ? 'done' : ''}`}
+              onClick={() => setActiveTab(s.key)}>
+              <span className="das-step-circle">{isDone ? '✓' : i + 1}</span>
+              <span className="das-step-label">{s.label}</span>
+            </button>
+            {i < DAS_STEPS.length - 1 && <span className={`das-step-line ${isDone ? 'done' : ''}`} />}
+          </div>
+        );
+      })}
     </div>
   );
 }
