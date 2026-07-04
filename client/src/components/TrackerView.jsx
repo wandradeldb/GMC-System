@@ -320,15 +320,15 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
                               {/* Costs — Payment */}
                               <tr key={`sub-cp-${sub.sub_name}`} style={{ background: pal.bg }}>
                                 <td className="tracker-row-label" style={{ background: pal.bg, paddingLeft:28, fontSize:12 }}>Costs — Payment</td>
-                                <td className="tracker-cell tracker-cum-cell" style={{ fontWeight:700, cursor: cum.cost_payment && onSubCellClick ? 'pointer' : 'default' }}
-                                  onClick={() => cum.cost_payment && onSubCellClick && onSubCellClick(sub.sub_name)}>
+                                <td className="tracker-cell tracker-cum-cell" style={{ fontWeight:700, cursor: onSubCellClick ? 'pointer' : 'default' }}
+                                  onClick={() => onSubCellClick && onSubCellClick(sub.sub_name)}>
                                   {cum.cost_payment ? <span style={{ color: onSubCellClick ? '#1d4ed8' : undefined }}>{`€${fmt(cum.cost_payment,0)}`}</span> : <span className="zero">—</span>}
                                 </td>
                                 {rows.map(r => {
                                   const sl = (sub_lines[r.week_ending] || []).find(s => s.sub_name === sub.sub_name);
                                   const v = sl?.cost_payment || 0;
-                                  return <td key={r.week_ending} className="tracker-cell" style={{ borderTop:`1px solid ${pal.border}`, cursor: v && onSubCellClick ? 'pointer' : 'default' }}
-                                    onClick={() => v && onSubCellClick && onSubCellClick(sub.sub_name)}>
+                                  return <td key={r.week_ending} className="tracker-cell" style={{ borderTop:`1px solid ${pal.border}`, cursor: onSubCellClick ? 'pointer' : 'default' }}
+                                    onClick={() => onSubCellClick && onSubCellClick(sub.sub_name)}>
                                     {v ? <span style={{ color: onSubCellClick ? '#1d4ed8' : undefined, fontWeight: onSubCellClick ? 600 : undefined }}>{`€${fmt(v,0)}`}</span> : <span className="zero">—</span>}
                                   </td>;
                                 })}

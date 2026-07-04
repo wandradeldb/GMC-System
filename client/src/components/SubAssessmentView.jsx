@@ -21,7 +21,7 @@ const cellKeyNav = (e, colClass, idx) => {
 };
 
 const STATUS_STYLE = {
-  draft:     { bg: '#fef9c3', color: '#92400e', label: 'Draft' },
+  draft:     { bg: '#fef9c3', color: '#92400e', label: 'Planejada' },
   assessed:  { bg: '#fef3c7', color: '#d97706', label: 'Assessed' },
   approved:  { bg: '#dcfce7', color: '#166534', label: 'Approved' },
   invoiced:  { bg: '#ede9fe', color: '#6d28d9', label: 'Invoiced' },
@@ -495,7 +495,7 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
             Status:&nbsp;
             <select value={appStatus} onChange={e=>setAppStatus(e.target.value)}
               style={{ padding:'4px 8px', borderRadius:6, border:'1px solid #d1d5db', fontSize:13 }}>
-              <option value="draft">Draft</option>
+              <option value="draft">Planejada</option>
               <option value="assessed">Assessed</option>
             </select>
           </label>

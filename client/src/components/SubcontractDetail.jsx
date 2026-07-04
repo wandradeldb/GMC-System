@@ -6,6 +6,7 @@ import { useZoom } from '../zoomContext.js';
 const STATUS_STEPS = ['draft','assessed','approved','invoiced','paid'];
 const STATUS_COLOR = { draft:'#92400e', assessed:'#1e40af', approved:'#166534', invoiced:'#7c3aed', paid:'#065f46' };
 const STATUS_BG    = { draft:'#fef9c3', assessed:'#dbeafe', approved:'#dcfce7', invoiced:'#ede9fe', paid:'#d1fae5' };
+const STATUS_LABEL = { draft:'Planejada', assessed:'Assessed', approved:'Approved', invoiced:'Invoiced', paid:'Paid' };
 
 function fmt(n, decimals=2) {
   if (n == null) return '—';
@@ -317,7 +318,7 @@ function AppDetailView({ detail, sc, onBack }) {
           {app.notes && <div style={{ fontSize:12, color:'#9ca3af', marginTop:2 }}>{app.notes}</div>}
         </div>
         <span style={{ background:ss.bg, color:ss.color, borderRadius:12, padding:'3px 12px', fontSize:12, fontWeight:600 }}>
-          {app.status}
+          {STATUS_LABEL[app.status] || app.status}
         </span>
         <div style={{ marginLeft:'auto', display:'flex', gap:20 }}>
           {[

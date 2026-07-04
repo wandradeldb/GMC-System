@@ -5,7 +5,7 @@ const fmtE = (n, d = 0) => n == null ? '—' : `€${new Intl.NumberFormat('en-I
 const fmtK = n => n == null ? '—' : (Math.abs(n) >= 1000 ? `€${(n / 1000).toFixed(0)}k` : `€${n.toFixed(0)}`);
 
 const PIPELINE = [
-  { key: 'draft',    label: 'Draft',    color: '#92400e', bg: '#fef9c3' },
+  { key: 'draft',    label: 'Planejada', color: '#92400e', bg: '#fef9c3' },
   { key: 'assessed', label: 'Assessed', color: '#d97706', bg: '#fef3c7' },
   { key: 'approved', label: 'Approved', color: '#166534', bg: '#dcfce7' },
   { key: 'invoiced', label: 'Invoiced', color: '#6d28d9', bg: '#ede9fe' },

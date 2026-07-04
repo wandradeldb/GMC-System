@@ -32,12 +32,12 @@ export default function SubcontractView({ projectId, readOnly, deepLinkSubName, 
     if (deepLinkDoneRef.current === deepLinkSubName) return; // already handled this deepLink
     const norm = deepLinkSubName.toLowerCase();
     const sc = list.find(s => {
-      const n = s.name.toLowerCase();
+      const n = (s.subcontractor_name || '').toLowerCase();
       return n === norm || n.includes(norm) || norm.includes(n.split(' ')[0]);
     });
     if (sc) {
       deepLinkDoneRef.current = deepLinkSubName;
-      setAssessment({ id: sc.id, ref: sc.ref, name: sc.name, contract_value: sc.contract_value });
+      setAssessment({ id: sc.id, ref: sc.ref, name: sc.subcontractor_name, contract_value: sc.contract_value });
       onDeepLinkConsumed?.();
     }
   }, [deepLinkSubName, list]);
