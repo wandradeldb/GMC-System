@@ -1,9 +1,11 @@
 ﻿const express = require('express');
 const path    = require('path');
+const fs      = require('fs');
 const { DatabaseSync } = require('node:sqlite');
 
 const router  = express.Router();
 const DB_PATH = require('../db-path');
+const SITE_AGENTS_SEED = JSON.parse(fs.readFileSync(path.join(__dirname, '../data/site-agents.json'), 'utf8'));
 
 const ACTIVITY_CODES = { A:'Civil', B:'Mechanical', C:'Electrical', D:'Instrumentation', E:'Commissioning', F:'Preliminaries', G:'Other' };
 const SERVICE_CATS   = ['Pump Station','Manhole','Pipework','Preliminaries','MEICA','Landscape','Other'];
@@ -30,6 +32,24 @@ function db(readonly = false) {
       sort_order      INTEGER NOT NULL DEFAULT 0
     )`);
   } catch {}
+  // Site Agent registry (code, name, phone, email) — company-wide, not per-project
+  try {
+    con.exec(`CREATE TABLE IF NOT EXISTS site_agent (
+      id    INTEGER PRIMARY KEY AUTOINCREMENT,
+      code  TEXT UNIQUE,
+      name  TEXT NOT NULL,
+      phone TEXT,
+      email TEXT
+    )`);
+    const { n } = con.prepare('SELECT COUNT(*) AS n FROM site_agent').get();
+    if (n === 0) {
+      const ins = con.prepare('INSERT OR IGNORE INTO site_agent (code, name, phone, email) VALUES (?,?,?,?)');
+      con.exec('BEGIN');
+      SITE_AGENTS_SEED.forEach(a => ins.run(a.code, a.name, a.phone || null, a.email || null));
+      con.exec('COMMIT');
+    }
+  } catch {}
+  try { con.exec('ALTER TABLE das_entry ADD COLUMN site_agent_code TEXT'); } catch {}
   return con;
 }
 
@@ -46,6 +66,14 @@ function assertEntry(con, entryId) {
 // â”€â”€ Metadata â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.get('/das/meta', (_req, res) => {
   res.json({ activity_codes: ACTIVITY_CODES, service_categories: SERVICE_CATS, work_types: WORK_TYPES, weather: WEATHER_OPTS });
+});
+
+// GET /das/site-agents — registered list (code, name, phone, email), company-wide
+router.get('/das/site-agents', (_req, res) => {
+  const con = db();
+  const rows = con.prepare('SELECT code, name, phone, email FROM site_agent ORDER BY name COLLATE NOCASE').all();
+  con.close();
+  res.json(rows);
 });
 
 // â”€â”€ DAS_ENTRY â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -172,17 +200,17 @@ router.put('/projects/:id/das/:date', (req, res) => {
     let entryId;
     if (existing) {
       con.prepare(`
-        UPDATE das_entry SET site_agent=?, weather=?, work_type=?, visitors=?, general_notes=?, status=?, photo_url=?
+        UPDATE das_entry SET site_agent=?, site_agent_code=?, weather=?, work_type=?, visitors=?, general_notes=?, status=?, photo_url=?
         WHERE id=?
-      `).run(hdr.site_agent||'', hdr.weather||null, hdr.work_type||'Contract',
+      `).run(hdr.site_agent||'', hdr.site_agent_code||null, hdr.weather||null, hdr.work_type||'Contract',
              hdr.visitors||null, hdr.general_notes||null, hdr.status||'draft',
              hdr.photo_url||null, existing.id);
       entryId = existing.id;
     } else {
       const r = con.prepare(`
-        INSERT INTO das_entry (project_id, entry_date, site_agent, weather, work_type, visitors, general_notes, status, photo_url)
-        VALUES (?,?,?,?,?,?,?,?,?)
-      `).run(req.params.id, req.params.date, hdr.site_agent||'', hdr.weather||null,
+        INSERT INTO das_entry (project_id, entry_date, site_agent, site_agent_code, weather, work_type, visitors, general_notes, status, photo_url)
+        VALUES (?,?,?,?,?,?,?,?,?,?)
+      `).run(req.params.id, req.params.date, hdr.site_agent||'', hdr.site_agent_code||null, hdr.weather||null,
              hdr.work_type||'Contract', hdr.visitors||null, hdr.general_notes||null, hdr.status||'draft',
              hdr.photo_url||null);
       entryId = r.lastInsertRowid;

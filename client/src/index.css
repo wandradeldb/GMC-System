@@ -462,6 +462,16 @@ body {
   background: #f3f4f6; color: #374151; font-weight: 500;
 }
 
+/* ── DAS Header Fixed (Site Agent / Visitors / Notes — always visible, not a step) ── */
+.das-header-fixed {
+  background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+  padding: 16px 20px; margin-bottom: 16px;
+}
+.site-agent-code-badge {
+  padding: 4px 10px; border-radius: 6px; background: #eff6ff; color: #1d4ed8;
+  font-size: 12px; font-weight: 700; white-space: nowrap;
+}
+
 /* ── Buttons ── */
 .btn-save {
   padding: 8px 18px; border-radius: 6px; border: 1px solid #1d4ed8;
@@ -504,12 +514,11 @@ body {
 
 /* ── DAS Step Progress (airline-booking style) — mobile-first, 4 steps fit one row ── */
 .das-steps {
-  display: flex; align-items: flex-start;
+  display: flex; align-items: flex-start; justify-content: center;
   background: #fff; border: 1px solid #e5e7eb; border-bottom: none;
   border-radius: 10px 10px 0 0; padding: 12px 8px 10px;
 }
-.das-step-wrap { display: flex; align-items: center; flex: 1; min-width: 0; }
-.das-step-wrap:last-child { flex: 0 0 auto; }
+.das-step-wrap { display: flex; align-items: center; flex: 0 0 auto; }
 .das-step {
   display: flex; flex-direction: column; align-items: center; gap: 4px;
   background: none; border: none; cursor: pointer; padding: 2px 4px;
@@ -530,7 +539,7 @@ body {
 .das-step.done .das-step-circle   { border-color: #16a34a; background: #16a34a; color: #fff; }
 .das-step.done .das-step-label    { color: #166534; }
 .das-step-line {
-  flex: 1; height: 2px; background: #e5e7eb; margin: 0 2px 16px; min-width: 8px;
+  width: 32px; flex: 0 0 auto; height: 2px; background: #e5e7eb; margin: 0 2px 16px;
 }
 .das-step-line.done { background: #16a34a; }
 
@@ -538,6 +547,7 @@ body {
   .das-step-circle { width: 24px; height: 24px; font-size: 11px; }
   .das-step-label  { font-size: 9px; }
   .das-steps { padding: 10px 4px 8px; }
+  .das-step-line { width: 16px; }
 }
 
 /* ── DAS Subcontractor chips — tap the name first, then fill their row ── */

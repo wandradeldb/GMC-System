@@ -16,16 +16,18 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
   const [loading,  setLoading]  = useState(true);
   const [saving,   setSaving]   = useState(false);
   const [saved,    setSaved]    = useState(false);
-  const [entry,    setEntry]    = useState({ site_agent:'', weather:'Fine', work_type:'Contract', visitors:'', general_notes:'', status:'draft', photo_url: null });
+  const [entry,    setEntry]    = useState({ site_agent:'', site_agent_code:'', weather:'Fine', work_type:'Contract', visitors:'', general_notes:'', status:'draft', photo_url: null });
   const [labour,   setLabour]   = useState([]);
   const [plant,    setPlant]    = useState([]);
   const [activities, setActivities] = useState([]);
   const [subs,     setSubs]     = useState([]); // subcontractors on site today
-  const [activeTab, setActiveTab]   = useState('header');
+  const [activeTab, setActiveTab]   = useState('labour');
   // Histórico do projeto (nomes, máquinas, atividades já digitados antes) — alimenta os autocompletes
   const [suggestions, setSuggestions] = useState({ workers:[], plant:[], plantDescriptions:[], operators:[], activities:[], units:[], siteAgents:[] });
   // Subcontratados do projeto (pra clicar e escolher — não é pra digitar)
   const [subcontracts, setSubcontracts] = useState([]);
+  // Registo de Site Agents (código, nome, telefone) — pra autocomplete + mostrar o código
+  const [siteAgentList, setSiteAgentList] = useState([]);
 
   const loadSuggestions = useCallback(() => {
     apiFetch(`/api/v1/projects/${projectId}/das/suggestions`).then(r => r.json()).then(setSuggestions);
@@ -36,6 +38,10 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
   useEffect(() => {
     apiFetch(`/api/v1/projects/${projectId}/subcontracts`).then(r => r.json()).then(setSubcontracts);
   }, [projectId]);
+
+  useEffect(() => {
+    apiFetch(`/api/v1/das/site-agents`).then(r => r.json()).then(setSiteAgentList);
+  }, []);
 
   useEffect(() => {
     setLoading(true);
@@ -104,23 +110,22 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
         </div>
       </div>
 
+      {/* Header — sempre visível, logo abaixo da data (não é mais um passo numerado) */}
+      <HeaderSection entry={entry} setEntry={setEntry} disabled={isSubmitted} siteAgentList={siteAgentList} />
+
       {/* Step progress — like an airline booking flow: numbered, checks off as filled in, tap any step */}
       <StepProgress
         activeTab={activeTab}
         setActiveTab={setActiveTab}
         done={{
-          header: !!(entry.site_agent || '').trim(),
+          sub: subs.length > 0,
           labour: labour.length > 0,
           plant: plant.length > 0,
-          sub: subs.length > 0,
           activities: activities.length > 0,
         }}
       />
 
       <div className="das-tab-content">
-        {activeTab === 'header' && (
-          <HeaderSection entry={entry} setEntry={setEntry} disabled={isSubmitted} suggestions={suggestions} />
-        )}
         {activeTab === 'labour' && (
           <LabourSection rows={labour} setRows={setLabour} disabled={isSubmitted} suggestions={suggestions} />
         )}
@@ -131,7 +136,8 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
           <SubSection rows={subs} setRows={setSubs} disabled={isSubmitted} subcontracts={subcontracts} />
         )}
         {activeTab === 'activities' && (
-          <ActivitiesSection rows={activities} setRows={setActivities} disabled={isSubmitted} suggestions={suggestions} />
+          <ActivitiesSection rows={activities} setRows={setActivities} disabled={isSubmitted} suggestions={suggestions}
+            entry={entry} setEntry={setEntry} />
         )}
       </div>
 
@@ -144,10 +150,9 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
 
 /* ── Step Progress (airline-booking style: 1→2→3→4, checks off, tap any step) ── */
 const DAS_STEPS = [
-  { key:'header',     label:'Header' },
+  { key:'sub',        label:'Sub' },
   { key:'labour',     label:'Labour' },
   { key:'plant',      label:'Plant' },
-  { key:'sub',        label:'Sub' },
   { key:'activities', label:'Activities' },
 ];
 
@@ -194,79 +199,37 @@ function compressImage(file, maxPx = 1200, quality = 0.75) {
   });
 }
 
-/* ── Header Section ──────────────────────────────────────────────────────── */
-function HeaderSection({ entry, setEntry, disabled, suggestions }) {
+/* ── Header Section — always visible, right below the date, not a numbered step ── */
+function HeaderSection({ entry, setEntry, disabled, siteAgentList }) {
   const set = (k, v) => setEntry(e => ({ ...e, [k]: v }));
-  const fileRef = useRef();
-  const [compressing, setCompressing] = useState(false);
 
-  async function handlePhoto(e) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-    setCompressing(true);
-    const dataUrl = await compressImage(file);
-    set('photo_url', dataUrl);
-    setCompressing(false);
-    e.target.value = '';
-  }
+  const setSiteAgent = (name) => {
+    const known = siteAgentList.find(a => a.name.toLowerCase() === name.trim().toLowerCase());
+    setEntry(e => ({ ...e, site_agent: name, site_agent_code: known ? known.code : '' }));
+  };
 
   return (
-    <div className="section-grid">
-      <Field label="Site Agent" required>
-        <input value={entry.site_agent || ''} onChange={e => set('site_agent', e.target.value)} disabled={disabled}
-          list="dl-site-agents" />
-        <datalist id="dl-site-agents">
-          {suggestions.siteAgents.map(n => <option key={n} value={n} />)}
-        </datalist>
-      </Field>
-      <Field label="Weather">
-        <select value={entry.weather || ''} onChange={e => set('weather', e.target.value)} disabled={disabled}>
-          <option value="">— Select —</option>
-          {WEATHER_OPTS.map(w => <option key={w}>{w}</option>)}
-        </select>
-      </Field>
-      <Field label="Work Type">
-        <div className="toggle-group">
-          {['Contract','Daywork'].map(t => (
-            <button key={t} className={`toggle-btn ${entry.work_type === t ? 'active' : ''}`}
-              onClick={() => !disabled && set('work_type', t)} disabled={disabled}>
-              {t}
-            </button>
-          ))}
-        </div>
-      </Field>
-      <Field label="Visitors">
-        <input value={entry.visitors || ''} onChange={e => set('visitors', e.target.value)}
-          placeholder="Names / company" disabled={disabled} />
-      </Field>
-      <Field label="General Notes" span2>
-        <textarea rows={3} value={entry.general_notes || ''} onChange={e => set('general_notes', e.target.value)}
-          placeholder="Site diary notes, issues, instructions received…" disabled={disabled} />
-      </Field>
-      <Field label="Site Photo" span2>
-        <div className="das-photo-wrap">
-          {entry.photo_url ? (
-            <div className="das-photo-preview">
-              <img src={entry.photo_url} alt="Site photo" className="das-photo-img" />
-              {!disabled && (
-                <button className="das-photo-remove" onClick={() => set('photo_url', null)} title="Remove photo">✕</button>
-              )}
-            </div>
-          ) : (
-            <button className="das-photo-btn" onClick={() => fileRef.current?.click()} disabled={disabled || compressing}>
-              {compressing ? 'Processing…' : '📷  Add Photo'}
-            </button>
-          )}
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/*"
-            capture="environment"
-            style={{ display: 'none' }}
-            onChange={handlePhoto}
-          />
-        </div>
-      </Field>
+    <div className="das-header-fixed">
+      <div className="section-grid">
+        <Field label="Site Agent" required>
+          <div style={{ display:'flex', alignItems:'center', gap:8 }}>
+            <input value={entry.site_agent || ''} onChange={e => setSiteAgent(e.target.value)} disabled={disabled}
+              list="dl-site-agents" style={{ flex:1 }} />
+            {entry.site_agent_code && <span className="site-agent-code-badge">{entry.site_agent_code}</span>}
+          </div>
+          <datalist id="dl-site-agents">
+            {siteAgentList.map(a => <option key={a.code || a.name} value={a.name} />)}
+          </datalist>
+        </Field>
+        <Field label="Visitors">
+          <input value={entry.visitors || ''} onChange={e => set('visitors', e.target.value)}
+            placeholder="Names / company" disabled={disabled} />
+        </Field>
+        <Field label="General Notes" span2>
+          <textarea rows={2} value={entry.general_notes || ''} onChange={e => set('general_notes', e.target.value)}
+            placeholder="Site diary notes, issues, instructions received…" disabled={disabled} />
+        </Field>
+      </div>
     </div>
   );
 }
@@ -491,10 +454,23 @@ function SubSection({ rows, setRows, disabled, subcontracts }) {
 }
 
 /* ── Activities Section ──────────────────────────────────────────────────── */
-function ActivitiesSection({ rows, setRows, disabled, suggestions }) {
+function ActivitiesSection({ rows, setRows, disabled, suggestions, entry, setEntry }) {
   const add    = () => setRows(r => [...r, emptyActivity()]);
   const remove = i => setRows(r => r.filter((_, j) => j !== i));
   const set    = (i, k, v) => setRows(r => r.map((row, j) => j === i ? { ...row, [k]: v } : row));
+  const setEntryField = (k, v) => setEntry(e => ({ ...e, [k]: v }));
+
+  const fileRef = useRef();
+  const [compressing, setCompressing] = useState(false);
+  async function handlePhoto(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setCompressing(true);
+    const dataUrl = await compressImage(file);
+    setEntryField('photo_url', dataUrl);
+    setCompressing(false);
+    e.target.value = '';
+  }
 
   // Descrição já usada antes? Preenche a unidade se ainda estiver vazia
   const setDescription = (i, desc) => {
@@ -514,6 +490,49 @@ function ActivitiesSection({ rows, setRows, disabled, suggestions }) {
 
   return (
     <div>
+      <div className="section-grid" style={{ marginBottom: 20, paddingBottom: 16, borderBottom: '1px solid #e5e7eb' }}>
+        <Field label="Weather">
+          <select value={entry.weather || ''} onChange={e => setEntryField('weather', e.target.value)} disabled={disabled}>
+            <option value="">— Select —</option>
+            {WEATHER_OPTS.map(w => <option key={w}>{w}</option>)}
+          </select>
+        </Field>
+        <Field label="Work Type">
+          <div className="toggle-group">
+            {['Contract','Daywork'].map(t => (
+              <button key={t} className={`toggle-btn ${entry.work_type === t ? 'active' : ''}`}
+                onClick={() => !disabled && setEntryField('work_type', t)} disabled={disabled}>
+                {t}
+              </button>
+            ))}
+          </div>
+        </Field>
+        <Field label="Site Photo" span2>
+          <div className="das-photo-wrap">
+            {entry.photo_url ? (
+              <div className="das-photo-preview">
+                <img src={entry.photo_url} alt="Site photo" className="das-photo-img" />
+                {!disabled && (
+                  <button className="das-photo-remove" onClick={() => setEntryField('photo_url', null)} title="Remove photo">✕</button>
+                )}
+              </div>
+            ) : (
+              <button className="das-photo-btn" onClick={() => fileRef.current?.click()} disabled={disabled || compressing}>
+                {compressing ? 'Processing…' : '📷  Add Photo'}
+              </button>
+            )}
+            <input
+              ref={fileRef}
+              type="file"
+              accept="image/*"
+              capture="environment"
+              style={{ display: 'none' }}
+              onChange={handlePhoto}
+            />
+          </div>
+        </Field>
+      </div>
+
       <div className="section-toolbar">
         <span className="section-stat">{rows.length} work activities</span>
         {!disabled && <button className="btn-add" onClick={add}>+ Add Activity</button>}
