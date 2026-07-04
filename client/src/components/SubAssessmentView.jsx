@@ -414,6 +414,10 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
   // Generate WE options
   const weOptions = fridayRange(defaultWE, 8, 2);
 
+  // Trava: não deixa editar % se a WE escolhida já tem uma aplicação (evita perder trabalho no Save)
+  const weConflict = apps.find(a => (a.week_ending || a.period) === weekEnding);
+  const weLocked   = !!weConflict;
+
   // Cap: cumulativo (prev + this) não pode ultrapassar 100%
   const setPct = (id, field, val) => {
     const item = boqItems.find(i => i.id === id);
@@ -470,7 +474,9 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
           <label style={{ fontSize:13, fontWeight:600, color:'#374151' }}>
             WE:&nbsp;
             <select value={weekEnding} onChange={e=>setWeekEnding(e.target.value)}
-              style={{ padding:'4px 8px', borderRadius:6, border:'1px solid #d1d5db', fontSize:13 }}>
+              style={{ padding:'4px 8px', borderRadius:6, fontSize:13,
+                border: weLocked ? '1px solid #dc2626' : '1px solid #d1d5db',
+                background: weLocked ? '#fef2f2' : '#fff' }}>
               {weOptions.map(we => <option key={we} value={we}>{fmtDate(we)}</option>)}
             </select>
           </label>
@@ -495,12 +501,19 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
               <div style={{ fontSize:10, color:'#9ca3af' }}>CUMULATIVE</div>
               <div style={{ fontSize:16, fontWeight:700, color:'#166534' }}>{fmtE(cumGmc,2)}</div>
             </div>
-            <button onClick={handleSave} disabled={saving} className="btn-primary"
-              style={{ padding:'7px 22px', fontSize:14 }}>
+            <button onClick={handleSave} disabled={saving || weLocked} className="btn-primary"
+              style={{ padding:'7px 22px', fontSize:14, opacity: weLocked ? 0.5 : 1, cursor: weLocked ? 'not-allowed' : 'pointer' }}>
               {saving ? 'Saving…' : `Save App ${nextAppNum}`}
             </button>
           </div>
         </div>
+        {weLocked && (
+          <div style={{ background:'#fef2f2', color:'#991b1b', border:'1px solid #fecaca', padding:'8px 12px',
+            borderRadius:6, marginTop:8, fontSize:13, fontWeight:600 }}>
+            ⚠ Week Ending {fmtDate(weekEnding)} already has App #{weConflict.application_number} (status: {STATUS_STYLE[weConflict.status]?.label || weConflict.status}).
+            Choose a different Week Ending to enable the % fields below.
+          </div>
+        )}
         {error && <div style={{ background:'#fee2e2', color:'#991b1b', padding:'6px 12px', borderRadius:6, marginTop:8, fontSize:13 }}>{error}</div>}
       </div>
 
@@ -548,24 +561,36 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
                     {c.subValue > 0 ? fmtE(c.subValue,2) : '—'}
                   </td>
                   {/* Sub % (this period) */}
-                  <td style={{background:'#fffbeb', padding:'2px 4px'}}>
+                  <td style={{background: weLocked ? '#f3f4f6' : '#fffbeb', padding:'2px 4px'}}>
                     <input type="number" min={0} max={Math.max(0, 100 - (c.prev||0))} step={1}
                       className="cell-input sub-col"
                       value={pcts[it.id]?.sub ?? 0}
+                      disabled={weLocked}
+                      title={weLocked ? 'Choose a Week Ending without an existing application first' : ''}
                       onChange={e => setPct(it.id, 'sub', e.target.value)}
                       onKeyDown={e => cellKeyNav(e, 'sub-col', idx)}
-                      style={{ width:64, textAlign:'center', padding:'3px 4px', border:'1px solid #d97706',
-                        borderRadius:4, fontSize:13, background:'#fffbeb' }} />
+                      style={{ width:64, textAlign:'center', padding:'3px 4px',
+                        border: weLocked ? '1px solid #d1d5db' : '1px solid #d97706',
+                        borderRadius:4, fontSize:13,
+                        background: weLocked ? '#f3f4f6' : '#fffbeb',
+                        color: weLocked ? '#9ca3af' : 'inherit',
+                        cursor: weLocked ? 'not-allowed' : 'text' }} />
                   </td>
                   {/* GMC % (this period) */}
-                  <td style={{background:'#f0fdf4', padding:'2px 4px'}}>
+                  <td style={{background: weLocked ? '#f3f4f6' : '#f0fdf4', padding:'2px 4px'}}>
                     <input type="number" min={0} max={Math.max(0, 100 - (c.prev||0))} step={1}
                       className="cell-input gmc-col"
                       value={pcts[it.id]?.gmc ?? 0}
+                      disabled={weLocked}
+                      title={weLocked ? 'Choose a Week Ending without an existing application first' : ''}
                       onChange={e => setPct(it.id, 'gmc', e.target.value)}
                       onKeyDown={e => cellKeyNav(e, 'gmc-col', idx)}
-                      style={{ width:64, textAlign:'center', padding:'3px 4px', border:'1px solid #16a34a',
-                        borderRadius:4, fontSize:13, background:'#f0fdf4', fontWeight:600 }} />
+                      style={{ width:64, textAlign:'center', padding:'3px 4px',
+                        border: weLocked ? '1px solid #d1d5db' : '1px solid #16a34a',
+                        borderRadius:4, fontSize:13,
+                        background: weLocked ? '#f3f4f6' : '#f0fdf4',
+                        color: weLocked ? '#9ca3af' : 'inherit',
+                        fontWeight:600, cursor: weLocked ? 'not-allowed' : 'text' }} />
                   </td>
                   <td style={{textAlign:'right', fontWeight:600, color: c.value > 0 ? '#166534' : '#9ca3af', fontVariantNumeric:'tabular-nums', fontSize:12}}>
                     {c.value > 0 ? fmtE(c.value,2) : '—'}
