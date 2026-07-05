@@ -134,6 +134,7 @@ export default function QSCostsView({ projectId, readOnly }) {
           <div className="type-filters">
             <button className={`tab-btn ${viewMode === 'list' ? 'active' : ''}`} onClick={() => setViewMode('list')}>Transactions</button>
             <button className={`tab-btn ${viewMode === 'summary' ? 'active' : ''}`} onClick={() => setViewMode('summary')}>By Week</button>
+            <button className={`tab-btn ${viewMode === 'materials' ? 'active' : ''}`} onClick={() => setViewMode('materials')}>📦 Materials List (Conquest)</button>
           </div>
           {!readOnly && <label className="btn-primary" style={{ cursor:'pointer', position:'relative' }}>
             {importing ? 'Importing…' : '⬆ Import Excel'}
@@ -239,6 +240,17 @@ export default function QSCostsView({ projectId, readOnly }) {
 
       {/* ── View: By Week Summary ─────────────────────────────────── */}
       {viewMode === 'summary' && <WeekSummaryView projectId={projectId} />}
+
+      {/* ── View: Materials List (Conquest) — placeholder, not built yet ── */}
+      {viewMode === 'materials' && (
+        <div className="state-box">
+          <div className="icon">📦</div>
+          <p>Materials List (Conquest) — coming soon.</p>
+          <p style={{ fontSize: 12, color: '#9ca3af', maxWidth: 420, margin: '4px auto 0' }}>
+            Will import the Conquest materials list; each procurement purchase-list import will deduct from the Conquest total.
+          </p>
+        </div>
+      )}
 
       {/* ── View: Transaction List ───────────────────────────────── */}
       {viewMode === 'list' && (
