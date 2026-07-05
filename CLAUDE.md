@@ -161,6 +161,16 @@ Pilot project: **Merlin Park** — W03/26 — Uisce Éireann — €5,347,965
 
 ---
 
+## Deployment (Railway)
+
+- Production: Railway service `GMC-System`, domain `gmc.migotem.ie`, branch `main`. Push with: `git push origin master master:main`
+- Dockerfile-based build — installs deps from the **root** `package.json`, not `server/package.json`. New server dependencies must be added to both files.
+- **Known failure mode — auto-deploy stuck on an old commit:** Railway's Source settings has a **"Wait for CI"** toggle (Settings → Source) that blocks deploys until GitHub Actions report success. This repo has no `.github/workflows/`, so if that toggle is ever ON, new commits never deploy — Railway silently keeps re-serving the last commit that was active before the toggle got flipped, with no error shown. It was found ON on 2026-07-05 without anyone having touched it (suspected Railway-side default change tied to a "GitHub permissions update" prompt shown under the toggle) — first repo the team saw it happen to.
+  - **Fix:** Settings → Source → turn "Wait for CI" off. If deploys still don't advance afterward, Disconnect and reconnect the Source repo (Settings → Source → Source Repo → Disconnect, then "Connect Repo" → pick `wandradeldb/GMC-System` → branch `main`) to force GitHub App resync, then push a trivial commit (`git commit --allow-empty -m "..."`) to confirm auto-deploy fires and picks up the real HEAD.
+  - **How to verify what's actually live** (no Railway dashboard access needed): `curl` the site, grab the JS bundle path from the HTML, and grep it for a string unique to the latest feature. Bundle filename hash and `Last-Modified` header changing confirms a genuinely new build went out.
+
+---
+
 ## Notes
 
 - Full project context: https://docs.google.com/document/d/1fq33qfSA3JQDFUI1O6GDoTSSG0VlarPOhQISm9PFpwE/edit (requires GMC Google account)
