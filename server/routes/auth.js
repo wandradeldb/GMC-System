@@ -150,7 +150,15 @@ router.delete('/auth/users/:id', requireAuth, requireAdmin, (req, res) => {
     con.close();
     return res.status(403).json({ error: 'Cannot delete admin', code: 'FORBIDDEN' });
   }
-  con.prepare('DELETE FROM user WHERE id = ?').run(req.params.id);
+  try {
+    // project.owner_id has no ON DELETE CASCADE — remove owned projects first
+    // (their child tables do cascade, so this clears the user's demo data too)
+    con.prepare('DELETE FROM project WHERE owner_id = ?').run(req.params.id);
+    con.prepare('DELETE FROM user WHERE id = ?').run(req.params.id);
+  } catch (err) {
+    con.close();
+    return res.status(500).json({ error: err.message, code: 'DELETE_FAILED' });
+  }
   con.close();
   res.json({ ok: true });
 });

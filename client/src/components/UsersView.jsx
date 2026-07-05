@@ -88,7 +88,12 @@ export default function UsersView() {
 
   async function handleDelete(id, username) {
     if (!confirm(`Delete user "${username}"?`)) return;
-    await apiFetch(`/api/v1/auth/users/${id}`, { method: 'DELETE' });
+    const r = await apiFetch(`/api/v1/auth/users/${id}`, { method: 'DELETE' });
+    if (!r.ok) {
+      const d = await r.json().catch(() => ({}));
+      alert(`Could not delete "${username}": ${d.error || 'Unknown error'}`);
+      return;
+    }
     load();
   }
 
