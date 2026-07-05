@@ -142,6 +142,23 @@ router.put('/auth/me/password', requireAuth, (req, res) => {
   res.json({ ok: true });
 });
 
+// DELETE /api/v1/auth/admin/projects/:id — permanently delete any project (admin only, hard delete)
+router.delete('/auth/admin/projects/:id', requireAuth, requireAdmin, (req, res) => {
+  const con = db();
+  try {
+    const result = con.prepare('DELETE FROM project WHERE id = ?').run(req.params.id);
+    if (result.changes === 0) {
+      con.close();
+      return res.status(404).json({ error: 'Project not found', code: 'NOT_FOUND' });
+    }
+  } catch (err) {
+    con.close();
+    return res.status(500).json({ error: err.message, code: 'DELETE_FAILED' });
+  }
+  con.close();
+  res.json({ ok: true });
+});
+
 // DELETE /api/v1/auth/users/:id
 router.delete('/auth/users/:id', requireAuth, requireAdmin, (req, res) => {
   const con  = db();

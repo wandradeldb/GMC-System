@@ -5,6 +5,7 @@ export default function ProjectsView({ onSelectProject }) {
   const [projects, setProjects]     = useState([]);
   const [loading,  setLoading]      = useState(true);
   const [showNew,  setShowNew]      = useState(false);
+  const [showArchived, setShowArchived] = useState(false);
   const [shareProject, setShareProject] = useState(null); // project being managed
   const [members,  setMembers]      = useState([]);
   const [shareForm, setShareForm]   = useState({ username: '', role: 'viewer' });
@@ -12,6 +13,7 @@ export default function ProjectsView({ onSelectProject }) {
   const [form,     setForm]         = useState({ name: '', ref: '', client: '', contract_value: '', start_date: '', end_date: '' });
   const [saving,   setSaving]       = useState(false);
   const [error,    setError]        = useState('');
+  const isAdmin = localStorage.getItem('gmc_role') === 'admin';
 
   useEffect(() => { load(); }, []);
 
@@ -71,7 +73,34 @@ export default function ProjectsView({ onSelectProject }) {
     setMembers(m => m.filter(x => x.id !== userId));
   }
 
+  async function handleToggleArchive(e, p) {
+    e.stopPropagation();
+    const nextStatus = p.status === 'closed' ? 'active' : 'closed';
+    if (nextStatus === 'closed' && !confirm(`Archive "${p.name}"? It will be hidden from the list but all data is kept — you can unarchive it any time.`)) return;
+    await apiFetch(`/api/v1/projects/${p.id}`, {
+      method: 'PUT',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: p.name, ref: p.ref, client: p.client, contract_value: p.contract_value,
+        start_date: p.start_date, end_date: p.end_date, status: nextStatus,
+      }),
+    });
+    load();
+  }
+
+  async function handleDeleteProject(e, p) {
+    e.stopPropagation();
+    const typed = prompt(`This permanently deletes "${p.name}" and ALL its data (BOQ, tracker, subcontracts, payapps, DAS). This cannot be undone.\n\nType the project reference "${p.ref}" to confirm:`);
+    if (typed !== p.ref) { if (typed !== null) alert('Reference did not match — nothing was deleted.'); return; }
+    const r = await apiFetch(`/api/v1/auth/admin/projects/${p.id}`, { method: 'DELETE' });
+    if (!r.ok) { const d = await r.json().catch(() => ({})); alert(`Could not delete: ${d.error || 'Unknown error'}`); return; }
+    load();
+  }
+
   const fmt = n => n ? new Intl.NumberFormat('en-IE', { style: 'currency', currency: 'EUR', minimumFractionDigits: 0 }).format(n) : '—';
+
+  const archivedCount = projects.filter(p => p.status === 'closed').length;
+  const visibleProjects = projects.filter(p => showArchived || p.status !== 'closed');
 
   return (
     <div className="projects-page">
@@ -79,6 +108,15 @@ export default function ProjectsView({ onSelectProject }) {
         <h1 className="projects-title">My Projects</h1>
         <button className="btn-primary" onClick={openNew}>+ New Project</button>
       </div>
+
+      {archivedCount > 0 && (
+        <button
+          onClick={() => setShowArchived(s => !s)}
+          style={{ background: 'none', border: 'none', color: '#6b7280', fontSize: 13, cursor: 'pointer', padding: '4px 0 16px', textDecoration: 'underline' }}
+        >
+          {showArchived ? 'Hide archived' : `Show archived (${archivedCount})`}
+        </button>
+      )}
 
       {loading && <p className="projects-empty">Loading…</p>}
 
@@ -91,8 +129,8 @@ export default function ProjectsView({ onSelectProject }) {
 
       {!loading && projects.length > 0 && (
         <div className="projects-grid">
-          {projects.map(p => (
-            <div key={p.id} className="project-card" onClick={() => onSelectProject(p)}>
+          {visibleProjects.map(p => (
+            <div key={p.id} className="project-card" onClick={() => onSelectProject(p)} style={p.status === 'closed' ? { opacity: 0.6 } : undefined}>
               <div className="project-card-top">
                 <span className="project-card-ref">{p.ref}</span>
                 <span className="project-card-status">{p.status}</span>
@@ -103,14 +141,26 @@ export default function ProjectsView({ onSelectProject }) {
                 <div className="project-card-value">{fmt(p.contract_value)}</div>
               )}
               <img src="/gmc-logo.png" alt="" className="project-card-logo" />
-              {p.access_role === 'owner' && (
-                <button className="project-card-share-btn" onClick={e => openShare(e, p)}>
-                  👥 Share
-                </button>
-              )}
-              {p.access_role !== 'owner' && (
-                <span className="project-card-shared-badge">Shared with you</span>
-              )}
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                {p.access_role === 'owner' && (
+                  <>
+                    <button className="project-card-share-btn" onClick={e => openShare(e, p)}>
+                      👥 Share
+                    </button>
+                    <button className="project-card-share-btn" onClick={e => handleToggleArchive(e, p)}>
+                      {p.status === 'closed' ? '📤 Unarchive' : '📥 Archive'}
+                    </button>
+                  </>
+                )}
+                {p.access_role !== 'owner' && (
+                  <span className="project-card-shared-badge">Shared with you</span>
+                )}
+                {isAdmin && (
+                  <button className="project-card-share-btn" onClick={e => handleDeleteProject(e, p)} style={{ color: '#dc2626', borderColor: '#dc2626' }}>
+                    🗑 Delete permanently
+                  </button>
+                )}
+              </div>
             </div>
           ))}
         </div>

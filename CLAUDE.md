@@ -171,6 +171,16 @@ Pilot project: **Merlin Park** — W03/26 — Uisce Éireann — €5,347,965
 
 ---
 
+## Project Lifecycle & Permissions
+
+Each `project` row represents a real, signed construction contract (real money, real BOQ/cost data) — so destructive actions on it are deliberately split by privilege:
+
+- **Archive / Unarchive (any project owner, self-service):** toggles `project.status` between `active` and `closed` via `PUT /api/v1/projects/:id` (already existed). UI: "📥 Archive" / "📤 Unarchive" button on the project card in [ProjectsView.jsx](client/src/components/ProjectsView.jsx), visible when `access_role === 'owner'`. Archived projects are hidden from "My Projects" by default, behind a "Show archived (n)" toggle. Fully reversible, no data is touched.
+- **Delete permanently (system admin only, hard delete):** wipes the project and all cascaded child data (BOQ, tracker, subcontracts, payapps, DAS, QS costs, etc. — irreversible). Route: `DELETE /api/v1/auth/admin/projects/:id` in [auth.js](server/routes/auth.js), gated by `requireAdmin`. UI: red "🗑 Delete permanently" button, visible only when `localStorage.gmc_role === 'admin'` (system role, not project `access_role`) — requires typing the project's `ref` into a prompt to confirm.
+- **Rationale:** a regular project owner (gestor) should never be able to unilaterally destroy contract data with one click — only archive it. Only an admin can do a true delete, and only after typing the exact project reference. This decision was made 2026-07-05 after fixing the user-deletion FK bug (see migration 015) — same underlying concern: project deletion is high-blast-radius and must be deliberate.
+
+---
+
 ## Notes
 
 - Full project context: https://docs.google.com/document/d/1fq33qfSA3JQDFUI1O6GDoTSSG0VlarPOhQISm9PFpwE/edit (requires GMC Google account)
