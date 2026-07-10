@@ -1,5 +1,4 @@
 import { useState, useEffect } from 'react';
-import BOQView from './components/BOQView.jsx';
 import DASView from './components/DASView.jsx';
 import SubcontractView from './components/SubcontractView.jsx';
 import TrackerView from './components/TrackerView.jsx';

@@ -1,10 +1,11 @@
 import { apiFetch } from '../apiFetch.js';
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useCallback } from 'react';
+import ImportBOQModal from './ImportBOQModal.jsx';
 
-// O scope é definido pela SCHEDULE (não pelo type): Sch 1 = Prel. Fixed, 1A = Prel. Time, 2 = Pump Station.
+// Labels/cores conhecidas para os schedules do piloto Merlin Park — cosmético apenas.
+// Qualquer outro schedule (ex: de um novo projeto importado) cai no fallback (label = o próprio código).
 const SCHED_LABELS = { '1': 'Prel. Fixed', '1A': 'Prel. Time', '2': 'Pump Station' };
 const SCHED_COLOR  = { '1': 'F', '1A': 'T', '2': 'M' };   // reusa as cores existentes type-F/T/M
-const SCHED_ORDER  = ['1', '1A', '2'];
 
 const fmt = (n) =>
   n === 0 || n == null
@@ -69,13 +70,14 @@ function ScheduleBlock({ schedule, sections, subtotal, label }) {
   );
 }
 
-export default function BOQView({ projectId, schedule, scheduleLabels }) {
+export default function BOQView({ projectId, schedule, scheduleLabels = SCHED_LABELS, readOnly }) {
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState('');
-  const [scheds,  setScheds]  = useState(new Set(['1', '1A', '2']));
+  const [scheds,  setScheds]  = useState(null); // null = "not yet seeded" -> show all schedules present in data
+  const [showImport, setShowImport] = useState(false);
 
-  useEffect(() => {
+  const reload = useCallback(() => {
     setLoading(true);
     const params = new URLSearchParams({ group: 'schedule' });
     if (schedule) params.set('schedule', schedule);
@@ -86,9 +88,22 @@ export default function BOQView({ projectId, schedule, scheduleLabels }) {
       .catch(() => setLoading(false));
   }, [projectId, schedule]);
 
+  useEffect(() => { reload(); }, [reload]);
+
+  // Schedules to show/filter-by are driven by the actual data, not a fixed list —
+  // BOQ schedules vary per project (Merlin Park uses '1'/'1A'/'2', other projects won't).
+  const allSchedules = useMemo(
+    () => Object.keys(data?.grouped || {}).sort(),
+    [data]
+  );
+
+  useEffect(() => {
+    if (data?.grouped) setScheds(new Set(Object.keys(data.grouped)));
+  }, [data]);
+
   const toggleSched = (s) =>
     setScheds(prev => {
-      const next = new Set(prev);
+      const next = new Set(prev || allSchedules);
       next.has(s) ? next.delete(s) : next.add(s);
       return next;
     });
@@ -96,10 +111,11 @@ export default function BOQView({ projectId, schedule, scheduleLabels }) {
   const filteredGrouped = useMemo(() => {
     if (!data?.grouped) return {};
     const q = search.toLowerCase();
+    const activeScheds = scheds || new Set(allSchedules);
 
     const result = {};
     for (const [sch, sections] of Object.entries(data.grouped)) {
-      if (!scheds.has(sch)) continue;          // filtra por schedule
+      if (!activeScheds.has(sch)) continue;          // filtra por schedule
       const filteredSections = {};
       for (const [sec, items] of Object.entries(sections)) {
         const filtered = items.filter(item =>
@@ -112,7 +128,7 @@ export default function BOQView({ projectId, schedule, scheduleLabels }) {
       if (Object.keys(filteredSections).length) result[sch] = filteredSections;
     }
     return result;
-  }, [data, search, scheds]);
+  }, [data, search, scheds, allSchedules]);
 
   const subtotalFor = (sch) => {
     if (!filteredGrouped[sch]) return 0;
@@ -120,8 +136,6 @@ export default function BOQView({ projectId, schedule, scheduleLabels }) {
       .flat()
       .reduce((acc, item) => acc + (item.contract_sum || 0), 0);
   };
-
-  const scheduleOrder = ['1', '1A', '2'];
 
   if (loading) return (
     <div className="state-box">
@@ -137,7 +151,8 @@ export default function BOQView({ projectId, schedule, scheduleLabels }) {
     </div>
   );
 
-  const visibleSchedules = scheduleOrder.filter(s => filteredGrouped[s]);
+  const visibleSchedules = allSchedules.filter(s => filteredGrouped[s]);
+  const activeScheds = scheds || new Set(allSchedules);
 
   return (
     <div>
@@ -149,24 +164,37 @@ export default function BOQView({ projectId, schedule, scheduleLabels }) {
           onChange={e => setSearch(e.target.value)}
         />
         <div className="type-filters" style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
-          {SCHED_ORDER.map(s => (
+          {allSchedules.map(s => (
             <label key={s} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, fontWeight:600, color:'#374151' }}>
-              <input type="checkbox" checked={scheds.has(s)} onChange={() => toggleSched(s)}
+              <input type="checkbox" checked={activeScheds.has(s)} onChange={() => toggleSched(s)}
                 style={{ width:16, height:16, cursor:'pointer', accentColor:'#1a1a2e' }} />
-              {SCHED_LABELS[s]}
+              {scheduleLabels[s] || s}
             </label>
           ))}
-          <button
-            onClick={() => { setScheds(new Set(['1', '1A', '2'])); setSearch(''); }}
-            title="Show all"
-            style={{ padding:'4px 12px', borderRadius:6, border:'1px solid #d1d5db', background:'#f9fafb',
-              cursor:'pointer', fontSize:12, color:'#6b7280' }}>
-            ✕ Clear
-          </button>
+          {allSchedules.length > 0 && (
+            <button
+              onClick={() => { setScheds(new Set(allSchedules)); setSearch(''); }}
+              title="Show all"
+              style={{ padding:'4px 12px', borderRadius:6, border:'1px solid #d1d5db', background:'#f9fafb',
+                cursor:'pointer', fontSize:12, color:'#6b7280' }}>
+              ✕ Clear
+            </button>
+          )}
+          {!readOnly && (
+            <button className="btn-primary" onClick={() => setShowImport(true)}>+ Import BOQ</button>
+          )}
         </div>
       </div>
 
-      {visibleSchedules.length === 0 ? (
+      {allSchedules.length === 0 ? (
+        <div className="state-box">
+          <div className="icon">📋</div>
+          <p>No BOQ items yet.</p>
+          {!readOnly && (
+            <button className="btn-primary" style={{ marginTop: 10 }} onClick={() => setShowImport(true)}>+ Import BOQ</button>
+          )}
+        </div>
+      ) : visibleSchedules.length === 0 ? (
         <div className="state-box">
           <div className="icon">🔍</div>
           <p>No items match your filters.</p>
@@ -181,6 +209,14 @@ export default function BOQView({ projectId, schedule, scheduleLabels }) {
             label={scheduleLabels[sch] || ''}
           />
         ))
+      )}
+
+      {showImport && (
+        <ImportBOQModal
+          projectId={projectId}
+          onClose={() => setShowImport(false)}
+          onImported={() => { setShowImport(false); reload(); }}
+        />
       )}
     </div>
   );

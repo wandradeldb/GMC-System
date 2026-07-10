@@ -1,6 +1,7 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback } from 'react';
 import { useZoom } from '../zoomContext.js';
+import ImportBOQModal from './ImportBOQModal.jsx';
 
 const fmt  = (n, d = 2) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtE = (n, d = 0) => `€${fmt(n, d)}`;
@@ -58,9 +59,10 @@ const SEC_TOP  = THEAD_H + THEAD2_H; // section headers stick below both thead r
 const ROW_ODD  = '#f0f6ff';
 const ROW_EVEN = '#ffd8bb';
 
-export default function RevenueGenerationView({ projectId }) {
+export default function RevenueGenerationView({ projectId, readOnly }) {
   const zoom = useZoom();
   const [mode, setMode]         = useState('revenue');
+  const [showImport, setShowImport] = useState(false);
   const [weekEnding, setWeek]   = useState(todayFriday());
   const [activities, setActs]   = useState([]);
   const [history, setHistory]   = useState({ weeks: [], data: {} });
@@ -220,6 +222,13 @@ export default function RevenueGenerationView({ projectId }) {
 
           <input type="search" placeholder="Search activities…" value={search} onChange={e => setSearch(e.target.value)}
             style={{ flex: 1, minWidth: 140, padding: '6px 10px', borderRadius: 5, border: '1px solid #d1d5db', fontSize: 12 }} />
+
+          {!readOnly && (
+            <button className="btn-primary" onClick={() => setShowImport(true)}
+              style={{ padding: '6px 14px', fontSize: 12, whiteSpace: 'nowrap' }}>
+              + Import BOQ
+            </button>
+          )}
 
           {mode === 'revenue' && (
             <div style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
@@ -484,6 +493,14 @@ export default function RevenueGenerationView({ projectId }) {
           </div>
         )}
       </div>
+
+      {showImport && (
+        <ImportBOQModal
+          projectId={projectId}
+          onClose={() => setShowImport(false)}
+          onImported={() => { setShowImport(false); loadData(); }}
+        />
+      )}
     </div>
   );
 }

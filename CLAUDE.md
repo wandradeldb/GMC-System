@@ -52,6 +52,42 @@ Pilot project: **Merlin Park** — W03/26 — Uisce Éireann — €5,347,965
 - Total BOQ: €5,347,965.24
 - Entity: `boq_item` — fields: id, project_id, schedule, item_ref, description, unit, qty, rate, contract_sum, type (F/T/M), section, iw_cost_code
 - UI: filterable by schedule (sidebar) and type (F/T/M chips), searchable
+- **Full-contract-sheet import (2026-07-08):** ImportBOQModal.jsx has a third mode, "Full Contract
+  Sheet", for a real-world layout the user's actual contract export uses — a single sheet
+  ("Itemised Bill") with all schedules ("Bills") flowing one after another, rather than one sheet
+  per schedule. `POST /projects/:pid/boq-import/parse-excel-full` (server/routes/boq-import.js)
+  auto-splits it: bill boundaries are detected via `"Page Total NNN/<page>"` marker rows (the
+  reliable end-of-bill signal — `"Bill NNN <Name>"` start markers exist for most but not all bills,
+  e.g. Merlin Park's real file has no such line for Bill 507), multi-page bills are merged into one
+  schedule entry, and section-header text rows carry forward into `boq_item.section` for subsequent
+  rows. The "PD Ref" column in this format is **not** a unique item reference (repeats across many
+  unrelated rows) — it's mapped to `iw_cost_code`; the real per-row reference is the "Item" column.
+  Verified end-to-end against the user's actual file
+  (`BOQ Contract Merlin Park.xlsx`, "Itemised Bill" sheet): 217 real line items across 13 bills,
+  summing to exactly €5,347,965.24 — an exact match to the documented contract value, confirming the
+  parser reads this real layout correctly. Since one file can span many bills mapping to only 6
+  Revenue Generator sections, the preview groups rows per-bill with its own Revenue Section
+  dropdown (pre-filled by keyword match on the bill name — e.g. "MEICA", "Landscap" — left **blank**
+  whenever the guess isn't confident, never silently guessed, since a wrong section here would
+  misdirect real revenue in the Cost Tracker). This is a distinct, additive mode — the original
+  single-schedule Upload Excel / Paste Table modes are unchanged.
+- **Section-column standard (REV1) (2026-07-09):** the user standardised the import template on a
+  cleaner sheet (`BOQ Contract Merlin Park REV1.xlsx`) that carries an explicit **"Section" column
+  (col H)** giving one of the 6 revenue categories per row. `parse-excel-full` now detects that
+  column (`FULL_SHEET_ALIASES.section = ['section','category']`; the "Section" header sits one row
+  *above* the Description header, and Item/PD Ref cols are unlabeled, so the route recovers them —
+  Section by scanning `headerRow-1`, and Item/PD Ref positionally as `descCol-2`/`descCol-1`). When a
+  Section column is present (`sectioned:true` in the response), the import is **fully automatic** — no
+  per-bill mapping: each row's `boq_item.schedule` **is the category** (so the Bill of Quantities page
+  groups & filters by the 6 categories, matching the Revenue Generator's category filters), and
+  `revenue_activity.section` = the category with `ref` = PD Ref (`iw_cost_code`, insert-only /
+  `dedup:false` since PD Ref repeats). Sub-section title rows still carry into `boq_item.section`.
+  Verified end-to-end against the real REV1 file: 194 line items, exact category counts (Prelim Fixed
+  24, Prelim Time 22, Civil Works 106, MEICA 29, Landscape 7, Commission 6), grand total
+  €5,347,965.24; both views render category-grouped with category filters. The older no-Section
+  layout still works via the bill-detection fallback (`sectioned:false`).
+- **BOQ import feeds Revenue Generator too (2026-07-08):** `revenue_activity` (used by the "Revenue Generator" tab, [RevenueGenerationView.jsx](client/src/components/RevenueGenerationView.jsx)) was previously a fully disconnected dataset from `boq_item` — for Merlin Park the two were seeded independently (120 vs 250 rows, unrelated ref numbering) and must stay that way. Going forward, [ImportBOQModal.jsx](client/src/components/ImportBOQModal.jsx) has an optional "Revenue Section" dropdown; when set, after the BOQ commit succeeds it also calls the new `POST /api/v1/projects/:pid/revenue/activities` ([revenue.js](server/routes/revenue.js)) to create/update matching `revenue_activity` rows 1:1 (same ref/description/qty/rate/contract_value). **The section value must be one of the 6 fixed strings already hardcoded in `RevenueGenerationView.jsx`'s `SECTIONS`** (`Prelim Fixed | Prelim Time | Civil Works | MEICA Works | Landscape | Commission`) — not free text. This isn't just cosmetic: `PUT /revenue/week/:we` sums weekly revenue by that exact string into 6 fixed `tracker_we` columns, so any other value would silently vanish from the Cost Tracker instead of erroring. The dropdown defaults to "don't create Revenue Generator activities", so plain BOQ-only imports are unaffected.
+- **BOQ import (2026-07-08):** [BOQView.jsx](client/src/components/BOQView.jsx) is now wired to a real "Bill of Quantities" nav entry — it used to be imported but never rendered (the `boq` nav id was already taken by `RevenueGenerationView`, a separate feature that tracks weekly % completion per activity, not the raw BOQ list). The schedule filter/list is now derived from the loaded data (`Object.keys(data.grouped)`) instead of a list hardcoded to Merlin Park's `'1'/'1A'/'2'` — that hardcoding used to silently hide any BOQ items under any other schedule label. A new "+ Import BOQ" button opens [ImportBOQModal.jsx](client/src/components/ImportBOQModal.jsx), which supports both an Excel upload and a paste-from-clipboard (TSV) flow, both going through a shared parse-then-preview-then-commit sequence. Backend: [server/routes/boq-import.js](server/routes/boq-import.js) — `POST /projects/:pid/boq-import/parse-excel` (multer+xlsx, column auto-detected by header keywords) and `POST /projects/:pid/boq-import/commit` (find-then-update-or-insert per row, keyed on `(project_id, item_ref)`). Note: `boq_item` has **no actual UNIQUE(project_id, item_ref) constraint on the live DB** despite `schema.sql` documenting one — the deployed table predates it, and Merlin Park already has ~20 duplicate placeholder `item_ref` rows (`'1.?'`, `'1A.?'`, leftover `description='nan'` rows from the original Python import script) that would block adding that constraint without a data-cleanup pass first. The commit endpoint therefore does an explicit `SELECT`-then-`UPDATE`-or-`INSERT` instead of relying on `ON CONFLICT`, so it works regardless of that constraint. Previously, this data only ever got into the DB via `db/import-schedule10.py`, a one-off script requiring direct DB/filesystem access — no in-app path to add a BOQ existed for any project other than Merlin Park.
 
 ### Block 3 — Subcontracts (`/api/v1/projects/1/subcontracts`)
 - GMC master supplier list: `subcontractor` table — 2,620 suppliers with fields: id, code, short_name, name, email, phone, balance, credit_limit

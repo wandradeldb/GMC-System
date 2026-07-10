@@ -53,6 +53,80 @@ router.get('/projects/:pid/revenue/activities', (req, res) => {
   res.json(acts);
 });
 
+// POST /projects/:pid/revenue/activities — bulk-create/update activities (e.g. from BOQ import).
+// section must be one of SECTION_COL's keys — the weekly rollup (PUT /revenue/week/:we below) sums
+// revenue by this exact string into fixed tracker_we columns, so an unrecognized value would silently
+// vanish from the Cost Tracker instead of erroring.
+router.post('/projects/:pid/revenue/activities', (req, res) => {
+  const { rows, section, dedup = true } = req.body || {};
+  const projectId = req.params.pid;
+
+  if (!Array.isArray(rows) || rows.length === 0) {
+    return res.status(400).json({ error: 'No rows to import', code: 'EMPTY' });
+  }
+  const validSections = Object.keys(SECTION_COL);
+  const badRows = [];
+  const badSections = [];
+  rows.forEach((row, i) => {
+    if (!row.description || !String(row.description).trim()) badRows.push(i);
+    if (!validSections.includes(row.section || section)) badSections.push(i);
+  });
+  if (badRows.length) {
+    return res.status(400).json({
+      error: `Rows missing description: ${badRows.map(i => i + 1).join(', ')}`,
+      code: 'INVALID_ROWS',
+    });
+  }
+  if (badSections.length) {
+    return res.status(400).json({
+      error: `Rows with no valid section (row or default): ${badSections.map(i => i + 1).join(', ')}`,
+      code: 'INVALID_SECTION',
+    });
+  }
+
+  const con = db();
+  con.exec('BEGIN');
+  try {
+    const findStmt = con.prepare('SELECT id FROM revenue_activity WHERE project_id = ? AND ref = ?');
+    const insertStmt = con.prepare(`
+      INSERT INTO revenue_activity (project_id, ref, description, qty, unit, rate, contract_value, section, sort_order)
+      VALUES (?,?,?,?,?,?,?,?,?)
+    `);
+    const updateStmt = con.prepare(`
+      UPDATE revenue_activity SET description=?, qty=?, unit=?, rate=?, contract_value=?, section=?
+      WHERE id=?
+    `);
+    let nextSort = (con.prepare('SELECT COALESCE(MAX(sort_order),-1) AS m FROM revenue_activity WHERE project_id=?').get(projectId).m) + 1;
+
+    let inserted = 0, updated = 0;
+    for (const row of rows) {
+      const ref = row.item_ref || row.ref || '';
+      const qty = row.qty || 0;
+      const rate = row.rate || 0;
+      const contractValue = Math.round(qty * rate * 100) / 100;
+      const rowSection = row.section || section;
+      // dedup=false (full-sheet import): always insert. The source PD Ref repeats by design
+      // (e.g. 106 rows share ref "2.1.1"), so deduping by ref would collapse them into one row.
+      const existing = (dedup && ref) ? findStmt.get(projectId, ref) : null;
+      if (existing) {
+        updateStmt.run(row.description, qty, row.unit || '', rate, contractValue, rowSection, existing.id);
+        updated++;
+      } else {
+        insertStmt.run(projectId, ref, row.description, qty, row.unit || '', rate, contractValue, rowSection, nextSort++);
+        inserted++;
+      }
+    }
+
+    con.exec('COMMIT');
+    con.close();
+    res.json({ ok: true, inserted, updated, total: rows.length });
+  } catch (e) {
+    con.exec('ROLLBACK');
+    con.close();
+    res.status(400).json({ error: e.message, code: 'COMMIT_FAILED' });
+  }
+});
+
 // â”€â”€ GET /projects/:pid/revenue/week/:we â”€â”€â”€ atividades + valores desta semana â”€â”€
 router.get('/projects/:pid/revenue/week/:we', (req, res) => {
   const con = db();
