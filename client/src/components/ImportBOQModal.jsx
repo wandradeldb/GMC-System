@@ -146,59 +146,48 @@ export default function ImportBOQModal({ projectId, onClose, onImported }) {
           {step === 'input' && (
             <>
               <div style={{
-                border: '1px solid #e5e7eb',
-                borderRadius: 8,
-                padding: 14,
+                border: '1px solid #d1d5db',
+                borderRadius: 6,
                 marginBottom: 16,
-                backgroundColor: '#f9fafb'
+                backgroundColor: '#f3f4f6',
+                overflow: 'hidden'
               }}>
-                <div style={{ fontSize: 12, fontWeight: 600, marginBottom: 10, color: '#374151' }}>
-                  📋 Expected Column Format
+                <div style={{
+                  display: 'grid',
+                  gridTemplateColumns: 'repeat(8, 1fr)',
+                  borderBottom: '2px solid #d1d5db'
+                }}>
+                  {[
+                    { col: 'A', name: 'Ref' },
+                    { col: 'B', name: 'Description' },
+                    { col: 'C', name: 'Qty' },
+                    { col: 'D', name: 'Unit' },
+                    { col: 'E', name: 'Rate' },
+                    { col: 'F', name: '€ c' },
+                    { col: 'G', name: '' },
+                    { col: 'H', name: 'Section', highlight: true },
+                  ].map((col, i) => (
+                    <div
+                      key={i}
+                      style={{
+                        padding: '10px 8px',
+                        textAlign: 'center',
+                        fontSize: 11,
+                        fontWeight: 600,
+                        backgroundColor: col.highlight ? '#fcd34d' : '#e5e7eb',
+                        color: col.highlight ? '#92400e' : '#374151',
+                        borderRight: i < 7 ? '1px solid #d1d5db' : 'none',
+                      }}
+                    >
+                      <div style={{ fontSize: 9, color: col.highlight ? '#b45309' : '#6b7280', marginBottom: 2 }}>
+                        Col {col.col}
+                      </div>
+                      <div>{col.name}</div>
+                    </div>
+                  ))}
                 </div>
-                <table style={{ width: '100%', fontSize: 11, borderCollapse: 'collapse' }}>
-                  <thead>
-                    <tr style={{ borderBottom: '1px solid #d1d5db' }}>
-                      <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600, color: '#6b7280' }}>Column</th>
-                      <th style={{ textAlign: 'left', padding: '6px 8px', fontWeight: 600, color: '#6b7280' }}>Header Name</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '6px 8px', color: '#374151' }}>A</td>
-                      <td style={{ padding: '6px 8px', color: '#374151' }}>Item</td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '6px 8px', color: '#374151' }}>B</td>
-                      <td style={{ padding: '6px 8px', color: '#374151' }}>PD Ref</td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '6px 8px', color: '#374151' }}>C</td>
-                      <td style={{ padding: '6px 8px', color: '#374151' }}>Description</td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '6px 8px', color: '#374151' }}>D</td>
-                      <td style={{ padding: '6px 8px', color: '#374151' }}>Unit</td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '6px 8px', color: '#374151' }}>E</td>
-                      <td style={{ padding: '6px 8px', color: '#374151' }}>Qty</td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '6px 8px', color: '#374151' }}>F</td>
-                      <td style={{ padding: '6px 8px', color: '#374151' }}>Rate</td>
-                    </tr>
-                    <tr style={{ borderBottom: '1px solid #e5e7eb' }}>
-                      <td style={{ padding: '6px 8px', color: '#374151' }}>G</td>
-                      <td style={{ padding: '6px 8px', color: '#374151' }}>Amount</td>
-                    </tr>
-                    <tr style={{ backgroundColor: '#fef3c7' }}>
-                      <td style={{ padding: '6px 8px', color: '#92400e', fontWeight: 600 }}>H</td>
-                      <td style={{ padding: '6px 8px', color: '#92400e', fontWeight: 600 }}>Section ⭐ (Prelim Fixed, Temp, etc.)</td>
-                    </tr>
-                  </tbody>
-                </table>
-                <div style={{ fontSize: 11, color: '#6b7280', marginTop: 8, fontStyle: 'italic' }}>
-                  ⭐ Column H (Section) is the most important — it organizes activities by category (Prelim Fixed, Prelim Time, Pump Station, etc.)
+                <div style={{ padding: '10px 12px', fontSize: 11, color: '#6b7280', fontStyle: 'italic', backgroundColor: '#fff' }}>
+                  ⭐ <strong>Column H (Section)</strong> is the most important — it organizes activities by category (Prelim Fixed, Prelim Time, Pump Station, etc.)
                 </div>
               </div>
 
