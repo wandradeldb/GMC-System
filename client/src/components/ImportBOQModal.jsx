@@ -150,65 +150,54 @@ export default function ImportBOQModal({ projectId, onClose, onImported }) {
               </div>
 
               <div style={{
-                border: '1px solid #d1d5db',
-                borderRadius: 6,
+                border: '2px solid #1f2937',
+                borderRadius: 4,
                 marginBottom: 16,
-                backgroundColor: '#f3f4f6',
-                overflow: 'hidden'
+                backgroundColor: '#fff',
+                display: 'flex',
+                overflow: 'hidden',
               }}>
+                {/* Columns A-F */}
                 <div style={{
                   display: 'grid',
-                  gridTemplateColumns: 'repeat(6, 1fr)',
-                  borderBottom: '2px solid #d1d5db'
+                  gridTemplateColumns: '80px 1fr 80px 100px 100px 100px',
+                  flex: 1,
+                  borderRight: '2px solid #1f2937',
                 }}>
-                  {[
-                    { col: 'A', name: 'Ref' },
-                    { col: 'B', name: 'Description' },
-                    { col: 'C', name: 'Qty' },
-                    { col: 'D', name: 'Unit' },
-                    { col: 'E', name: 'Rate' },
-                    { col: 'F', name: 'Total' },
-                  ].map((col, i) => (
+                  {['Ref', 'Description', 'Qty', 'Unit', 'Rate', 'Total'].map((name, i) => (
                     <div
                       key={i}
                       style={{
-                        padding: '10px 8px',
+                        padding: '12px 8px',
                         textAlign: 'center',
-                        fontSize: 11,
-                        fontWeight: 600,
-                        backgroundColor: '#e5e7eb',
-                        color: '#374151',
-                        borderRight: i < 5 ? '1px solid #d1d5db' : 'none',
+                        fontSize: 12,
+                        fontWeight: 700,
+                        borderBottom: '2px solid #e5e7eb',
+                        borderRight: i < 5 ? '1px solid #e5e7eb' : 'none',
+                        color: '#1f2937',
                       }}
                     >
-                      <div style={{ fontSize: 9, color: '#6b7280', marginBottom: 2 }}>
-                        Col {col.col}
-                      </div>
-                      <div>{col.name}</div>
+                      {name}
                     </div>
                   ))}
                 </div>
+
+                {/* Section column */}
                 <div style={{
-                  display: 'grid',
-                  gridTemplateColumns: '1fr',
-                  borderBottom: '2px solid #d1d5db'
+                  width: 140,
+                  padding: '12px 8px',
+                  display: 'flex',
+                  flexDirection: 'column',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  textAlign: 'center',
                 }}>
-                  <div style={{
-                    padding: '10px 8px',
-                    textAlign: 'center',
-                    fontSize: 11,
-                    fontWeight: 600,
-                    backgroundColor: '#fcd34d',
-                    color: '#92400e',
-                  }}>
-                    <div style={{ fontSize: 9, color: '#b45309', marginBottom: 2 }}>
-                      Col H
-                    </div>
-                    <div>Section</div>
+                  <div style={{ fontSize: 12, fontWeight: 700, color: '#1f2937', marginBottom: 6 }}>
+                    Section
                   </div>
-                </div>
-                <div style={{ padding: '10px 12px', fontSize: 11, color: '#6b7280', fontStyle: 'italic', backgroundColor: '#fff' }}>
-                  ⭐ <strong>Column H (Section)</strong> is the most important — it organizes activities by category (Prelim Fixed, Prelim Time, Pump Station, etc.)
+                  <div style={{ fontSize: 10, color: '#6b7280', lineHeight: 1.4 }}>
+                    Prelim Fixed<br/>Prelim Time<br/>Civil Works<br/>MEICA Works<br/>Landscape<br/>Commission
+                  </div>
                 </div>
               </div>
 
