@@ -353,14 +353,16 @@ router.post('/projects/:id/members', requireAuth, (req, res) => {
   if (!isOwner) { con.close(); return res.status(403).json({ error: 'Only the project owner can add members', code: 'FORBIDDEN' }); }
   const user = con.prepare('SELECT id FROM user WHERE username = ?').get(username);
   if (!user) { con.close(); return res.status(404).json({ error: 'User not found', code: 'NOT_FOUND' }); }
-  try {
-    con.prepare('INSERT INTO project_member (project_id, user_id, role) VALUES (?, ?, ?)').run(req.params.id, user.id, role);
-    con.close();
-    res.status(201).json({ username, role });
-  } catch {
-    con.close();
-    res.status(409).json({ error: 'User is already a member', code: 'DUPLICATE' });
-  }
+  // Upsert: re-sharing with an existing member updates their role instead of silently failing —
+  // previously this INSERT threw on the (project_id, user_id) primary key, returning 409 "already a
+  // member" and leaving a mis-set role (e.g. accidental default 'viewer') stuck with no fix short of
+  // removing and re-adding the member.
+  con.prepare(`
+    INSERT INTO project_member (project_id, user_id, role) VALUES (?, ?, ?)
+    ON CONFLICT(project_id, user_id) DO UPDATE SET role = excluded.role
+  `).run(req.params.id, user.id, role);
+  con.close();
+  res.status(201).json({ username, role });
 });
 
 // DELETE /api/v1/projects/:id/members/:userId
