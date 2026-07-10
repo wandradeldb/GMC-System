@@ -182,6 +182,51 @@ const FULL_SHEET_ALIASES = {
 const BILL_START_RE = /^bill\s+(\d+)\s*(.*)$/i;
 const PAGE_TOTAL_RE = /^page total\s+(\d+)/i;
 
+// Validates that columns are in the expected REV1 order: Item → PD Ref → Description → Qty → Unit → Rate → Amount → Section
+// Rejects if Section appears before Qty (REV2 misturado layout).
+function validateColumnOrder(cols, headerRow) {
+  const order = {};
+  for (const [field, colIdx] of Object.entries(cols)) {
+    if (colIdx != null) order[field] = colIdx;
+  }
+
+  // REV1 standard: Section should be last (rightmost), after Amount/Rate/Unit/Qty.
+  const criticalFields = ['qty', 'unit', 'rate', 'section'];
+  const present = criticalFields.filter(f => f in order);
+
+  if (present.length >= 2) {
+    const sectionCol = order.section;
+    const qtyCol = order.qty;
+    const unitCol = order.unit;
+    const rateCol = order.rate;
+
+    // If Section is present AND appears before Qty, Unit, or Rate, it's the misturado layout
+    if (sectionCol != null && qtyCol != null && sectionCol < qtyCol) {
+      return {
+        valid: false,
+        error: `Column order is incorrect (REV2 misturado). Section column is at position ${sectionCol + 1}, but should be last (after Qty/Unit/Rate).\n\nExpected order:\n1. Ref/Item\n2. PD Ref\n3. Description\n4. Qty\n5. Unit\n6. Rate\n7. Total\n8. Section\n\nPlease rearrange your columns or use the REV1 template.`,
+        code: 'INVALID_COLUMN_ORDER'
+      };
+    }
+    if (sectionCol != null && unitCol != null && sectionCol < unitCol) {
+      return {
+        valid: false,
+        error: `Column order is incorrect (REV2 misturado). Section column is at position ${sectionCol + 1}, but should be last (after Unit).\n\nExpected order:\n1. Ref/Item\n2. PD Ref\n3. Description\n4. Qty\n5. Unit\n6. Rate\n7. Total\n8. Section`,
+        code: 'INVALID_COLUMN_ORDER'
+      };
+    }
+    if (sectionCol != null && rateCol != null && sectionCol < rateCol) {
+      return {
+        valid: false,
+        error: `Column order is incorrect (REV2 misturado). Section column is at position ${sectionCol + 1}, but should be last (after Rate).\n\nExpected order:\n1. Ref/Item\n2. PD Ref\n3. Description\n4. Qty\n5. Unit\n6. Rate\n7. Total\n8. Section`,
+        code: 'INVALID_COLUMN_ORDER'
+      };
+    }
+  }
+
+  return { valid: true };
+}
+
 // Reads the common data-row fields (item_ref, iw_cost_code/PD Ref, qty, rate). Returns null for
 // rows that carry no usable qty/rate/amount (caller skips with a warning).
 function readDataRow(sheet, r, cols, batchTs, autoRefState) {
@@ -375,6 +420,12 @@ router.post('/projects/:pid/boq-import/parse-excel-full', upload.single('file'),
   //  - Item / PD Ref: unlabeled columns immediately left of Description (Item, then PD Ref).
   if (cols.iw_cost_code == null && cols.description - 1 >= 0) cols.iw_cost_code = cols.description - 1; // PD Ref
   if (cols.item_ref == null && cols.description - 2 >= 0)     cols.item_ref     = cols.description - 2; // Item
+
+  // Validate that columns are in the correct REV1 order (reject misturado layouts)
+  const orderCheck = validateColumnOrder(cols, headerRow);
+  if (!orderCheck.valid) {
+    return res.status(400).json({ error: orderCheck.error, code: orderCheck.code });
+  }
 
   const batchTs = Date.now();
   const { rows, schedules, warnings, sectioned } = parseFullSheet(sheet, headerRow, cols, batchTs);
