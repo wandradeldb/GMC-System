@@ -72,43 +72,30 @@ export default function ImportBOQModal({ projectId, onClose, onImported }) {
     const res = await apiFetch(`/api/v1/projects/${projectId}/boq-import/commit`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(mode === 'full'
-        ? { rows }
-        : { rows, schedule: schedule.trim(), type }),
+      body: JSON.stringify({ rows }),
     });
     const json = await res.json();
     if (!res.ok) { setSaving(false); setErr(json.error || 'Import failed.'); return; }
     setResult(json);
 
-    if (mode === 'full') {
-      // Match the Merlin Park standard: Revenue Generator activities use the PD Ref (captured into
-      // iw_cost_code by the full-sheet parser) as the reference, falling back to the unique Item
-      // value when PD Ref is blank. PD Ref repeats by design, so import insert-only (dedup: false).
-      const revenueRows = rows
-        .filter(r => sectionByBill[r.schedule])
-        .map(r => ({
-          ref: r.iw_cost_code || r.item_ref,
-          description: r.description,
-          qty: r.qty,
-          unit: r.unit,
-          rate: r.rate,
-          section: sectionByBill[r.schedule],
-        }));
-      if (revenueRows.length > 0) {
-        const revRes = await apiFetch(`/api/v1/projects/${projectId}/revenue/activities`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ rows: revenueRows, dedup: false }),
-        });
-        const revJson = await revRes.json();
-        if (revRes.ok) setRevResult(revJson);
-        else setRevError(revJson.error || 'Failed to create Revenue Generator activities.');
-      }
-    } else if (revenueSection) {
+    // Match the Merlin Park standard: Revenue Generator activities use the PD Ref (captured into
+    // iw_cost_code by the full-sheet parser) as the reference, falling back to the unique Item
+    // value when PD Ref is blank. PD Ref repeats by design, so import insert-only (dedup: false).
+    const revenueRows = rows
+      .filter(r => sectionByBill[r.schedule])
+      .map(r => ({
+        ref: r.iw_cost_code || r.item_ref,
+        description: r.description,
+        qty: r.qty,
+        unit: r.unit,
+        rate: r.rate,
+        section: sectionByBill[r.schedule],
+      }));
+    if (revenueRows.length > 0) {
       const revRes = await apiFetch(`/api/v1/projects/${projectId}/revenue/activities`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ rows, section: revenueSection }),
+        body: JSON.stringify({ rows: revenueRows, dedup: false }),
       });
       const revJson = await revRes.json();
       if (revRes.ok) setRevResult(revJson);
