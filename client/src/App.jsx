@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import BOQView from './components/BOQView.jsx';
 import DASView from './components/DASView.jsx';
 import SubcontractView from './components/SubcontractView.jsx';
 import TrackerView from './components/TrackerView.jsx';
@@ -22,8 +23,9 @@ const NAV_GROUPS = [
   {
     label: 'Contract',
     items: [
-      { id: 'boq',    label: 'Revenue Generator', icon: 'ti-file-text' },
-      { id: 'payapp', label: 'Applications',       icon: 'ti-receipt' },
+      { id: 'boqlist', label: 'Bill of Quantities', icon: 'ti-list' },
+      { id: 'boq',     label: 'Revenue Generator',  icon: 'ti-file-text' },
+      { id: 'payapp',  label: 'Applications',       icon: 'ti-receipt' },
     ],
   },
   {
@@ -243,7 +245,8 @@ export default function App() {
     content = (
       <>
         {activeNav === 'dashboard' && <DashboardView projectId={projectId} onNavigate={setActiveNav} />}
-        {activeNav === 'boq'       && <RevenueGenerationView projectId={projectId} readOnly={readOnly} />}
+        {activeNav === 'boqlist'   && <BOQView projectId={projectId} readOnly={readOnly} />}
+        {activeNav === 'boq'       && <RevenueGenerationView projectId={projectId} project={project} readOnly={readOnly} />}
         {activeNav === 'sub'       && <SubcontractView projectId={projectId} readOnly={readOnly} deepLinkSubName={subDeepLink?.subName} onDeepLinkConsumed={() => setSubDeepLink(null)} />}
         {activeNav === 'das'       && <DASView projectId={projectId} readOnly={readOnly} />}
         {activeNav === 'tracker'   && <TrackerView projectId={projectId} readOnly={readOnly} onSubCellClick={subName => { setSubDeepLink({ subName }); setActiveNav('sub'); }} />}

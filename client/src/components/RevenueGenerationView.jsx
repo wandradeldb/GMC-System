@@ -28,19 +28,18 @@ function todayFriday() {
   return d.toISOString().slice(0, 10);
 }
 
-// Todas as sextas de Jan 2026 a Dez 2027
-const ALL_WEEKS = (() => {
-  const weeks = [];
-  let d = new Date('2026-01-02T12:00:00');
-  // avançar até à próxima sexta
+// All Fridays between two ISO dates (inclusive), snapped forward to the first Friday >= start.
+function fridaysBetween(startISO, endISO) {
+  let d = new Date(startISO + 'T12:00:00');
   while (d.getDay() !== 5) d.setDate(d.getDate() + 1);
-  const end = new Date('2027-12-31T12:00:00');
+  const end = new Date(endISO + 'T12:00:00');
+  const weeks = [];
   while (d <= end) {
     weeks.push(d.toISOString().slice(0, 10));
     d = new Date(d.getTime() + 7 * 24 * 60 * 60 * 1000);
   }
   return weeks;
-})();
+}
 
 // Column widths (px)
 const CW = { ref: 52, desc: 238, cv: 86, cumul: 86, rem: 86, sub: 136, we: 58 };
@@ -59,13 +58,14 @@ const SEC_TOP  = THEAD_H + THEAD2_H; // section headers stick below both thead r
 const ROW_ODD  = '#f0f6ff';
 const ROW_EVEN = '#ffd8bb';
 
-export default function RevenueGenerationView({ projectId, readOnly }) {
+export default function RevenueGenerationView({ projectId, project, readOnly }) {
   const zoom = useZoom();
   const [mode, setMode]         = useState('revenue');
   const [showImport, setShowImport] = useState(false);
   const [weekEnding, setWeek]   = useState(todayFriday());
   const [activities, setActs]   = useState([]);
   const [history, setHistory]   = useState({ weeks: [], data: {} });
+  const [allWeeks, setAllWeeks] = useState([]);
   const [subs, setSubs]         = useState([]);
   const [edits, setEdits]       = useState({});    // { actId: { we: pct } }
   const [subEdits, setSubEdits] = useState({});    // { actId: sub_id } para a WE selecionada
@@ -88,12 +88,35 @@ export default function RevenueGenerationView({ projectId, readOnly }) {
       const acts = weekData.activities || [];
       setActs(acts);
 
+      // Week columns span the project's duration (padded 2 weeks either side) when start_date/
+      // end_date are set; most projects don't set them, so fall back to an ~18-month window
+      // around today. Either way, the window is stretched to also cover the currently selected
+      // week and any week that already has saved history — so past % entries never silently
+      // drop out of totalPctOf's 100%-lock calculation just because they fall outside the window.
+      const today = new Date();
+      const fallbackStart = new Date(today.getTime() - 39 * 7 * 24 * 60 * 60 * 1000);
+      const fallbackEnd   = new Date(today.getTime() + 39 * 7 * 24 * 60 * 60 * 1000);
+      let lo = project?.start_date ? new Date(project.start_date + 'T12:00:00') : fallbackStart;
+      let hi = project?.end_date   ? new Date(project.end_date   + 'T12:00:00') : fallbackEnd;
+      lo = new Date(lo.getTime() - 14 * 24 * 60 * 60 * 1000);
+      hi = new Date(hi.getTime() + 14 * 24 * 60 * 60 * 1000);
+
+      const histWeeks = histData?.weeks || [];
+      const boundary = [...histWeeks, weekEnding].map(w => new Date(w + 'T12:00:00'));
+      for (const d of boundary) {
+        if (d < lo) lo = d;
+        if (d > hi) hi = d;
+      }
+
+      const weeks = fridaysBetween(lo.toISOString().slice(0, 10), hi.toISOString().slice(0, 10));
+      setAllWeeks(weeks);
+
       // Inicializar edits com TODOS os valores de histórico para TODAS as semanas
       const m = {};
       const sm = {};
       acts.forEach(a => {
         m[a.id] = {};
-        ALL_WEEKS.forEach(w => {
+        weeks.forEach(w => {
           m[a.id][w] = histData?.data?.[a.id]?.[w]?.pct ?? 0;
         });
         sm[a.id] = a.sub_id ?? '';
@@ -103,13 +126,13 @@ export default function RevenueGenerationView({ projectId, readOnly }) {
       setHistory(histData || { weeks: [], data: {} });
       setLoading(false);
     }).catch(() => setLoading(false));
-  }, [projectId, weekEnding]);
+  }, [projectId, weekEnding, project?.start_date, project?.end_date]);
 
   useEffect(() => { loadData(); }, [loadData]);
 
   const pctOf      = (a, w) => Number(edits[a.id]?.[w]) || 0;
   const revOf      = (a, w) => Math.round(pctOf(a, w) / 100 * (a.contract_value || 0) * 100) / 100;
-  const totalPctOf = (a) => ALL_WEEKS.reduce((s, w) => s + (Number(edits[a.id]?.[w]) || 0), 0);
+  const totalPctOf = (a) => allWeeks.reduce((s, w) => s + (Number(edits[a.id]?.[w]) || 0), 0);
   const cumulOf = a => {
     let sum = 0;
     (history.weeks || []).forEach(w => { sum += history.data?.[a.id]?.[w]?.rev || 0; });
@@ -119,7 +142,7 @@ export default function RevenueGenerationView({ projectId, readOnly }) {
 
   const setPct = (id, w, v) => {
     const cur = Number(edits[id]?.[w]) || 0;
-    const total = ALL_WEEKS.reduce((s, wk) => s + (Number(edits[id]?.[wk]) || 0), 0);
+    const total = allWeeks.reduce((s, wk) => s + (Number(edits[id]?.[wk]) || 0), 0);
     const available = 100 - (total - cur);
     const n = Math.min(available, Math.max(0, parseFloat(v) || 0));
     setEdits(e => ({ ...e, [id]: { ...e[id], [w]: n } }));
@@ -215,7 +238,7 @@ export default function RevenueGenerationView({ projectId, readOnly }) {
               Save WE:&nbsp;
               <select value={weekEnding} onChange={e => setWeek(e.target.value)}
                 style={{ padding: '5px 7px', borderRadius: 5, border: '1px solid #d1d5db', fontSize: 12 }}>
-                {ALL_WEEKS.map(w => <option key={w} value={w}>{fmtDate(w)}</option>)}
+                {allWeeks.map(w => <option key={w} value={w}>{fmtDate(w)}</option>)}
               </select>
             </label>
           )}
@@ -272,7 +295,7 @@ export default function RevenueGenerationView({ projectId, readOnly }) {
       <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 235px)', zoom: `${zoom}%` }}>
         <table style={{
           borderCollapse: 'collapse',
-          minWidth: mode === 'revenue' ? FIXED_W + ALL_WEEKS.length * CW.we : 700,
+          minWidth: mode === 'revenue' ? FIXED_W + allWeeks.length * CW.we : 700,
           tableLayout: 'fixed',
           fontSize: 10,
         }}>
@@ -284,7 +307,7 @@ export default function RevenueGenerationView({ projectId, readOnly }) {
               <col style={{ width: CW.cumul }} />
               <col style={{ width: CW.rem }} />
               <col style={{ width: CW.sub }} />
-              {ALL_WEEKS.map(w => <col key={w} style={{ width: CW.we }} />)}
+              {allWeeks.map(w => <col key={w} style={{ width: CW.we }} />)}
             </>}
             {mode === 'contract' && <>
               <col style={{ width: 68 }} /><col style={{ width: 40 }} />
@@ -307,7 +330,7 @@ export default function RevenueGenerationView({ projectId, readOnly }) {
                 <th style={thFixed(SL.cumul, { width: CW.cumul, textAlign:'right' })}>Cumul. €</th>
                 <th style={thFixed(SL.rem,   { width: CW.rem,   textAlign:'right' })}>Remain. €</th>
                 <th style={thFixed(SL.sub,   { width: CW.sub,   borderRight:'3px solid #60a5fa' })}>Subcontractor</th>
-                {ALL_WEEKS.map(w => (
+                {allWeeks.map(w => (
                   <th key={w} style={thWE(w)}>
                     <div style={{ fontSize: 8, fontWeight: 700 }}>WE {fmtWEHead(w)}</div>
                     <div style={{ fontSize: 7, opacity: .7, marginTop: 1 }}>Wk {isoWeekNum(w)}</div>
@@ -318,7 +341,7 @@ export default function RevenueGenerationView({ projectId, readOnly }) {
             {mode === 'revenue' && (
               <tr>
                 <th colSpan={6} style={{ position:'sticky', top: THEAD_H, left:0, zIndex:14, background:'#1e3a8a', padding:0 }} />
-                {ALL_WEEKS.map(w => {
+                {allWeeks.map(w => {
                   const isCur = w === weekEnding;
                   return (
                     <th key={w} style={{ position:'sticky', top: THEAD_H, zIndex:9, background: isCur ? '#166534' : '#1e3a8a', padding:'1px 2px', borderLeft: isCur ? '2px solid #4ade80' : '1px solid #1e3a8a' }}>
@@ -341,7 +364,7 @@ export default function RevenueGenerationView({ projectId, readOnly }) {
               const secCV    = rows.reduce((s, a) => s + (a.contract_value || 0), 0);
               const secWeek  = rows.reduce((s, a) => s + revOf(a, weekEnding), 0);
               const secCumul = rows.reduce((s, a) => s + cumulOf(a), 0);
-              const totalCols = mode === 'revenue' ? 6 + ALL_WEEKS.length : 6;
+              const totalCols = mode === 'revenue' ? 6 + allWeeks.length : 6;
 
               const secStyle = {
                 position: 'sticky', top: SEC_TOP,
@@ -401,7 +424,7 @@ export default function RevenueGenerationView({ projectId, readOnly }) {
                           </select>
                         </td>
 
-                        {ALL_WEEKS.map(w => {
+                        {allWeeks.map(w => {
                           const isCur    = w === weekEnding;
                           const hasSaved = savedWeeks.has(w) && (history.data?.[a.id]?.[w]?.pct ?? 0) > 0;
                           const pct      = pctOf(a, w);
