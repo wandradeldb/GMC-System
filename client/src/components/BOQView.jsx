@@ -75,7 +75,7 @@ export default function BOQView({ projectId, schedule, scheduleLabels = SCHED_LA
     const typed = prompt(
       `This permanently deletes ALL ${data?.totals?.item_count ?? ''} Bill of Quantities items for this project. This cannot be undone.\n\nType DELETE to confirm:`
     );
-    if (typed !== 'DELETE') { if (typed !== null) alert('Confirmation text did not match — nothing was deleted.'); return; }
+    if (typed?.trim().toUpperCase() !== 'DELETE') { if (typed !== null) alert('Confirmation text did not match — nothing was deleted.'); return; }
     setDeleting(true);
     const r = await apiFetch(`/api/v1/projects/${projectId}/boq`, { method: 'DELETE' });
     setDeleting(false);
