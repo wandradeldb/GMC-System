@@ -88,7 +88,6 @@ const BOQ_ALIASES = {
   rate:         ['rate', 'unit rate', 'rate eur'],
   amount:       ['amount', 'total', 'value', 'sum', 'contract sum', 'boq value'],
   section:      ['section', 'sub section', 'subsection'],
-  type:         ['type'],
   iw_cost_code: ['iw cost code', 'cost code', 'code'],
   schedule:     ['schedule', 'sched'],
 };
@@ -181,6 +180,7 @@ const FULL_SHEET_ALIASES = {
 
 const BILL_START_RE = /^bill\s+(\d+)\s*(.*)$/i;
 const PAGE_TOTAL_RE = /^page total\s+(\d+)/i;
+const TOTAL_MARKER_RE = /^total\b/i; // e.g. "Total Prelim Time" — a bill-end subtotal row, not a real section title
 
 // Validates that columns are in the expected REV1 order: Item → PD Ref → Description → Qty → Unit → Rate → Amount → Section
 // Rejects if Section appears before Qty (REV2 misturado layout).
@@ -276,14 +276,15 @@ function parseFullSheet(sheet, headerRow, cols, batchTs) {
 
   // ── REV1 standard: an explicit Section column gives the category per row ──
   if (cols.section != null) {
+    let prevSchedule = null;
     for (let r = headerRow + 1; r <= range.e.r; r++) {
       const description = cols.description != null ? String(cellVal(sheet, r, cols.description) ?? '').trim() : '';
       const unit = cols.unit != null ? String(cellVal(sheet, r, cols.unit) ?? '').trim() : '';
       if (!description && !unit) continue;
 
       if (!unit) {
-        // marker / sub-section-title row (no unit). Skip bill/page-total noise; carry sub-section text.
-        if (description && !BILL_START_RE.test(description) && !PAGE_TOTAL_RE.test(description)) {
+        // marker / sub-section-title row (no unit). Skip bill/page-total/subtotal noise; carry sub-section text.
+        if (description && !BILL_START_RE.test(description) && !PAGE_TOTAL_RE.test(description) && !TOTAL_MARKER_RE.test(description)) {
           currentSection = description;
         }
         continue;
@@ -294,6 +295,11 @@ function parseFullSheet(sheet, headerRow, cols, batchTs) {
 
       const schedule = String(cellVal(sheet, r, cols.section) ?? '').trim();
       if (!schedule) { warnings.push(`Row ${r + 1} skipped: blank Section`); continue; }
+
+      // A leftover sub-section title from the previous bill/schedule should never carry across
+      // into the next one — reset it the moment the Section-column value changes.
+      if (prevSchedule !== null && schedule !== prevSchedule) currentSection = null;
+      prevSchedule = schedule;
 
       rows.push({
         ...data, description, unit, section: currentSection, type: 'M',
@@ -324,11 +330,11 @@ function parseFullSheet(sheet, headerRow, cols, batchTs) {
     if (!description && !unit) continue;
 
     const billMatch = BILL_START_RE.exec(description);
-    if (billMatch) { billName = billMatch[2].trim() || null; continue; }
+    if (billMatch) { billName = billMatch[2].trim() || null; currentSection = null; continue; }
     const pageTotalMatch = PAGE_TOTAL_RE.exec(description);
-    if (pageTotalMatch) { flushBill(pageTotalMatch[1]); continue; }
+    if (pageTotalMatch) { flushBill(pageTotalMatch[1]); currentSection = null; continue; }
 
-    if (!unit) { if (description) currentSection = description; continue; }
+    if (!unit) { if (description && !TOTAL_MARKER_RE.test(description)) currentSection = description; continue; }
 
     const data = readDataRow(sheet, r, cols, batchTs, autoRefState);
     if (!data) { warnings.push(`Row ${r + 1} skipped: no qty/rate/amount value found`); continue; }

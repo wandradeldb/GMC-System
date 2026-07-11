@@ -6,7 +6,6 @@ const BOQ_ALIASES = {
   rate:         ['rate', 'unit rate', 'rate eur'],
   amount:       ['amount', 'total', 'value', 'sum', 'contract sum', 'boq value'],
   section:      ['section', 'sub section', 'subsection'],
-  type:         ['type'],
   iw_cost_code: ['iw cost code', 'cost code', 'code'],
   schedule:     ['schedule', 'sched'],
 };

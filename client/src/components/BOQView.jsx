@@ -11,10 +11,6 @@ const fmt = (n) =>
     ? <span className="zero">—</span>
     : new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
-function TypeBadge({ type }) {
-  return <span className={`type-badge type-${type || 'F'}`}>{type || '—'}</span>;
-}
-
 function BOQTable({ items }) {
   if (!items.length) return null;
   return (
@@ -26,7 +22,6 @@ function BOQTable({ items }) {
           <th className="col-unit">Unit</th>
           <th className="col-num">Rate (€)</th>
           <th className="col-num">Contract Sum (€)</th>
-          <th className="col-type">Type</th>
         </tr>
       </thead>
       <tbody>
@@ -39,7 +34,6 @@ function BOQTable({ items }) {
             <td className="col-num" style={{ fontWeight: item.contract_sum > 0 ? 600 : 400 }}>
               {fmt(item.contract_sum)}
             </td>
-            <td className="col-type"><TypeBadge type={item.type} /></td>
           </tr>
         ))}
       </tbody>
