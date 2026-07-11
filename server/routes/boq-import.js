@@ -502,6 +502,13 @@ router.post('/projects/:pid/boq-import/commit', (req, res) => {
       }
     }
 
+    // Keep project.contract_value in sync with the BOQ — it's meant to always equal the sum of
+    // all imported line items (see CLAUDE.md: Merlin Park's contract_value matches its BOQ total
+    // exactly). Recomputed from the full table, not just this batch, so partial/per-schedule
+    // imports still converge to the right figure once every schedule has been imported.
+    const totalRow = con.prepare('SELECT COALESCE(SUM(qty*rate),0) AS t FROM boq_item WHERE project_id = ?').get(projectId);
+    con.prepare('UPDATE project SET contract_value = ? WHERE id = ?').run(Math.round(totalRow.t * 100) / 100, projectId);
+
     con.exec('COMMIT');
     con.close();
     res.json({ ok: true, inserted, updated, total: rows.length });
