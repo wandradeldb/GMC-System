@@ -69,6 +69,19 @@ export default function BOQView({ projectId, schedule, scheduleLabels = SCHED_LA
   const [search,  setSearch]  = useState('');
   const [scheds,  setScheds]  = useState(null); // null = "not yet seeded" -> show all schedules present in data
   const [showImport, setShowImport] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+
+  const handleDeleteBill = async () => {
+    const typed = prompt(
+      `This permanently deletes ALL ${data?.totals?.item_count ?? ''} Bill of Quantities items for this project. This cannot be undone.\n\nType DELETE to confirm:`
+    );
+    if (typed !== 'DELETE') { if (typed !== null) alert('Confirmation text did not match — nothing was deleted.'); return; }
+    setDeleting(true);
+    const r = await apiFetch(`/api/v1/projects/${projectId}/boq`, { method: 'DELETE' });
+    setDeleting(false);
+    if (!r.ok) { const d = await r.json().catch(() => ({})); alert(`Could not delete: ${d.error || 'Unknown error'}`); return; }
+    reload();
+  };
 
   const reload = useCallback(() => {
     setLoading(true);
@@ -175,6 +188,16 @@ export default function BOQView({ projectId, schedule, scheduleLabels = SCHED_LA
           )}
           {!readOnly && (
             <button className="btn-primary" onClick={() => setShowImport(true)}>+ Import BOQ</button>
+          )}
+          {!readOnly && allSchedules.length > 0 && (
+            <button
+              onClick={handleDeleteBill}
+              disabled={deleting}
+              title="Permanently delete all BOQ items for this project"
+              style={{ padding:'6px 14px', borderRadius:6, border:'1px solid #fca5a5', background:'#fef2f2',
+                cursor: deleting ? 'default' : 'pointer', fontSize:13, fontWeight:600, color:'#b91c1c' }}>
+              🗑 {deleting ? 'Deleting…' : 'Delete Bill'}
+            </button>
           )}
         </div>
       </div>

@@ -525,6 +525,25 @@ router.post('/projects/:pid/boq-import/commit', (req, res) => {
   }
 });
 
+// ── DELETE /projects/:pid/boq — wipe the entire Bill of Quantities for a project ────────────
+
+router.delete('/projects/:pid/boq', (req, res) => {
+  const projectId = req.params.pid;
+  const con = db();
+  con.exec('BEGIN');
+  try {
+    const { changes } = con.prepare('DELETE FROM boq_item WHERE project_id = ?').run(projectId);
+    con.prepare('UPDATE project SET contract_value = 0 WHERE id = ?').run(projectId);
+    con.exec('COMMIT');
+    con.close();
+    res.json({ ok: true, deleted: changes });
+  } catch (e) {
+    con.exec('ROLLBACK');
+    con.close();
+    res.status(400).json({ error: e.message, code: 'DELETE_FAILED' });
+  }
+});
+
 // Error handler
 router.use((err, _req, res, _next) => {
   res.status(err.status || 500).json({ error: err.message, code: err.code || 'ERROR' });
