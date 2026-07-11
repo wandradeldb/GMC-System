@@ -2,18 +2,17 @@ import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useMemo, useCallback } from 'react';
 import ImportBOQModal from './ImportBOQModal.jsx';
 
-// Labels/cores conhecidas para os schedules do piloto Merlin Park — cosmético apenas.
+// Labels conhecidos para os schedules do piloto Merlin Park — cosmético apenas.
 // Qualquer outro schedule (ex: de um novo projeto importado) cai no fallback (label = o próprio código).
 const SCHED_LABELS = { '1': 'Prel. Fixed', '1A': 'Prel. Time', '2': 'Pump Station' };
-const SCHED_COLOR  = { '1': 'F', '1A': 'T', '2': 'M' };   // reusa as cores existentes type-F/T/M
 
 const fmt = (n) =>
   n === 0 || n == null
     ? <span className="zero">—</span>
     : new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
-function TypeBadge({ schedule }) {
-  return <span className={`type-badge type-${SCHED_COLOR[schedule] || 'F'}`}>{SCHED_LABELS[schedule] || schedule}</span>;
+function TypeBadge({ type }) {
+  return <span className={`type-badge type-${type || 'F'}`}>{type || '—'}</span>;
 }
 
 function BOQTable({ items }) {
@@ -40,7 +39,7 @@ function BOQTable({ items }) {
             <td className="col-num" style={{ fontWeight: item.contract_sum > 0 ? 600 : 400 }}>
               {fmt(item.contract_sum)}
             </td>
-            <td className="col-type"><TypeBadge schedule={item.schedule} /></td>
+            <td className="col-type"><TypeBadge type={item.type} /></td>
           </tr>
         ))}
       </tbody>
