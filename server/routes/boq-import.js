@@ -568,17 +568,25 @@ router.post('/projects/:pid/boq-import/commit', (req, res) => {
 });
 
 // ── DELETE /projects/:pid/boq — wipe the entire Bill of Quantities for a project ────────────
+// Also wipes revenue_activity/revenue_week: those are seeded 1:1 from the BOQ at import time
+// (see ImportBOQModal's optional "Revenue Section"), so leaving them behind after a BOQ wipe
+// would strand orphaned activities — stale contract_value/qty/rate that no longer match
+// anything, inflating Revenue Generator's totals with numbers nobody can trace back to a BOQ line.
 
 router.delete('/projects/:pid/boq', (req, res) => {
   const projectId = req.params.pid;
   const con = db();
   con.exec('BEGIN');
   try {
+    con.prepare(`
+      DELETE FROM revenue_week WHERE activity_id IN (SELECT id FROM revenue_activity WHERE project_id = ?)
+    `).run(projectId);
+    const { changes: deletedActivities } = con.prepare('DELETE FROM revenue_activity WHERE project_id = ?').run(projectId);
     const { changes } = con.prepare('DELETE FROM boq_item WHERE project_id = ?').run(projectId);
     con.prepare('UPDATE project SET contract_value = 0 WHERE id = ?').run(projectId);
     con.exec('COMMIT');
     con.close();
-    res.json({ ok: true, deleted: changes });
+    res.json({ ok: true, deleted: changes, deletedActivities });
   } catch (e) {
     con.exec('ROLLBACK');
     con.close();
