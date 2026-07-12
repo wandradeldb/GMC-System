@@ -54,7 +54,6 @@ export default function PayAppView({ projectId, readOnly }) {
         <div className="tracker-summary-card">
           <div className="tracker-kpi-label">Contract Value</div>
           <div className="tracker-kpi-value" style={{ color: '#1a1a2e' }}>€{fmt(summary.contractValue)}</div>
-          <div className="tracker-kpi-sub">Merlin Park W03/26</div>
         </div>
         <div className="summary-divider" />
         <div className="tracker-summary-card">
