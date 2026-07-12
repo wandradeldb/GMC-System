@@ -145,6 +145,7 @@ export default function PayAppView({ projectId, readOnly }) {
 
 // ── New PayApp Form ──────────────────────────────────────────────────────────
 function NewPayAppForm({ projectId, onBack }) {
+  const zoom = useZoom();
   const [sheet,         setSheet]        = useState(null);
   const [items,         setItems]        = useState([]);
   const [history,       setHistory]      = useState({});
