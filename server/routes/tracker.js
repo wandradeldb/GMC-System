@@ -280,14 +280,18 @@ function buildTrackerReport(con, pid) {
         }
       }
 
-      // Material: match gang_name â€” try normal includes first, then space-stripped compare
-      const matRow = subMaterials.find(m => {
+      // A sub can appear under several distinct gang_name values in the same week (e.g.
+      // 'D KING (King Civil Eng)' vs 'DAVID KING 4- SEAN CALLAN') so every matching row must be
+      // summed -- .find() previously grabbed only the first matching gang_name and silently
+      // dropped the rest, which could pick a zero-material row and hide real cost sitting under
+      // a differently-spelled gang_name for the same sub.
+      const matRows = subMaterials.filter(m => {
         if (m.week_ending !== we) return false;
         const gn = m.gang_name?.toLowerCase() || '';
         const gnStripped = gn.replace(/\s+/g, '');
         return subWords.some(w => gn.includes(w) || gnStripped.includes(w));
       });
-      const costMaterial = matRow?.cost_material || 0;
+      const costMaterial = matRows.reduce((sum, m) => sum + (m.cost_material || 0), 0);
 
       // Revenue: from manual entry
       const revRow = revMap[`${sc.sub_name}__${we}`] || {};
