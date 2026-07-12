@@ -2,6 +2,7 @@ import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback } from 'react';
 import { useZoom } from '../zoomContext.js';
 import ImportBOQModal from './ImportBOQModal.jsx';
+import NewSubcontractModal from './NewSubcontractModal.jsx';
 import { SECTIONS, SEC_COLOR } from '../lib/sections.js';
 
 const fmt  = (n, d = 2) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
@@ -68,10 +69,13 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
+  const [addingSubFor, setAddingSubFor] = useState(null); // activity id awaiting a new subcontract, or null
 
-  useEffect(() => {
+  const loadSubs = useCallback(() => {
     apiFetch(`/api/v1/projects/${projectId}/subcontracts`).then(r => r.json()).then(setSubs).catch(() => {});
   }, [projectId]);
+
+  useEffect(() => { loadSubs(); }, [loadSubs]);
 
   const loadData = useCallback(() => {
     setLoading(true);
@@ -141,7 +145,10 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
     const n = Math.min(available, Math.max(0, parseFloat(v) || 0));
     setEdits(e => ({ ...e, [id]: { ...e[id], [w]: n } }));
   };
-  const setSub = (id, v) => setSubEdits(s => ({ ...s, [id]: v }));
+  const setSub = (id, v) => {
+    if (v === '__new__') { setAddingSubFor(id); return; } // opens NewSubcontractModal instead of assigning
+    setSubEdits(s => ({ ...s, [id]: v }));
+  };
 
   const onKey = (e, inputs, i) => {
     if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
@@ -375,6 +382,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
                           style={{ width:'100%', padding:'1px 2px', fontSize:9, borderRadius:3, border:'1px solid #d1d5db', background:'#fff' }}>
                           <option value="">GMC (none)</option>
                           {subs.map(s => <option key={s.id} value={s.id}>{s.ref} — {s.subcontractor_name}</option>)}
+                          <option value="__new__">+ Add new sub…</option>
                         </select>
                       </td>
 
@@ -459,13 +467,19 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
         </table>
       </div>
 
-      {/* Grand total */}
-      <div style={{ display:'flex', justifyContent:'flex-end', gap:20, padding:'10px 14px', background:'#f1f5f9', borderRadius:7, fontWeight:700, marginTop:6 }}>
+      {/* Grand total — also repeats Save here so a long list doesn't force scrolling back to the top */}
+      <div style={{ display:'flex', justifyContent:'flex-end', alignItems:'center', gap:20, padding:'10px 14px', background:'#f1f5f9', borderRadius:7, fontWeight:700, marginTop:6 }}>
         <span style={{ color:'#374151' }}>TOTAL CONTRACT: {fmtE(grand.contract, 2)}</span>
         <div style={{ textAlign:'right' }}>
           <div style={{ color:'#166534', fontSize:14 }}>WEEK REVENUE ({fmtWE(weekEnding)}): {fmtE(grand.week, 2)}</div>
           <div style={{ color:'#1e40af', fontSize:12, marginTop:2 }}>PROJECT CUMULATIVE: {fmtE(grand.cumul, 2)}</div>
         </div>
+        {!readOnly && (
+          <button onClick={save} disabled={saving} className="btn-primary"
+            style={{ padding: '8px 18px', fontSize: 13, whiteSpace: 'nowrap' }}>
+            {saving ? 'Saving…' : `Save ${fmtWE(weekEnding)}`}
+          </button>
+        )}
       </div>
 
       {showImport && (
@@ -473,6 +487,19 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
           projectId={projectId}
           onClose={() => setShowImport(false)}
           onImported={() => { setShowImport(false); loadData(); }}
+        />
+      )}
+
+      {addingSubFor != null && (
+        <NewSubcontractModal
+          projectId={projectId}
+          onClose={() => setAddingSubFor(null)}
+          onCreated={(sc) => {
+            const forId = addingSubFor;
+            setAddingSubFor(null);
+            loadSubs();
+            setSubEdits(s => ({ ...s, [forId]: sc.id }));
+          }}
         />
       )}
     </div>
