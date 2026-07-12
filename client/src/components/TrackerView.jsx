@@ -149,21 +149,18 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
 
   if (!data) return <div className="state-box"><div className="icon">⏳</div><p>Loading tracker…</p></div>;
 
-  const { rows: dbRows, summary, sub_lines = {} } = data;
+  const { rows: dbRows, summary, sub_lines = {}, subs: allSubs = [] } = data;
   // Merge all pre-generated weeks with DB data; show empty cells for unsaved weeks
   const rowMap = {};
   dbRows.forEach((r, i) => { rowMap[r.week_ending] = { ...r, week_number: i + 1 }; });
   const rows = ALL_TRACKER_WEEKS.map((w, i) => rowMap[w] || { week_ending: w, week_number: null, _empty: true });
   const { latest, previous, contractValue, totalBOQ } = summary;
 
-  // Collect unique subs across all weeks (in order)
-  const subList = [];
-  const seenSubs = new Set();
-  rows.forEach(r => {
-    (sub_lines[r.week_ending] || []).forEach(s => {
-      if (!seenSubs.has(s.sub_name)) { seenSubs.add(s.sub_name); subList.push(s); }
-    });
-  });
+  // Every registered subcontract gets a row, whether or not any week has data for it yet —
+  // sourcing this from sub_lines (which only exists per already-saved tracker week) meant a sub
+  // was invisible here until the first weekly entry was made for it, even though it already
+  // existed in Subcontracts.
+  const subList = allSubs;
 
   // Sub row colors (cycle through a palette)
   const SUB_PALETTES = [
