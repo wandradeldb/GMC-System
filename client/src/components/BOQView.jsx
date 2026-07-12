@@ -1,5 +1,5 @@
 import { apiFetch } from '../apiFetch.js';
-import { useState, useEffect, useMemo, useCallback } from 'react';
+import { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
 import ImportBOQModal from './ImportBOQModal.jsx';
 
 // Labels conhecidos para os schedules do piloto Merlin Park — cosmético apenas.
@@ -11,59 +11,18 @@ const fmt = (n) =>
     ? <span className="zero">—</span>
     : new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 
-function BOQTable({ items }) {
-  if (!items.length) return null;
-  return (
-    <table className="boq-table">
-      <thead>
-        <tr>
-          <th className="col-ref">Ref</th>
-          <th className="col-desc">Description</th>
-          <th className="col-num">Qty</th>
-          <th className="col-unit">Unit</th>
-          <th className="col-num">Rate (€)</th>
-          <th className="col-num">Contract Sum (€)</th>
-        </tr>
-      </thead>
-      <tbody>
-        {items.map(item => (
-          <tr key={item.id}>
-            <td className="col-ref">{item.item_ref}</td>
-            <td className="col-desc">{item.description}</td>
-            <td className="col-num">{fmt(item.qty)}</td>
-            <td className="col-unit">{item.unit}</td>
-            <td className="col-num">{fmt(item.rate)}</td>
-            <td className="col-num" style={{ fontWeight: item.contract_sum > 0 ? 600 : 400 }}>
-              {fmt(item.contract_sum)}
-            </td>
-          </tr>
-        ))}
-      </tbody>
-    </table>
-  );
-}
+const fmt2 = (n) => new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2 }).format(n);
 
-function ScheduleBlock({ schedule, sections, subtotal, label }) {
-  const fmt2 = (n) =>
-    new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2 }).format(n);
+const HEAD_H = 34;   // column-header row height (sticky at top)
+const ROW_ODD  = '#f0f6ff';
+const ROW_EVEN = '#ffd8bb';
 
-  return (
-    <div className="schedule-block">
-      <div className="schedule-header">
-        <span className="schedule-title">Schedule {schedule}</span>
-        <span className="schedule-subtitle">{label}</span>
-        <span className="schedule-total">€ {fmt2(subtotal)}</span>
-      </div>
-
-      {Object.entries(sections).map(([section, items]) => (
-        <div key={section}>
-          <div className="section-header">{section}</div>
-          <BOQTable items={items} />
-        </div>
-      ))}
-    </div>
-  );
-}
+const thStyle = {
+  position: 'sticky', top: 0, zIndex: 5,
+  background: '#1a1a2e', color: '#fff',
+  padding: '8px 10px', fontSize: 11, fontWeight: 700,
+  textTransform: 'uppercase', letterSpacing: '0.06em', whiteSpace: 'nowrap',
+};
 
 export default function BOQView({ projectId, schedule, scheduleLabels = SCHED_LABELS, readOnly }) {
   const [data,    setData]    = useState(null);
@@ -98,10 +57,11 @@ export default function BOQView({ projectId, schedule, scheduleLabels = SCHED_LA
 
   useEffect(() => { reload(); }, [reload]);
 
-  // Schedules to show/filter-by are driven by the actual data, not a fixed list —
-  // BOQ schedules vary per project (Merlin Park uses '1'/'1A'/'2', other projects won't).
+  // Schedule order follows the server's response — it's already the source file's natural bill
+  // order (e.g. Prelim Fixed, Prelim Time, Civil Works, MEICA Works, Landscape, Commission), not
+  // re-sorted alphabetically, so it reads the same way the original spreadsheet does.
   const allSchedules = useMemo(
-    () => Object.keys(data?.grouped || {}).sort(),
+    () => Object.keys(data?.grouped || {}),
     [data]
   );
 
@@ -161,6 +121,9 @@ export default function BOQView({ projectId, schedule, scheduleLabels = SCHED_LA
 
   const visibleSchedules = allSchedules.filter(s => filteredGrouped[s]);
   const activeScheds = scheds || new Set(allSchedules);
+  const grandTotal = visibleSchedules.reduce((sum, sch) => sum + subtotalFor(sch), 0);
+
+  let dataRowIdx = 0;
 
   return (
     <div>
@@ -218,15 +181,86 @@ export default function BOQView({ projectId, schedule, scheduleLabels = SCHED_LA
           <p>No items match your filters.</p>
         </div>
       ) : (
-        visibleSchedules.map(sch => (
-          <ScheduleBlock
-            key={sch}
-            schedule={sch}
-            sections={filteredGrouped[sch]}
-            subtotal={subtotalFor(sch)}
-            label={scheduleLabels[sch] || ''}
-          />
-        ))
+        <>
+          {/* Total stays visible above the scrolling table, not buried at the bottom */}
+          <div style={{
+            display: 'flex', justifyContent: 'flex-end', alignItems: 'baseline', gap: 10,
+            padding: '9px 14px', background: '#1a1a2e', color: '#fff',
+            borderRadius: 7, marginBottom: 8,
+          }}>
+            <span style={{ fontSize: 11, opacity: .7, textTransform: 'uppercase', letterSpacing: '.06em' }}>Total Contract</span>
+            <span style={{ fontSize: 17, fontWeight: 800 }}>€ {fmt2(grandTotal)}</span>
+          </div>
+
+          <div style={{ overflowY: 'auto', overflowX: 'auto', maxHeight: 'calc(100vh - 300px)' }}>
+            <table className="boq-table" style={{ tableLayout: 'fixed' }}>
+              <colgroup>
+                <col className="col-ref" />
+                <col className="col-desc" />
+                <col className="col-num" />
+                <col className="col-unit" />
+                <col className="col-num" />
+                <col className="col-num" />
+              </colgroup>
+              <thead>
+                <tr>
+                  <th style={thStyle}>Ref</th>
+                  <th style={thStyle}>Description</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Qty</th>
+                  <th style={{ ...thStyle, textAlign: 'center' }}>Unit</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Rate (€)</th>
+                  <th style={{ ...thStyle, textAlign: 'right' }}>Contract Sum (€)</th>
+                </tr>
+              </thead>
+              <tbody>
+                {visibleSchedules.map(sch => (
+                  <Fragment key={sch}>
+                    <tr>
+                      <td colSpan={6} style={{
+                        position: 'sticky', top: HEAD_H, zIndex: 4,
+                        background: '#374151', color: '#fff',
+                        padding: '6px 10px', fontSize: 13, fontWeight: 700,
+                        textTransform: 'uppercase', letterSpacing: '0.04em',
+                      }}>
+                        <span>{scheduleLabels[sch] || sch}</span>
+                        <span style={{ float: 'right', fontVariantNumeric: 'tabular-nums' }}>€ {fmt2(subtotalFor(sch))}</span>
+                      </td>
+                    </tr>
+
+                    {Object.entries(filteredGrouped[sch]).map(([section, items]) => (
+                      <Fragment key={section}>
+                        <tr>
+                          <td colSpan={6} style={{
+                            padding: '7px 12px', background: '#f8fafc', fontSize: 12,
+                            fontWeight: 600, color: '#374151', borderLeft: '3px solid #cbd5e1',
+                          }}>
+                            {section}
+                          </td>
+                        </tr>
+                        {items.map(item => {
+                          dataRowIdx++;
+                          const rowBg = dataRowIdx % 2 !== 0 ? ROW_ODD : ROW_EVEN;
+                          return (
+                            <tr key={item.id}>
+                              <td className="col-ref" style={{ background: rowBg }}>{item.item_ref}</td>
+                              <td className="col-desc" style={{ background: rowBg }}>{item.description}</td>
+                              <td className="col-num" style={{ background: rowBg }}>{fmt(item.qty)}</td>
+                              <td className="col-unit" style={{ background: rowBg }}>{item.unit}</td>
+                              <td className="col-num" style={{ background: rowBg }}>{fmt(item.rate)}</td>
+                              <td className="col-num" style={{ background: rowBg, fontWeight: item.contract_sum > 0 ? 600 : 400 }}>
+                                {fmt(item.contract_sum)}
+                              </td>
+                            </tr>
+                          );
+                        })}
+                      </Fragment>
+                    ))}
+                  </Fragment>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
       )}
 
       {showImport && (
