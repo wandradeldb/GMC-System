@@ -279,7 +279,7 @@ function NewPayAppForm({ projectId, onBack }) {
                   style={{ padding:'3px 10px', borderRadius:5, border:'1px solid #d1d5db', background:'#f9fafb', cursor:'pointer', fontSize:11, color:'#6b7280' }}>
                   ✕ Clear
                 </button>
-                <span style={{ color:'#9ca3af', fontSize:12 }}>{items.filter(i => parseFloat(i.pct_complete) > 0).length} items with %</span>
+                <span style={{ color:'#6b7280', fontSize:12 }}>{items.filter(i => parseFloat(i.pct_complete) > 0).length} items with %</span>
                 <input type="search" placeholder="Filter items…" value={search} onChange={e => setSearch(e.target.value)}
                   style={{ padding:'5px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:12, width:180, marginLeft:'auto' }} />
               </div>

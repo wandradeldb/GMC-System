@@ -103,14 +103,13 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
           { id:'ces',         label:`Variations (${compensation_events.length})` },
           { id:'payments',    label:'Tracker Invoices' },
         ].map(t => (
-          <button key={t.id} className={`das-tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}
-            style={{ padding:'7px 14px', fontSize:11 }}>
+          <button key={t.id} className={`das-tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
             {t.label}
           </button>
         ))}
       </div>
 
-      <div className="das-tab-content" style={{ padding:'6px 12px 12px' }}>
+      <div className="das-tab-content">
         {tab === 'overview' && (
           <ApplicationsTab
             applications={applications}
@@ -226,8 +225,8 @@ function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh })
 
   return (
     <div>
-      <div className="section-toolbar" style={{ marginBottom: 4 }}>
-        <span className="section-stat" style={{ fontSize:11 }}>
+      <div className="section-toolbar">
+        <span className="section-stat">
           {boqItems.length} items · Contract: €{fmt(totalContract)} · Certified: €{fmt(totalCertified)} · Remaining: €{fmt(totalRemaining)}
         </span>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
@@ -242,7 +241,7 @@ function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh })
       {boqItems.length === 0 ? (
         <div className="empty-hint">No sub BOQ items defined.</div>
       ) : (
-        <div style={{ overflow:'auto', maxHeight:'calc(100vh - 193px)', zoom: `${zoom}%` }}>
+        <div style={{ overflow:'auto', maxHeight:'calc(100vh - 215px)', zoom: `${zoom}%` }}>
           <table className="boq-table">
             <thead>
               <tr>

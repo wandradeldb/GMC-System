@@ -155,25 +155,25 @@ export default function QSCostsView({ projectId, readOnly }) {
 
       {/* ── Summary totals strip ─────────────────────────────────── */}
       {summary.length > 0 && (
-        <div style={{ display:'flex', gap:8, flexWrap:'wrap', margin:'12px 0' }}>
+        <div style={{ display:'flex', gap:6, flexWrap:'wrap', margin:'6px 0' }}>
           {summary.map(s => {
             const st = CAT_STYLE[s.cost_category] || CAT_STYLE.Other;
             return (
               <div key={s.cost_category}
                 onClick={() => setCategory(category === s.cost_category ? '' : s.cost_category)}
                 style={{ background: st.bg, border:`1px solid ${category === s.cost_category ? st.border : '#e5e7eb'}`,
-                  borderRadius:8, padding:'8px 14px', cursor:'pointer',
+                  borderRadius:8, padding:'4px 10px', cursor:'pointer',
                   boxShadow: category === s.cost_category ? `0 0 0 2px ${st.border}` : 'none' }}>
-                <div style={{ fontSize:11, color: st.color, fontWeight:600 }}>{s.cost_category}</div>
-                <div style={{ fontSize:16, fontWeight:700, color: st.color }}>€{fmt(s.total)}</div>
-                <div style={{ fontSize:11, color:'#9ca3af' }}>{s.count} txns</div>
+                <div style={{ fontSize:9, color: st.color, fontWeight:600 }}>{s.cost_category}</div>
+                <div style={{ fontSize:13, fontWeight:700, color: st.color }}>€{fmt(s.total)}</div>
+                <div style={{ fontSize:9, color:'#6b7280' }}>{s.count} txns</div>
               </div>
             );
           })}
-          <div style={{ background:'#1a1a2e', borderRadius:8, padding:'8px 14px', marginLeft:'auto' }}>
-            <div style={{ fontSize:11, color:'rgba(255,255,255,0.6)', fontWeight:600 }}>TOTAL</div>
-            <div style={{ fontSize:16, fontWeight:700, color:'#fff' }}>€{fmt(grandTotal)}</div>
-            <div style={{ fontSize:11, color:'rgba(255,255,255,0.5)' }}>{rows.length} rows</div>
+          <div style={{ background:'#1a1a2e', borderRadius:8, padding:'4px 10px', marginLeft:'auto' }}>
+            <div style={{ fontSize:9, color:'rgba(255,255,255,0.6)', fontWeight:600 }}>TOTAL</div>
+            <div style={{ fontSize:13, fontWeight:700, color:'#fff' }}>€{fmt(grandTotal)}</div>
+            <div style={{ fontSize:9, color:'rgba(255,255,255,0.5)' }}>{rows.length} rows</div>
           </div>
         </div>
       )}
@@ -246,7 +246,7 @@ export default function QSCostsView({ projectId, readOnly }) {
         <div className="state-box">
           <div className="icon">📦</div>
           <p>Materials List (Conquest) — coming soon.</p>
-          <p style={{ fontSize: 12, color: '#9ca3af', maxWidth: 420, margin: '4px auto 0' }}>
+          <p style={{ fontSize: 12, color: '#6b7280', maxWidth: 420, margin: '4px auto 0' }}>
             Will import the Conquest materials list; each procurement purchase-list import will deduct from the Conquest total.
           </p>
         </div>
@@ -262,26 +262,26 @@ export default function QSCostsView({ projectId, readOnly }) {
               : 'No transactions match the current filters.'}</p>
           </div>
         ) : (
-          <div style={{ overflowX:'auto', zoom: `${zoom}%` }}>
+          <div style={{ overflow:'auto', maxHeight:'calc(100vh - 290px)', zoom: `${zoom}%` }}>
             <table className="boq-table" style={{ minWidth:900 }}>
               <thead>
                 <tr>
-                  <th style={{ width:32, textAlign:'center', padding:'4px' }}>
+                  <th style={{ width:32, textAlign:'center', padding:'4px', position:'sticky', top:0, zIndex:4, background:'#1a1a2e', color:'#fff' }}>
                     <input type="checkbox"
                       checked={data.rows.length > 0 && selected.size === data.rows.length}
                       onChange={() => toggleSelectAll(data.rows)}
                       style={{ cursor:'pointer' }} />
                   </th>
-                  <th>Date</th>
-                  <th>WE</th>
-                  <th>Sub / Gang</th>
-                  <th>Category</th>
-                  <th>Code</th>
-                  <th>Description</th>
-                  <th>Supplier</th>
-                  <th style={{textAlign:'right'}}>Qty</th>
-                  <th style={{textAlign:'right'}}>Unit Value</th>
-                  <th style={{textAlign:'right'}}>Cost</th>
+                  <th style={{position:'sticky', top:0, zIndex:4, background:'#1a1a2e', color:'#fff'}}>Date</th>
+                  <th style={{position:'sticky', top:0, zIndex:4, background:'#1a1a2e', color:'#fff'}}>WE</th>
+                  <th style={{position:'sticky', top:0, zIndex:4, background:'#1a1a2e', color:'#fff'}}>Sub / Gang</th>
+                  <th style={{position:'sticky', top:0, zIndex:4, background:'#1a1a2e', color:'#fff'}}>Category</th>
+                  <th style={{position:'sticky', top:0, zIndex:4, background:'#1a1a2e', color:'#fff'}}>Code</th>
+                  <th style={{position:'sticky', top:0, zIndex:4, background:'#1a1a2e', color:'#fff'}}>Description</th>
+                  <th style={{position:'sticky', top:0, zIndex:4, background:'#1a1a2e', color:'#fff'}}>Supplier</th>
+                  <th style={{textAlign:'right', position:'sticky', top:0, zIndex:4, background:'#1a1a2e', color:'#fff'}}>Qty</th>
+                  <th style={{textAlign:'right', position:'sticky', top:0, zIndex:4, background:'#1a1a2e', color:'#fff'}}>Unit Value</th>
+                  <th style={{textAlign:'right', position:'sticky', top:0, zIndex:4, background:'#1a1a2e', color:'#fff'}}>Cost</th>
                 </tr>
               </thead>
               <tbody>
@@ -316,9 +316,9 @@ export default function QSCostsView({ projectId, readOnly }) {
                 ))}
               </tbody>
               <tfoot>
-                <tr style={{background:'#f8fafc', fontWeight:700}}>
-                  <td colSpan={10} style={{textAlign:'right', paddingRight:8}}>Total ({rows.length} transactions)</td>
-                  <td style={{textAlign:'right', fontVariantNumeric:'tabular-nums'}}>
+                <tr style={{background:'#1a1a2e', color:'#fff', fontWeight:700, position:'sticky', bottom:0, zIndex:5}}>
+                  <td colSpan={10} style={{textAlign:'right', paddingRight:8, padding:'8px 10px'}}>Total ({rows.length} transactions)</td>
+                  <td style={{textAlign:'right', fontVariantNumeric:'tabular-nums', padding:'8px 10px'}}>
                     €{fmt(rows.reduce((s, r) => s + (r.cost || 0), 0))}
                   </td>
                 </tr>
