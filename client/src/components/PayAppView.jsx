@@ -220,15 +220,16 @@ function NewPayAppForm({ projectId, onBack }) {
         <button className="btn-back" onClick={onBack}>← PayApps</button>
       </div>
 
-      {/* Header — sticky below topbar */}
-      <div className="assessment-header" style={{ position:'sticky', top:0, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb', marginBottom:0 }}>
-        <div className="assessment-title">
+      {/* Header — sticky below topbar. Compact padding: this bar plus the tabs/filter row below it
+          are all sticky "chrome" competing with the scrollable table for vertical space. */}
+      <div className="assessment-header" style={{ position:'sticky', top:0, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb', marginBottom:0, padding:'8px 16px' }}>
+        <div className="assessment-title" style={{ marginBottom: 4 }}>
           <span className="assessment-period">PayApp #{sheet.next_app_number}</span>
           <span style={{ fontSize: 13, color: '#6b7280' }}>
             Previously Certified: <strong>€{fmt(prevCert)}</strong>
           </span>
         </div>
-        <div className="assessment-kpis">
+        <div className="assessment-kpis" style={{ marginBottom: 4 }}>
           <div className="assess-kpi">
             <div className="kpi-label">Works Gross (Cum.) €</div>
             <div className="kpi-value" style={{ color: '#1e40af' }}>€{fmt(grossOverride || itemsGross, 2)}</div>
@@ -244,7 +245,7 @@ function NewPayAppForm({ projectId, onBack }) {
         </div>
         <div className="assessment-actions">
           <input value={header.prepared_by} onChange={e => setHeader(h => ({ ...h, prepared_by: e.target.value }))}
-            placeholder="Prepared by" style={{ padding:'7px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:13, width:150 }} />
+            placeholder="Prepared by" style={{ padding:'5px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:13, width:150 }} />
           <button className="btn-save" onClick={save} disabled={saving}>
             {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save PayApp'}
           </button>
@@ -281,7 +282,7 @@ function NewPayAppForm({ projectId, onBack }) {
           return (
             <div>
               {/* Schedule filter + search */}
-              <div style={{ display:'flex', alignItems:'center', gap:14, padding:'8px 12px', flexWrap:'wrap', borderBottom:'1px solid #e5e7eb' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:14, padding:'6px 12px', flexWrap:'wrap', borderBottom:'1px solid #e5e7eb' }}>
                 {schedules.map(s => (
                   <label key={s} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, fontWeight:600, color: SEC_COLOR[s] || '#374151' }}>
                     <input type="checkbox" checked={activeSch.has(s)} onChange={() => toggleSch(s)}
@@ -301,8 +302,8 @@ function NewPayAppForm({ projectId, onBack }) {
               {/* Scrollable table area — overflow:auto + max-height makes thead sticky work */}
               {(() => {
                 // sticky column left offsets
-                const W = { ref:52, desc:220, unit:46, rate:82, total:90 };
-                const L = { ref:0, desc:W.ref, unit:W.ref+W.desc, rate:W.ref+W.desc+W.unit, total:W.ref+W.desc+W.unit+W.rate };
+                const W = { ref:52, desc:200, qty:56, unit:46, rate:82, total:90 };
+                const L = { ref:0, desc:W.ref, qty:W.ref+W.desc, unit:W.ref+W.desc+W.qty, rate:W.ref+W.desc+W.qty+W.unit, total:W.ref+W.desc+W.qty+W.unit+W.rate };
                 const stickyTh = (extra={}) => ({
                   position:'sticky', zIndex:6, background:'#1e3a8a', ...extra,
                 });
@@ -320,12 +321,13 @@ function NewPayAppForm({ projectId, onBack }) {
                 });
 
                 return (
-                <div style={{ overflow:'auto', maxHeight:'calc(100vh - 295px)', WebkitOverflowScrolling:'touch', zoom: `${zoom}%` }}>
-                  <table className="boq-table" style={{ minWidth: 680 + priorApps.length * 70 }}>
+                <div style={{ overflow:'auto', maxHeight:'calc(100vh - 300px)', WebkitOverflowScrolling:'touch', zoom: `${zoom}%` }}>
+                  <table className="boq-table" style={{ minWidth: 730 + priorApps.length * 70 }}>
                     <thead>
                       <tr>
                         <th style={{ ...thStyle({ position:'sticky', top:0, left:L.ref,   zIndex:7, width:W.ref,   textAlign:'left'   }) }}>Ref</th>
                         <th style={{ ...thStyle({ position:'sticky', top:0, left:L.desc,  zIndex:7, width:W.desc,  textAlign:'left'   }) }}>Description</th>
+                        <th style={{ ...thStyle({ position:'sticky', top:0, left:L.qty,   zIndex:7, width:W.qty,   textAlign:'right'  }) }}>Qty</th>
                         <th style={{ ...thStyle({ position:'sticky', top:0, left:L.unit,  zIndex:7, width:W.unit,  textAlign:'center' }) }}>Unit</th>
                         <th style={{ ...thStyle({ position:'sticky', top:0, left:L.rate,  zIndex:7, width:W.rate,  textAlign:'right'  }) }}>Rate</th>
                         <th style={{ ...thStyle({ position:'sticky', top:0, left:L.total, zIndex:7, width:W.total, textAlign:'right'  }) }}>Contract €</th>
@@ -350,7 +352,7 @@ function NewPayAppForm({ projectId, onBack }) {
                         const schThis          = schItems.reduce((s,i) => s + ((parseFloat(i.pct_complete)||0)/100)*(i.contract_sum||0), 0);
                         return [
                           <tr key={`hdr-${sch}`} style={{ background: (SEC_COLOR[sch] || '#1e3a8a') + '18' }}>
-                            <td colSpan={6 + priorApps.length + 2} style={{ padding:'5px 12px', color: SEC_COLOR[sch] || '#1e3a8a', fontWeight:700, fontSize:12, letterSpacing:'.04em' }}>
+                            <td colSpan={7 + priorApps.length + 2} style={{ padding:'5px 12px', color: SEC_COLOR[sch] || '#1e3a8a', fontWeight:700, fontSize:12, letterSpacing:'.04em' }}>
                               {sch}
                             </td>
                           </tr>,
@@ -369,6 +371,7 @@ function NewPayAppForm({ projectId, onBack }) {
                               <tr key={row._idx} style={{ background: bg }}>
                                 <td style={{ ...stickyTd(L.ref,   bg), padding:'5px 8px', fontSize:12, fontWeight:600, color:'#374151', whiteSpace:'nowrap' }}>{row.item_ref}</td>
                                 <td style={{ ...stickyTd(L.desc,  bg), padding:'5px 8px', fontSize:12, color:'#111827', maxWidth:W.desc, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap' }} title={row.description}>{row.description}</td>
+                                <td style={{ ...stickyTd(L.qty,   bg), padding:'5px 8px', fontSize:12, textAlign:'right', color:'#6b7280', whiteSpace:'nowrap' }}>{row.qty > 0 ? fmt(row.qty, 2) : '—'}</td>
                                 <td style={{ ...stickyTd(L.unit,  bg), padding:'5px 4px', fontSize:12, textAlign:'center', color:'#6b7280', whiteSpace:'nowrap' }}>{row.unit}</td>
                                 <td style={{ ...stickyTd(L.rate,  bg), padding:'5px 8px', fontSize:11, textAlign:'right', color:'#6b7280', whiteSpace:'nowrap' }}>{row.rate > 0 ? `€${fmt(row.rate,2)}` : '—'}</td>
                                 <td style={{ ...stickyTd(L.total, bg), padding:'5px 8px', fontSize:12, textAlign:'right', color:'#374151', whiteSpace:'nowrap' }}>{row.contract_sum > 0 ? `€${fmt(row.contract_sum,2)}` : '—'}</td>
@@ -408,6 +411,7 @@ function NewPayAppForm({ projectId, onBack }) {
                             <td style={{ ...stickyTd(L.desc, '#dbeafe'), padding:'5px 8px', fontSize:12, color: SEC_COLOR[sch] || '#1e40af' }}>
                               {sch} — Subtotal
                             </td>
+                            <td style={{ ...stickyTd(L.qty,  '#dbeafe') }} />
                             <td style={{ ...stickyTd(L.unit, '#dbeafe') }} />
                             <td style={{ ...stickyTd(L.rate, '#dbeafe') }} />
                             <td style={{ ...stickyTd(L.total,'#dbeafe'), padding:'5px 8px', textAlign:'right', color:'#1e40af' }}>€{fmt(schContractTotal,2)}</td>
@@ -421,6 +425,7 @@ function NewPayAppForm({ projectId, onBack }) {
                       <tr style={{ background:'#1e3a8a', color:'#fff', fontWeight:700 }}>
                         <td style={{ ...stickyTd(L.ref,  '#1e3a8a'), padding:'6px 8px' }} />
                         <td style={{ ...stickyTd(L.desc, '#1e3a8a'), padding:'6px 8px', fontSize:13, color:'#fff' }}>GRAND TOTAL</td>
+                        <td style={{ ...stickyTd(L.qty,  '#1e3a8a') }} />
                         <td style={{ ...stickyTd(L.unit, '#1e3a8a') }} />
                         <td style={{ ...stickyTd(L.rate, '#1e3a8a') }} />
                         <td style={{ ...stickyTd(L.total,'#1e3a8a'), padding:'6px 8px', textAlign:'right', color:'#fff' }}>€{fmt(grandTotal,2)}</td>
