@@ -25,7 +25,7 @@ const NAV_GROUPS = [
     items: [
       { id: 'boqlist', label: 'Bill of Quantities', icon: 'ti-list' },
       { id: 'boq',     label: 'Revenue Generator',  icon: 'ti-file-text' },
-      { id: 'payapp',  label: 'Cliente Application', icon: 'ti-receipt' },
+      { id: 'payapp',  label: 'Client Application',  icon: 'ti-receipt' },
     ],
   },
   {
