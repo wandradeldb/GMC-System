@@ -2,6 +2,7 @@ import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
 import ImportBOQModal from './ImportBOQModal.jsx';
 import { SEC_COLOR, orderSections } from '../lib/sections.js';
+import { useZoom } from '../zoomContext.js';
 
 // Labels conhecidos para os schedules do piloto Merlin Park — cosmético apenas.
 // Qualquer outro schedule (ex: de um novo projeto importado) cai no fallback (label = o próprio código).
@@ -26,6 +27,7 @@ const thStyle = {
 };
 
 export default function BOQView({ projectId, schedule, scheduleLabels = SCHED_LABELS, readOnly }) {
+  const zoom = useZoom();
   const [data,    setData]    = useState(null);
   const [loading, setLoading] = useState(true);
   const [search,  setSearch]  = useState('');
@@ -127,7 +129,7 @@ export default function BOQView({ projectId, schedule, scheduleLabels = SCHED_LA
   let dataRowIdx = 0;
 
   return (
-    <div>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div className="filter-bar">
         <input
           type="search"
@@ -193,7 +195,7 @@ export default function BOQView({ projectId, schedule, scheduleLabels = SCHED_LA
             <span style={{ fontSize: 17, fontWeight: 800 }}>€ {fmt2(grandTotal)}</span>
           </div>
 
-          <div style={{ overflowY: 'auto', overflowX: 'auto', maxHeight: 'calc(100vh - 300px)' }}>
+          <div style={{ overflowY: 'auto', overflowX: 'auto', flex: 1, minHeight: 0, zoom: `${zoom}%` }}>
             <table className="boq-table" style={{ tableLayout: 'fixed' }}>
               <colgroup>
                 <col className="col-ref" />

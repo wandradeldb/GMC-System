@@ -215,7 +215,7 @@ function NewPayAppForm({ projectId, onBack }) {
   const schedules = orderSections([...new Set(items.map(i => i.schedule))]);
 
   return (
-    <div>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div className="detail-nav">
         <button className="btn-back" onClick={onBack}>← PayApps</button>
       </div>
@@ -250,7 +250,7 @@ function NewPayAppForm({ projectId, onBack }) {
         ))}
       </div>
 
-      <div className="das-tab-content" style={{ padding: 0 }}>
+      <div className="das-tab-content" style={{ padding: 0, flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
         {activeTab === 'boq' && (() => {
           const activeSch = schOn || new Set(schedules);
           const displaySchedules = schedules.filter(s => activeSch.has(s));
@@ -265,7 +265,7 @@ function NewPayAppForm({ projectId, onBack }) {
           });
 
           return (
-            <div>
+            <div style={{ display:'flex', flexDirection:'column', flex:1, minHeight:0 }}>
               {/* Schedule filter + search */}
               <div style={{ display:'flex', alignItems:'center', gap:14, padding:'4px 12px', flexWrap:'wrap', borderBottom:'1px solid #e5e7eb' }}>
                 {schedules.map(s => (
@@ -306,7 +306,7 @@ function NewPayAppForm({ projectId, onBack }) {
                 });
 
                 return (
-                <div style={{ overflow:'auto', maxHeight:'calc(100vh - 190px)', WebkitOverflowScrolling:'touch', zoom: `${zoom}%` }}>
+                <div style={{ overflow:'auto', flex:1, minHeight:0, WebkitOverflowScrolling:'touch', zoom: `${zoom}%` }}>
                   <table className="boq-table" style={{ minWidth: 730 + priorApps.length * 70 }}>
                     <thead>
                       <tr>

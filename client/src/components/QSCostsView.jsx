@@ -126,7 +126,7 @@ export default function QSCostsView({ projectId, readOnly }) {
   const grandTotal = summary.reduce((s, r) => s + r.total, 0);
 
   return (
-    <div>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       {/* ── Toolbar ─────────────────────────────────────────────── */}
       <div className="sc-toolbar" style={{ flexWrap: 'wrap', gap: 8 }}>
         <h2 className="sc-title">QS Costs</h2>
@@ -262,7 +262,7 @@ export default function QSCostsView({ projectId, readOnly }) {
               : 'No transactions match the current filters.'}</p>
           </div>
         ) : (
-          <div style={{ overflow:'auto', maxHeight:'calc(100vh - 290px)', zoom: `${zoom}%` }}>
+          <div style={{ overflow:'auto', flex:1, minHeight:0, zoom: `${zoom}%` }}>
             <table className="boq-table" style={{ minWidth:900 }}>
               <thead>
                 <tr>

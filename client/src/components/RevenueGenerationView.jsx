@@ -216,7 +216,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
   const currentInputs = []; // refs para ArrowKey nav da coluna atual
 
   return (
-    <div>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       {/* ── Controls sticky ─── */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 20,
@@ -279,7 +279,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
       )}
 
       {/* ── Tabela ─── */}
-      <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 235px)', zoom: `${zoom}%` }}>
+      <div style={{ overflowX: 'auto', overflowY: 'auto', flex: 1, minHeight: 0, zoom: `${zoom}%` }}>
         <table style={{
           borderCollapse: 'collapse',
           minWidth: FIXED_W + allWeeks.length * CW.we,

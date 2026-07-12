@@ -59,7 +59,7 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
   );
 
   return (
-    <div>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       {/* Back + Header */}
       <div className="detail-nav" style={{ marginBottom: 2 }}>
         <button className="btn-back" onClick={onBack}>← Subcontracts</button>
@@ -109,7 +109,7 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
         ))}
       </div>
 
-      <div className="das-tab-content">
+      <div className="das-tab-content" style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
         {tab === 'overview' && (
           <ApplicationsTab
             applications={applications}
@@ -224,7 +224,7 @@ function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh })
   };
 
   return (
-    <div>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div className="section-toolbar">
         <span className="section-stat">
           {boqItems.length} items · Contract: €{fmt(totalContract)} · Certified: €{fmt(totalCertified)} · Remaining: €{fmt(totalRemaining)}
@@ -241,7 +241,7 @@ function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh })
       {boqItems.length === 0 ? (
         <div className="empty-hint">No sub BOQ items defined.</div>
       ) : (
-        <div style={{ overflow:'auto', maxHeight:'calc(100vh - 215px)', zoom: `${zoom}%` }}>
+        <div style={{ overflow:'auto', flex:1, minHeight:0, zoom: `${zoom}%` }}>
           <table className="boq-table">
             <thead>
               <tr>

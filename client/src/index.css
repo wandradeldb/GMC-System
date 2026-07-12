@@ -26,7 +26,7 @@ body {
 }
 
 /* ── Layout ── */
-.app { display: flex; min-height: 100vh; }
+.app { display: flex; height: 100vh; overflow: hidden; }
 
 /* ── Sidebar ─────────────────────────────────────────────── */
 .app-sidebar {
@@ -134,7 +134,7 @@ body {
   flex: 1;
   display: flex;
   flex-direction: column;
-  min-height: 100vh;
+  height: 100vh;
   min-width: 0;
 }
 
@@ -166,24 +166,28 @@ body {
 /* ── Zoom control (data area only, Excel-style) ─────────────── */
 .zoom-control {
   position: fixed;
-  right: 18px;
-  bottom: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  bottom: 10px;
   z-index: 500;
   display: flex;
   align-items: center;
   gap: 2px;
   background: #1a1a2e;
-  border-radius: 20px;
-  padding: 4px 6px;
+  border-radius: 16px;
+  padding: 3px 5px;
   box-shadow: 0 2px 12px rgba(0,0,0,0.28);
   user-select: none;
+  opacity: 0.45;
+  transition: opacity 0.15s;
 }
+.zoom-control:hover, .zoom-control:focus-within { opacity: 1; }
 .zoom-control button {
-  width: 24px; height: 24px;
+  width: 19px; height: 19px;
   border: none; border-radius: 50%;
   background: rgba(255,255,255,0.12);
   color: #fff;
-  font-size: 15px; font-weight: 700;
+  font-size: 13px; font-weight: 700;
   line-height: 1;
   cursor: pointer;
   display: flex; align-items: center; justify-content: center;
@@ -191,9 +195,9 @@ body {
 .zoom-control button:hover:not(:disabled) { background: rgba(255,255,255,0.26); }
 .zoom-control button:disabled { opacity: 0.3; cursor: not-allowed; }
 .zoom-control .zoom-level {
-  min-width: 42px;
+  min-width: 34px;
   text-align: center;
-  font-size: 12px;
+  font-size: 11px;
   font-weight: 600;
   color: #fff;
   cursor: pointer;
@@ -854,7 +858,7 @@ body {
    ══════════════════════════════════════════════════════════════ */
 
 /* Summary bar */
-.tracker-container { padding: 0; }
+.tracker-container { padding: 0; display: flex; flex-direction: column; height: 100%; min-height: 0; }
 .tracker-summary {
   display: flex; flex-wrap: wrap; align-items: stretch;
   background: #fff; border-bottom: 1px solid #e5e7eb; padding: 5px 12px; gap: 0;
@@ -878,7 +882,8 @@ body {
 /* Tracker matrix */
 .tracker-scroll-wrap {
   overflow: auto;
-  max-height: calc(100vh - 200px);
+  flex: 1;
+  min-height: 0;
   padding: 0 24px 32px;
   margin-top: 10px;
 }
