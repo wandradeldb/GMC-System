@@ -61,19 +61,19 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
   return (
     <div>
       {/* Back + Header */}
-      <div className="detail-nav">
+      <div className="detail-nav" style={{ marginBottom: 2 }}>
         <button className="btn-back" onClick={onBack}>← Subcontracts</button>
       </div>
 
       <div className="sc-detail-header">
-        <div>
-          <div className="sc-detail-ref">{sc.ref}</div>
-          <div className="sc-detail-name">{sc.subcontractor_name}</div>
-          <div className="sc-detail-desc">{sc.description}</div>
-          <div className="sc-detail-meta" style={{ display:'flex', alignItems:'center', gap:6 }}>
-            {fmtDate(sc.start_date)} – {fmtDate(sc.end_date)} ·
+        <div style={{ display:'flex', alignItems:'baseline', gap:8, flexWrap:'wrap' }}>
+          <span className="sc-detail-ref">{sc.ref}</span>
+          <span className="sc-detail-name">{sc.subcontractor_name}</span>
+          <span className="sc-detail-desc">{sc.description}</span>
+          <span className="sc-detail-meta" style={{ display:'flex', alignItems:'center', gap:6 }}>
+            · {fmtDate(sc.start_date)} – {fmtDate(sc.end_date)} ·
             <RetentionField projectId={projectId} subcontractId={subcontractId} value={sc.retention_pct} onSaved={load} />
-          </div>
+          </span>
         </div>
         <div className="sc-detail-kpis">
           {[
@@ -96,20 +96,21 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
       </div>
 
       {/* Tabs */}
-      <div className="das-tabs" style={{ marginTop: 16 }}>
+      <div className="das-tabs" style={{ marginTop: 4 }}>
         {[
           { id:'overview',    label:`Applications (${applications.length})` },
           { id:'boq',         label:`Sub BOQ (${boq_items.length})` },
           { id:'ces',         label:`Variations (${compensation_events.length})` },
           { id:'payments',    label:'Tracker Invoices' },
         ].map(t => (
-          <button key={t.id} className={`das-tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
+          <button key={t.id} className={`das-tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}
+            style={{ padding:'7px 14px', fontSize:11 }}>
             {t.label}
           </button>
         ))}
       </div>
 
-      <div className="das-tab-content">
+      <div className="das-tab-content" style={{ padding:'6px 12px 12px' }}>
         {tab === 'overview' && (
           <ApplicationsTab
             applications={applications}
@@ -186,6 +187,8 @@ function ApplicationsTab({ applications, onOpen, retention_pct }) {
 }
 
 /* ── BOQ Tab ────────────────────────────────────────────────────────────── */
+const stickyTh = { position:'sticky', top:0, zIndex:4, background:'#1a1a2e', color:'#fff' };
+
 function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh }) {
   const zoom = useZoom();
   const [importing, setImporting] = useState(false);
@@ -223,14 +226,14 @@ function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh })
 
   return (
     <div>
-      <div className="section-toolbar">
-        <span className="section-stat">
+      <div className="section-toolbar" style={{ marginBottom: 4 }}>
+        <span className="section-stat" style={{ fontSize:11 }}>
           {boqItems.length} items · Contract: €{fmt(totalContract)} · Certified: €{fmt(totalCertified)} · Remaining: €{fmt(totalRemaining)}
         </span>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-          {importMsg && <span style={{ fontSize:12, color: importMsg.startsWith('✓') ? '#166534' : '#dc2626' }}>{importMsg}</span>}
-          <label style={{ padding:'5px 12px', borderRadius:6, border:'1px solid #bfdbfe', background:'#eff6ff',
-            cursor:'pointer', fontSize:12, color:'#1e40af', fontWeight:600 }}>
+          {importMsg && <span style={{ fontSize:11, color: importMsg.startsWith('✓') ? '#166534' : '#dc2626' }}>{importMsg}</span>}
+          <label style={{ padding:'4px 10px', borderRadius:6, border:'1px solid #bfdbfe', background:'#eff6ff',
+            cursor:'pointer', fontSize:11, color:'#1e40af', fontWeight:600 }}>
             {importing ? 'Importing…' : '⬆ Import BOQ (Excel)'}
             <input type="file" accept=".xlsx,.xls,.csv" style={{ display:'none' }} onChange={handleFile} disabled={importing} />
           </label>
@@ -239,18 +242,18 @@ function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh })
       {boqItems.length === 0 ? (
         <div className="empty-hint">No sub BOQ items defined.</div>
       ) : (
-        <div style={{ overflowX:'auto', zoom: `${zoom}%` }}>
+        <div style={{ overflow:'auto', maxHeight:'calc(100vh - 193px)', zoom: `${zoom}%` }}>
           <table className="boq-table">
             <thead>
               <tr>
-                <th>Ref</th><th>Description</th>
-                <th>Unit</th>
-                <th style={{textAlign:'right'}}>Qty</th>
-                <th style={{textAlign:'right'}}>Rate (€)</th>
-                <th style={{textAlign:'right'}}>Contract (€)</th>
-                <th style={{textAlign:'right', color:'#1e40af'}}>% Cert.</th>
-                <th style={{textAlign:'right', color:'#166534'}}>Certified (€)</th>
-                <th style={{textAlign:'right', color:'#dc2626'}}>Remaining (€)</th>
+                <th style={stickyTh}>Ref</th><th style={stickyTh}>Description</th>
+                <th style={{...stickyTh, textAlign:'right'}}>Qty</th>
+                <th style={stickyTh}>Unit</th>
+                <th style={{...stickyTh, textAlign:'right'}}>Rate (€)</th>
+                <th style={{...stickyTh, textAlign:'right'}}>Contract (€)</th>
+                <th style={{...stickyTh, textAlign:'right', color:'#1e40af'}}>% Cert.</th>
+                <th style={{...stickyTh, textAlign:'right', color:'#166534'}}>Certified (€)</th>
+                <th style={{...stickyTh, textAlign:'right', color:'#dc2626'}}>Remaining (€)</th>
               </tr>
             </thead>
             <tbody>
@@ -261,8 +264,8 @@ function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh })
                   <tr key={i.id} style={{ background: idx%2===0 ? '#f8fafc' : '#fff' }}>
                     <td style={{fontFamily:'monospace', fontSize:12, whiteSpace:'nowrap'}}>{i.item_ref}</td>
                     <td style={{maxWidth:300, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:12}} title={i.description}>{i.description}</td>
-                    <td style={{fontSize:12, color:'#6b7280'}}>{i.unit}</td>
                     <td style={{textAlign:'right', fontSize:12}}>{fmt(i.qty, 3)}</td>
+                    <td style={{fontSize:12, color:'#6b7280'}}>{i.unit}</td>
                     <td style={{textAlign:'right', fontSize:12}}>€{fmt(i.rate)}</td>
                     <td style={{textAlign:'right', fontWeight:600, fontSize:12}}>€{fmt(cv)}</td>
                     <td style={{textAlign:'right', color: c.pct_certified > 0 ? '#1e40af' : '#d1d5db', fontSize:12}}>
@@ -279,12 +282,12 @@ function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh })
               })}
             </tbody>
             <tfoot>
-              <tr style={{background:'#f1f5f9', fontWeight:700}}>
-                <td colSpan={5} style={{textAlign:'right', paddingRight:8}}>TOTAL</td>
-                <td style={{textAlign:'right'}}>€{fmt(totalContract)}</td>
+              <tr style={{background:'#1a1a2e', color:'#fff', fontWeight:700, position:'sticky', bottom:0, zIndex:5}}>
+                <td colSpan={5} style={{textAlign:'right', paddingRight:8, padding:'8px 10px'}}>TOTAL</td>
+                <td style={{textAlign:'right', padding:'8px 10px'}}>€{fmt(totalContract)}</td>
                 <td></td>
-                <td style={{textAlign:'right', color:'#166534'}}>€{fmt(totalCertified)}</td>
-                <td style={{textAlign:'right', color:'#dc2626'}}>€{fmt(totalRemaining || totalContract - totalCertified)}</td>
+                <td style={{textAlign:'right', color:'#4ade80', padding:'8px 10px'}}>€{fmt(totalCertified)}</td>
+                <td style={{textAlign:'right', color:'#f87171', padding:'8px 10px'}}>€{fmt(totalRemaining || totalContract - totalCertified)}</td>
               </tr>
             </tfoot>
           </table>

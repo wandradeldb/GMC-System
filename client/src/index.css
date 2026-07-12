@@ -778,17 +778,19 @@ body {
 .sc-stat-value   { font-size:14px; font-weight:700; font-variant-numeric:tabular-nums; }
 .sc-stat-value.certified { color:#166534; }
 .sc-progress-bar { height:6px; background:#e5e7eb; border-radius:3px; overflow:hidden; }
-.sc-progress-bar.large { height:8px; margin:8px 0 16px; }
+.sc-progress-bar.large { height:5px; margin:3px 0 4px; }
 .sc-progress-fill { height:100%; background:linear-gradient(90deg,#1d4ed8,#3b82f6); border-radius:3px; transition:width 0.3s; }
 
-/* ── Detail header ── */
-.sc-detail-header { background:#fff; border:1px solid #e5e7eb; border-radius:10px; padding:20px 24px; margin-bottom:4px; display:flex; justify-content:space-between; align-items:flex-start; gap:24px; }
-.sc-detail-ref    { font-size:12px; font-family:monospace; color:#6b7280; margin-bottom:4px; }
-.sc-detail-name   { font-size:22px; font-weight:800; margin-bottom:4px; }
-.sc-detail-desc   { font-size:14px; color:#374151; margin-bottom:6px; }
-.sc-detail-meta   { font-size:12px; color:#9ca3af; }
-.sc-detail-kpis   { display:flex; gap:24px; flex-shrink:0; }
+/* ── Detail header (compact — reserve as little fixed vertical space as possible above the scrolling table) ── */
+.sc-detail-header { background:#fff; border:1px solid #e5e7eb; border-radius:8px; padding:5px 12px; margin-bottom:3px; display:flex; justify-content:space-between; align-items:center; gap:16px; }
+.sc-detail-ref    { font-size:9px; font-family:monospace; color:#6b7280; }
+.sc-detail-name   { font-size:13px; font-weight:800; }
+.sc-detail-desc   { font-size:10px; color:#374151; }
+.sc-detail-meta   { font-size:9px; color:#6b7280; }
+.sc-detail-kpis   { display:flex; gap:12px; flex-shrink:0; }
 .detail-kpi       { text-align:right; }
+.sc-detail-kpis .kpi-label { font-size:8px; color:#6b7280; }
+.sc-detail-kpis .kpi-value { font-size:12px; }
 .kpi-value.certified { color:#166534; }
 .kpi-value.retention { color:#7c3aed; }
 .kpi-value.paid      { color:#065f46; }

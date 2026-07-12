@@ -220,10 +220,10 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
       {/* ── Controls sticky ─── */}
       <div style={{
         position: 'sticky', top: 0, zIndex: 20,
-        background: '#f8fafc', paddingBottom: 6, paddingTop: 4,
-        borderBottom: '1px solid #e2e8f0', marginBottom: 8,
+        background: '#f8fafc', paddingBottom: 4, paddingTop: 4,
+        borderBottom: '1px solid #e2e8f0', marginBottom: 4,
       }}>
-        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
+        <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 4 }}>
           <label style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
             Save WE:&nbsp;
             <select value={weekEnding} onChange={e => setWeek(e.target.value)}
@@ -244,9 +244,9 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
 
           <div style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
             <div style={{ textAlign: 'right' }}>
-              <div style={{ fontSize: 9, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '.05em' }}>Week Revenue</div>
+              <div style={{ fontSize: 9, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.05em' }}>Week Revenue</div>
               <div style={{ fontSize: 16, fontWeight: 800, color: '#166534' }}>{fmtE(grand.week, 2)}</div>
-              <div style={{ fontSize: 9, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '.05em', marginTop: 1 }}>Cumulative</div>
+              <div style={{ fontSize: 9, color: '#6b7280', textTransform: 'uppercase', letterSpacing: '.05em', marginTop: 1 }}>Cumulative</div>
               <div style={{ fontSize: 13, fontWeight: 700, color: '#1e40af' }}>{fmtE(grand.cumul, 2)}</div>
             </div>
             <button onClick={save} disabled={saving} className="btn-primary"
@@ -467,8 +467,13 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
         </table>
       </div>
 
-      {/* Grand total — also repeats Save here so a long list doesn't force scrolling back to the top */}
-      <div style={{ display:'flex', justifyContent:'flex-end', alignItems:'center', gap:20, padding:'10px 14px', background:'#f1f5f9', borderRadius:7, fontWeight:700, marginTop:6 }}>
+      {/* Grand total — pinned to the bottom of the scroll area so it (and Save) stay visible without scrolling past a long list */}
+      <div style={{
+        position: 'sticky', bottom: 0, zIndex: 21,
+        display:'flex', justifyContent:'flex-end', alignItems:'center', gap:20,
+        padding:'10px 14px', background:'#f1f5f9', borderRadius:7, fontWeight:700, marginTop:6,
+        boxShadow: '0 -4px 10px rgba(0,0,0,0.08)',
+      }}>
         <span style={{ color:'#374151' }}>TOTAL CONTRACT: {fmtE(grand.contract, 2)}</span>
         <div style={{ textAlign:'right' }}>
           <div style={{ color:'#166534', fontSize:14 }}>WEEK REVENUE ({fmtWE(weekEnding)}): {fmtE(grand.week, 2)}</div>
