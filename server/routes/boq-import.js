@@ -508,7 +508,8 @@ router.post('/projects/:pid/boq-import/commit', (req, res) => {
   const con = db();
   con.exec('BEGIN');
   try {
-    const findStmt = con.prepare('SELECT id FROM boq_item WHERE project_id = ? AND item_ref = ?');
+    const findAllStmt = con.prepare('SELECT id FROM boq_item WHERE project_id = ? AND item_ref = ?');
+    const consumedIds = new Set(); // rows already matched earlier in this same batch — see below
     const insertStmt = con.prepare(`
       INSERT INTO boq_item
         (project_id, schedule, section, item_ref, description, unit, qty, rate, type, iw_cost_code, sort_order)
@@ -525,19 +526,26 @@ router.post('/projects/:pid/boq-import/commit', (req, res) => {
     for (const row of rows) {
       const rowType = VALID_TYPES.includes(row.type) ? row.type : (VALID_TYPES.includes(type) ? type : 'M');
       const rowSchedule = row.schedule || schedule || '';
-      const existing = findStmt.get(projectId, row.item_ref);
+      // item_ref isn't unique — some real source files repeat it across genuinely different lines
+      // (e.g. two rows both "1.4.3"). Matching on item_ref alone would merge them into one row the
+      // second time it's seen. Track which existing rows this batch has already claimed, so a
+      // repeated item_ref in the SAME import creates a new row instead of overwriting the first.
+      const candidates = findAllStmt.all(projectId, row.item_ref);
+      const existing = candidates.find(c => !consumedIds.has(c.id));
       if (existing) {
+        consumedIds.add(existing.id);
         updateStmt.run(
           rowSchedule, row.section || null, row.description, row.unit, row.qty || 0, row.rate || 0,
           rowType, row.iw_cost_code || null, row.sort_order ?? 0, existing.id
         );
         updated++;
       } else {
-        insertStmt.run(
+        const info = insertStmt.run(
           projectId, rowSchedule, row.section || null, row.item_ref,
           row.description, row.unit, row.qty || 0, row.rate || 0,
           rowType, row.iw_cost_code || null, row.sort_order ?? 0
         );
+        consumedIds.add(Number(info.lastInsertRowid));
         inserted++;
       }
     }
