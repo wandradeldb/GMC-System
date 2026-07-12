@@ -1,6 +1,7 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useMemo, useCallback, Fragment } from 'react';
 import ImportBOQModal from './ImportBOQModal.jsx';
+import { SEC_COLOR, orderSections } from '../lib/sections.js';
 
 // Labels conhecidos para os schedules do piloto Merlin Park — cosmético apenas.
 // Qualquer outro schedule (ex: de um novo projeto importado) cai no fallback (label = o próprio código).
@@ -57,11 +58,11 @@ export default function BOQView({ projectId, schedule, scheduleLabels = SCHED_LA
 
   useEffect(() => { reload(); }, [reload]);
 
-  // Schedule order follows the server's response — it's already the source file's natural bill
-  // order (e.g. Prelim Fixed, Prelim Time, Civil Works, MEICA Works, Landscape, Commission), not
-  // re-sorted alphabetically, so it reads the same way the original spreadsheet does.
+  // Schedule order matches the fixed Revenue Generator category order (Prelim Fixed, Prelim Time,
+  // Civil Works, MEICA Works, Landscape, Commission) — the same order used on every other screen —
+  // rather than the server response's own order or an alphabetical re-sort.
   const allSchedules = useMemo(
-    () => Object.keys(data?.grouped || {}),
+    () => orderSections(Object.keys(data?.grouped || {})),
     [data]
   );
 
@@ -136,9 +137,9 @@ export default function BOQView({ projectId, schedule, scheduleLabels = SCHED_LA
         />
         <div className="type-filters" style={{ display:'flex', alignItems:'center', gap:14, flexWrap:'wrap' }}>
           {allSchedules.map(s => (
-            <label key={s} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, fontWeight:600, color:'#374151' }}>
+            <label key={s} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, fontWeight:600, color: SEC_COLOR[s] || '#374151' }}>
               <input type="checkbox" checked={activeScheds.has(s)} onChange={() => toggleSched(s)}
-                style={{ width:16, height:16, cursor:'pointer', accentColor:'#1a1a2e' }} />
+                style={{ width:16, height:16, cursor:'pointer', accentColor: SEC_COLOR[s] || '#1a1a2e' }} />
               {scheduleLabels[s] || s}
             </label>
           ))}

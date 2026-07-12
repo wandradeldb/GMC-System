@@ -1,6 +1,7 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback } from 'react';
 import { useZoom } from '../zoomContext.js';
+import { SEC_COLOR, orderSections } from '../lib/sections.js';
 
 const fmt  = (n, d = 0) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtD      = d => { if (!d) return '—'; const [y,m,dy] = String(d).split('-'); return `${dy}/${m}/${y}`; };
@@ -8,8 +9,6 @@ const fmtPeriod = p => { if (!p) return '—'; const [y,m] = String(p).split('-'
 
 const STATUS_LABEL = { draft: 'Draft', submitted: 'Submitted', certified: 'Certified', paid: 'Paid' };
 const STATUS_COLOR = { draft: '#6b7280', submitted: '#1e40af', certified: '#166534', paid: '#7c3aed' };
-
-const SCH_LABEL = { '1': 'Schedule 1 — Prelims Fixed', '1A': 'Schedule 1A — Prelims Time', '2': 'Schedule 2 — Civil & MEICA' };
 
 export default function PayAppView({ projectId, readOnly }) {
   const zoom = useZoom();
@@ -156,7 +155,7 @@ function NewPayAppForm({ projectId, onBack }) {
   const [saved,         setSaved]        = useState(false);
   const [activeTab,     setActiveTab]    = useState('boq');
   const [search,        setSearch]       = useState('');
-  const [schFilter,     setSchFilter]    = useState(null);
+  const [schOn,         setSchOn]        = useState(null); // null = "not yet seeded" -> all on
 
   useEffect(() => {
     apiFetch(`/api/v1/projects/${projectId}/payapps/new/boq-sheet`)
@@ -213,7 +212,7 @@ function NewPayAppForm({ projectId, onBack }) {
     setTimeout(() => onBack(), 1200);
   };
 
-  const schedules = [...new Set(items.map(i => i.schedule))].sort();
+  const schedules = orderSections([...new Set(items.map(i => i.schedule))]);
 
   return (
     <div>
@@ -267,32 +266,34 @@ function NewPayAppForm({ projectId, onBack }) {
 
       <div className="das-tab-content" style={{ padding: 0 }}>
         {activeTab === 'boq' && (() => {
-          const SCH_TABS = [
-            { key: null,  label: 'All' },
-            { key: '1',   label: 'Prelims Fixed' },
-            { key: '1A',  label: 'Prelims Time' },
-            { key: '2',   label: 'Civil & MEICA' },
-          ];
-          const displaySchedules = schFilter ? [schFilter] : schedules;
+          const activeSch = schOn || new Set(schedules);
+          const displaySchedules = schedules.filter(s => activeSch.has(s));
           const grandTotal    = items.reduce((s,i) => s + (i.contract_sum||0), 0);
           const grandCumulate = items.reduce((s,i) => s + ((parseFloat(i.pct_prev)||0)/100)*(i.contract_sum||0), 0);
           const grandThis     = items.reduce((s,i) => s + ((parseFloat(i.pct_complete)||0)/100)*(i.contract_sum||0), 0);
           const COLS = 6 + priorApps.length; // ref+desc+unit+rate+total+cumulate + apps
+          const toggleSch = (s) => setSchOn(prev => {
+            const next = new Set(prev || schedules);
+            next.has(s) ? next.delete(s) : next.add(s);
+            return next;
+          });
 
           return (
             <div>
               {/* Schedule filter + search */}
-              <div style={{ display:'flex', alignItems:'center', gap:8, padding:'8px 12px', flexWrap:'wrap', borderBottom:'1px solid #e5e7eb' }}>
-                {SCH_TABS.map(t => (
-                  <button key={String(t.key)} onClick={() => setSchFilter(t.key)}
-                    style={{ padding:'4px 12px', borderRadius:20, border:'1px solid', fontSize:12, cursor:'pointer', fontWeight:600,
-                      background: schFilter===t.key ? '#1e3a8a' : '#f8faff',
-                      color:      schFilter===t.key ? '#fff'    : '#374151',
-                      borderColor:schFilter===t.key ? '#1e3a8a' : '#d1d5db' }}>
-                    {t.label}
-                  </button>
+              <div style={{ display:'flex', alignItems:'center', gap:14, padding:'8px 12px', flexWrap:'wrap', borderBottom:'1px solid #e5e7eb' }}>
+                {schedules.map(s => (
+                  <label key={s} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, fontWeight:600, color: SEC_COLOR[s] || '#374151' }}>
+                    <input type="checkbox" checked={activeSch.has(s)} onChange={() => toggleSch(s)}
+                      style={{ width:14, height:14, cursor:'pointer', accentColor: SEC_COLOR[s] || '#1a1a2e' }} />
+                    {s}
+                  </label>
                 ))}
-                <span style={{ color:'#9ca3af', fontSize:12, marginLeft:4 }}>{items.filter(i => parseFloat(i.pct_complete) > 0).length} items with %</span>
+                <button onClick={() => { setSchOn(new Set(schedules)); setSearch(''); }}
+                  style={{ padding:'3px 10px', borderRadius:5, border:'1px solid #d1d5db', background:'#f9fafb', cursor:'pointer', fontSize:11, color:'#6b7280' }}>
+                  ✕ Clear
+                </button>
+                <span style={{ color:'#9ca3af', fontSize:12 }}>{items.filter(i => parseFloat(i.pct_complete) > 0).length} items with %</span>
                 <input type="search" placeholder="Filter items…" value={search} onChange={e => setSearch(e.target.value)}
                   style={{ padding:'5px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:12, width:180, marginLeft:'auto' }} />
               </div>
@@ -348,9 +349,9 @@ function NewPayAppForm({ projectId, onBack }) {
                         const schCumulate      = schItems.reduce((s,i) => s + ((parseFloat(i.pct_prev)||0)/100)*(i.contract_sum||0), 0);
                         const schThis          = schItems.reduce((s,i) => s + ((parseFloat(i.pct_complete)||0)/100)*(i.contract_sum||0), 0);
                         return [
-                          <tr key={`hdr-${sch}`} style={{ background:'#dbeafe' }}>
-                            <td colSpan={6 + priorApps.length + 2} style={{ padding:'5px 12px', color:'#1e3a8a', fontWeight:700, fontSize:12, letterSpacing:'.04em' }}>
-                              {SCH_LABEL[sch] || `Schedule ${sch}`}
+                          <tr key={`hdr-${sch}`} style={{ background: (SEC_COLOR[sch] || '#1e3a8a') + '18' }}>
+                            <td colSpan={6 + priorApps.length + 2} style={{ padding:'5px 12px', color: SEC_COLOR[sch] || '#1e3a8a', fontWeight:700, fontSize:12, letterSpacing:'.04em' }}>
+                              {sch}
                             </td>
                           </tr>,
                           ...schItems.map(row => {
@@ -404,8 +405,8 @@ function NewPayAppForm({ projectId, onBack }) {
                           }),
                           <tr key={`sub-${sch}`} style={{ background:'#dbeafe', fontWeight:700 }}>
                             <td style={{ ...stickyTd(L.ref,  '#dbeafe'), padding:'5px 8px' }} />
-                            <td style={{ ...stickyTd(L.desc, '#dbeafe'), padding:'5px 8px', fontSize:12, color:'#1e40af' }}>
-                              {SCH_LABEL[sch]?.split('—')[1]?.trim() || sch} — Subtotal
+                            <td style={{ ...stickyTd(L.desc, '#dbeafe'), padding:'5px 8px', fontSize:12, color: SEC_COLOR[sch] || '#1e40af' }}>
+                              {sch} — Subtotal
                             </td>
                             <td style={{ ...stickyTd(L.unit, '#dbeafe') }} />
                             <td style={{ ...stickyTd(L.rate, '#dbeafe') }} />

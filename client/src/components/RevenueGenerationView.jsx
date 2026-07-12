@@ -2,6 +2,7 @@ import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback } from 'react';
 import { useZoom } from '../zoomContext.js';
 import ImportBOQModal from './ImportBOQModal.jsx';
+import { SECTIONS, SEC_COLOR } from '../lib/sections.js';
 
 const fmt  = (n, d = 2) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtE = (n, d = 0) => `€${fmt(n, d)}`;
@@ -14,12 +15,6 @@ const isoWeekNum = iso => {
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
   const y = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
   return Math.ceil((((d - y) / 86400000) + 1) / 7);
-};
-
-const SECTIONS = ['Prelim Fixed', 'Prelim Time', 'Civil Works', 'MEICA Works', 'Landscape', 'Commission'];
-const SEC_COLOR = {
-  'Prelim Fixed': '#1e40af', 'Prelim Time': '#d97706', 'Civil Works': '#166534',
-  'MEICA Works': '#7c3aed', 'Landscape': '#0891b2', 'Commission': '#be185d',
 };
 
 function todayFriday() {
