@@ -60,7 +60,6 @@ const ROW_EVEN = '#ffd8bb';
 
 export default function RevenueGenerationView({ projectId, project, readOnly }) {
   const zoom = useZoom();
-  const [mode, setMode]         = useState('revenue');
   const [showImport, setShowImport] = useState(false);
   const [weekEnding, setWeek]   = useState(todayFriday());
   const [activities, setActs]   = useState([]);
@@ -223,25 +222,13 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
         borderBottom: '1px solid #e2e8f0', marginBottom: 8,
       }}>
         <div style={{ display: 'flex', gap: 10, alignItems: 'center', flexWrap: 'wrap', marginBottom: 6 }}>
-          <div style={{ display: 'flex', borderRadius: 7, overflow: 'hidden', border: '1px solid #d1d5db' }}>
-            {[['revenue', 'Revenue Generation'], ['contract', 'Contract BOQ']].map(([k, label]) => (
-              <button key={k} onClick={() => setMode(k)}
-                style={{ padding: '6px 14px', border: 'none', cursor: 'pointer', fontSize: 12, fontWeight: 600,
-                  background: mode === k ? '#1a1a2e' : '#fff', color: mode === k ? '#fff' : '#374151' }}>
-                {label}
-              </button>
-            ))}
-          </div>
-
-          {mode === 'revenue' && (
-            <label style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
-              Save WE:&nbsp;
-              <select value={weekEnding} onChange={e => setWeek(e.target.value)}
-                style={{ padding: '5px 7px', borderRadius: 5, border: '1px solid #d1d5db', fontSize: 12 }}>
-                {allWeeks.map(w => <option key={w} value={w}>{fmtDate(w)}</option>)}
-              </select>
-            </label>
-          )}
+          <label style={{ fontSize: 12, fontWeight: 600, color: '#374151' }}>
+            Save WE:&nbsp;
+            <select value={weekEnding} onChange={e => setWeek(e.target.value)}
+              style={{ padding: '5px 7px', borderRadius: 5, border: '1px solid #d1d5db', fontSize: 12 }}>
+              {allWeeks.map(w => <option key={w} value={w}>{fmtDate(w)}</option>)}
+            </select>
+          </label>
 
           <input type="search" placeholder="Search activities…" value={search} onChange={e => setSearch(e.target.value)}
             style={{ flex: 1, minWidth: 140, padding: '6px 10px', borderRadius: 5, border: '1px solid #d1d5db', fontSize: 12 }} />
@@ -253,20 +240,18 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
             </button>
           )}
 
-          {mode === 'revenue' && (
-            <div style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
-              <div style={{ textAlign: 'right' }}>
-                <div style={{ fontSize: 9, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '.05em' }}>Week Revenue</div>
-                <div style={{ fontSize: 16, fontWeight: 800, color: '#166534' }}>{fmtE(grand.week, 2)}</div>
-                <div style={{ fontSize: 9, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '.05em', marginTop: 1 }}>Cumulative</div>
-                <div style={{ fontSize: 13, fontWeight: 700, color: '#1e40af' }}>{fmtE(grand.cumul, 2)}</div>
-              </div>
-              <button onClick={save} disabled={saving} className="btn-primary"
-                style={{ padding: '8px 18px', fontSize: 13, whiteSpace: 'nowrap' }}>
-                {saving ? 'Saving…' : `Save ${fmtWE(weekEnding)}`}
-              </button>
+          <div style={{ marginLeft: 'auto', display: 'flex', gap: 12, alignItems: 'center' }}>
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: 9, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '.05em' }}>Week Revenue</div>
+              <div style={{ fontSize: 16, fontWeight: 800, color: '#166534' }}>{fmtE(grand.week, 2)}</div>
+              <div style={{ fontSize: 9, color: '#9ca3af', textTransform: 'uppercase', letterSpacing: '.05em', marginTop: 1 }}>Cumulative</div>
+              <div style={{ fontSize: 13, fontWeight: 700, color: '#1e40af' }}>{fmtE(grand.cumul, 2)}</div>
             </div>
-          )}
+            <button onClick={save} disabled={saving} className="btn-primary"
+              style={{ padding: '8px 18px', fontSize: 13, whiteSpace: 'nowrap' }}>
+              {saving ? 'Saving…' : `Save ${fmtWE(weekEnding)}`}
+            </button>
+          </div>
         </div>
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
@@ -295,66 +280,50 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
       <div style={{ overflowX: 'auto', overflowY: 'auto', maxHeight: 'calc(100vh - 235px)', zoom: `${zoom}%` }}>
         <table style={{
           borderCollapse: 'collapse',
-          minWidth: mode === 'revenue' ? FIXED_W + allWeeks.length * CW.we : 700,
+          minWidth: FIXED_W + allWeeks.length * CW.we,
           tableLayout: 'fixed',
           fontSize: 10,
         }}>
           <colgroup>
             <col style={{ width: CW.ref }} />
             <col style={{ width: CW.desc }} />
-            {mode === 'revenue' && <>
-              <col style={{ width: CW.cv }} />
-              <col style={{ width: CW.cumul }} />
-              <col style={{ width: CW.rem }} />
-              <col style={{ width: CW.sub }} />
-              {allWeeks.map(w => <col key={w} style={{ width: CW.we }} />)}
-            </>}
-            {mode === 'contract' && <>
-              <col style={{ width: 68 }} /><col style={{ width: 40 }} />
-              <col style={{ width: 86 }} /><col style={{ width: 94 }} />
-            </>}
+            <col style={{ width: CW.cv }} />
+            <col style={{ width: CW.cumul }} />
+            <col style={{ width: CW.rem }} />
+            <col style={{ width: CW.sub }} />
+            {allWeeks.map(w => <col key={w} style={{ width: CW.we }} />)}
           </colgroup>
 
           <thead>
             <tr>
               <th style={thFixed(SL.ref,  { width: CW.ref  })}>Ref</th>
               <th style={thFixed(SL.desc, { width: CW.desc })}>Description</th>
-              {mode === 'contract' && <>
-                <th style={{ position:'sticky', top:0, zIndex:10, background:'#1e293b', color:'#fff', padding:'3px 4px', fontSize:8, fontWeight:700, textAlign:'right' }}>Qty</th>
-                <th style={{ position:'sticky', top:0, zIndex:10, background:'#1e293b', color:'#fff', padding:'3px 4px', fontSize:8, fontWeight:700 }}>Unit</th>
-                <th style={{ position:'sticky', top:0, zIndex:10, background:'#1e293b', color:'#fff', padding:'3px 4px', fontSize:8, fontWeight:700, textAlign:'right' }}>Rate</th>
-                <th style={{ position:'sticky', top:0, zIndex:10, background:'#1e293b', color:'#fff', padding:'3px 4px', fontSize:8, fontWeight:700, textAlign:'right' }}>Contract €</th>
-              </>}
-              {mode === 'revenue' && <>
-                <th style={thFixed(SL.cv,    { width: CW.cv,    textAlign:'right' })}>Contract €</th>
-                <th style={thFixed(SL.cumul, { width: CW.cumul, textAlign:'right' })}>Cumul. €</th>
-                <th style={thFixed(SL.rem,   { width: CW.rem,   textAlign:'right' })}>Remain. €</th>
-                <th style={thFixed(SL.sub,   { width: CW.sub,   borderRight:'3px solid #60a5fa' })}>Subcontractor</th>
-                {allWeeks.map(w => (
-                  <th key={w} style={thWE(w)}>
-                    <div style={{ fontSize: 8, fontWeight: 700 }}>WE {fmtWEHead(w)}</div>
-                    <div style={{ fontSize: 7, opacity: .7, marginTop: 1 }}>Wk {isoWeekNum(w)}</div>
-                  </th>
-                ))}
-              </>}
+              <th style={thFixed(SL.cv,    { width: CW.cv,    textAlign:'right' })}>Contract €</th>
+              <th style={thFixed(SL.cumul, { width: CW.cumul, textAlign:'right' })}>Cumul. €</th>
+              <th style={thFixed(SL.rem,   { width: CW.rem,   textAlign:'right' })}>Remain. €</th>
+              <th style={thFixed(SL.sub,   { width: CW.sub,   borderRight:'3px solid #60a5fa' })}>Subcontractor</th>
+              {allWeeks.map(w => (
+                <th key={w} style={thWE(w)}>
+                  <div style={{ fontSize: 8, fontWeight: 700 }}>WE {fmtWEHead(w)}</div>
+                  <div style={{ fontSize: 7, opacity: .7, marginTop: 1 }}>Wk {isoWeekNum(w)}</div>
+                </th>
+              ))}
             </tr>
-            {mode === 'revenue' && (
-              <tr>
-                <th colSpan={6} style={{ position:'sticky', top: THEAD_H, left:0, zIndex:14, background:'#1e3a8a', padding:0 }} />
-                {allWeeks.map(w => {
-                  const isCur = w === weekEnding;
-                  return (
-                    <th key={w} style={{ position:'sticky', top: THEAD_H, zIndex:9, background: isCur ? '#166534' : '#1e3a8a', padding:'1px 2px', borderLeft: isCur ? '2px solid #4ade80' : '1px solid #1e3a8a' }}>
-                      <button onClick={() => setWeek(w)} className="tracker-edit-btn"
-                        style={{ display: 'block', width: '100%', marginTop: 0,
-                          background: isCur ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.1)',
-                          border: isCur ? '1px solid rgba(74,222,128,0.5)' : '1px solid rgba(255,255,255,0.2)',
-                        }}>edit</button>
-                    </th>
-                  );
-                })}
-              </tr>
-            )}
+            <tr>
+              <th colSpan={6} style={{ position:'sticky', top: THEAD_H, left:0, zIndex:14, background:'#1e3a8a', padding:0 }} />
+              {allWeeks.map(w => {
+                const isCur = w === weekEnding;
+                return (
+                  <th key={w} style={{ position:'sticky', top: THEAD_H, zIndex:9, background: isCur ? '#166534' : '#1e3a8a', padding:'1px 2px', borderLeft: isCur ? '2px solid #4ade80' : '1px solid #1e3a8a' }}>
+                    <button onClick={() => setWeek(w)} className="tracker-edit-btn"
+                      style={{ display: 'block', width: '100%', marginTop: 0,
+                        background: isCur ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.1)',
+                        border: isCur ? '1px solid rgba(74,222,128,0.5)' : '1px solid rgba(255,255,255,0.2)',
+                      }}>edit</button>
+                  </th>
+                );
+              })}
+            </tr>
           </thead>
 
           <tbody>
@@ -364,7 +333,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
               const secCV    = rows.reduce((s, a) => s + (a.contract_value || 0), 0);
               const secWeek  = rows.reduce((s, a) => s + revOf(a, weekEnding), 0);
               const secCumul = rows.reduce((s, a) => s + cumulOf(a), 0);
-              const totalCols = mode === 'revenue' ? 6 + allWeeks.length : 6;
+              const totalCols = 6 + allWeeks.length;
 
               const secStyle = {
                 position: 'sticky', top: SEC_TOP,
@@ -372,7 +341,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
                 fontWeight: 700, fontSize: 10,
                 borderBottom: '1px solid rgba(0,0,0,.12)',
               };
-              const fixedSecCols = mode === 'revenue' ? 6 : 2;
+              const fixedSecCols = 6;
               const scrollSecCols = totalCols - fixedSecCols;
 
               return [
@@ -384,9 +353,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
                   }}>
                     <span style={{ marginRight: 14 }}>{section}</span>
                     <span style={{ fontSize: 10, fontWeight: 700, opacity: .95 }}>
-                      {mode === 'revenue'
-                        ? `Wk: ${fmtE(secWeek, 0)} | Cumul: ${fmtE(secCumul, 0)} / ${fmtE(secCV, 0)}`
-                        : fmtE(secCV, 2)}
+                      {`Wk: ${fmtE(secWeek, 0)} | Cumul: ${fmtE(secCumul, 0)} / ${fmtE(secCV, 0)}`}
                     </span>
                   </td>
                   {scrollSecCols > 0 && (
@@ -405,26 +372,18 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
                       <td style={tdFixed(SL.ref,  rowBg, { width: CW.ref,  fontFamily:'monospace', fontSize:9, whiteSpace:'nowrap', overflow:'hidden' })}>{a.ref}</td>
                       <td style={tdFixed(SL.desc, rowBg, { width: CW.desc, fontSize:10, whiteSpace:'normal', wordBreak:'break-word', lineHeight:1.3 })}>{a.description}</td>
 
-                      {mode === 'contract' && <>
-                        <td style={{ textAlign:'right', padding:'2px 4px', color:'#111', fontSize:10 }}>{fmt(a.qty, 2)}</td>
-                        <td style={{ padding:'2px 4px', color:'#6b7280', fontSize:10 }}>{a.unit}</td>
-                        <td style={{ textAlign:'right', padding:'2px 4px', color:'#111', fontSize:10 }}>€{fmt(a.rate, 2)}</td>
-                        <td style={{ textAlign:'right', padding:'2px 4px', fontWeight:600, color:'#111', fontSize:10 }}>€{fmt(a.contract_value, 2)}</td>
-                      </>}
+                      <td style={tdFixed(SL.cv,    rowBg, { width:CW.cv,    textAlign:'right', fontWeight:600 })}>€{fmt(a.contract_value, 0)}</td>
+                      <td style={tdFixed(SL.cumul, rowBg, { width:CW.cumul, textAlign:'right', fontWeight:700, color:'#1e40af' })}>€{fmt(cumul, 0)}</td>
+                      <td style={tdFixed(SL.rem,   rowBg, { width:CW.rem,   textAlign:'right', color: remaining === 0 ? '#16a34a' : '#374151', fontWeight: remaining === 0 ? 700 : 400 })}>€{fmt(remaining, 0)}</td>
+                      <td style={tdFixed(SL.sub,   rowBg, { width:CW.sub,   padding:'2px 3px', borderRight:'3px solid #60a5fa' })}>
+                        <select value={subEdits[a.id] ?? ''} onChange={e => setSub(a.id, e.target.value)}
+                          style={{ width:'100%', padding:'1px 2px', fontSize:9, borderRadius:3, border:'1px solid #d1d5db', background:'#fff' }}>
+                          <option value="">GMC (none)</option>
+                          {subs.map(s => <option key={s.id} value={s.id}>{s.ref} — {s.subcontractor_name}</option>)}
+                        </select>
+                      </td>
 
-                      {mode === 'revenue' && <>
-                        <td style={tdFixed(SL.cv,    rowBg, { width:CW.cv,    textAlign:'right', fontWeight:600 })}>€{fmt(a.contract_value, 0)}</td>
-                        <td style={tdFixed(SL.cumul, rowBg, { width:CW.cumul, textAlign:'right', fontWeight:700, color:'#1e40af' })}>€{fmt(cumul, 0)}</td>
-                        <td style={tdFixed(SL.rem,   rowBg, { width:CW.rem,   textAlign:'right', color: remaining === 0 ? '#16a34a' : '#374151', fontWeight: remaining === 0 ? 700 : 400 })}>€{fmt(remaining, 0)}</td>
-                        <td style={tdFixed(SL.sub,   rowBg, { width:CW.sub,   padding:'2px 3px', borderRight:'3px solid #60a5fa' })}>
-                          <select value={subEdits[a.id] ?? ''} onChange={e => setSub(a.id, e.target.value)}
-                            style={{ width:'100%', padding:'1px 2px', fontSize:9, borderRadius:3, border:'1px solid #d1d5db', background:'#fff' }}>
-                            <option value="">GMC (none)</option>
-                            {subs.map(s => <option key={s.id} value={s.id}>{s.ref} — {s.subcontractor_name}</option>)}
-                          </select>
-                        </td>
-
-                        {allWeeks.map(w => {
+                      {allWeeks.map(w => {
                           const isCur    = w === weekEnding;
                           const hasSaved = savedWeeks.has(w) && (history.data?.[a.id]?.[w]?.pct ?? 0) > 0;
                           const pct      = pctOf(a, w);
@@ -496,7 +455,6 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
                             </td>
                           );
                         })}
-                      </>}
                     </tr>
                   );
                 }),
@@ -509,12 +467,10 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
       {/* Grand total */}
       <div style={{ display:'flex', justifyContent:'flex-end', gap:20, padding:'10px 14px', background:'#f1f5f9', borderRadius:7, fontWeight:700, marginTop:6 }}>
         <span style={{ color:'#374151' }}>TOTAL CONTRACT: {fmtE(grand.contract, 2)}</span>
-        {mode === 'revenue' && (
-          <div style={{ textAlign:'right' }}>
-            <div style={{ color:'#166534', fontSize:14 }}>WEEK REVENUE ({fmtWE(weekEnding)}): {fmtE(grand.week, 2)}</div>
-            <div style={{ color:'#1e40af', fontSize:12, marginTop:2 }}>PROJECT CUMULATIVE: {fmtE(grand.cumul, 2)}</div>
-          </div>
-        )}
+        <div style={{ textAlign:'right' }}>
+          <div style={{ color:'#166534', fontSize:14 }}>WEEK REVENUE ({fmtWE(weekEnding)}): {fmtE(grand.week, 2)}</div>
+          <div style={{ color:'#1e40af', fontSize:12, marginTop:2 }}>PROJECT CUMULATIVE: {fmtE(grand.cumul, 2)}</div>
+        </div>
       </div>
 
       {showImport && (
