@@ -19,6 +19,7 @@ function BOQTable({ items }) {
         <tr>
           <th className="col-ref">Ref</th>
           <th className="col-desc">Description</th>
+          <th className="col-num">Qty</th>
           <th className="col-unit">Unit</th>
           <th className="col-num">Rate (€)</th>
           <th className="col-num">Contract Sum (€)</th>
@@ -29,6 +30,7 @@ function BOQTable({ items }) {
           <tr key={item.id}>
             <td className="col-ref">{item.item_ref}</td>
             <td className="col-desc">{item.description}</td>
+            <td className="col-num">{fmt(item.qty)}</td>
             <td className="col-unit">{item.unit}</td>
             <td className="col-num">{fmt(item.rate)}</td>
             <td className="col-num" style={{ fontWeight: item.contract_sum > 0 ? 600 : 400 }}>

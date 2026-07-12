@@ -244,11 +244,33 @@ function readDataRow(sheet, r, cols, batchTs, autoRefState) {
     else rate = 0;
   }
 
-  const rawItemRef = cols.item_ref != null ? String(cellVal(sheet, r, cols.item_ref) ?? '').trim() : '';
+  // Item ref / PD Ref: when a header explicitly labeled one, cols.item_ref/iw_cost_code are fixed
+  // column indices, used directly. When neither had a header (REV1's common unlabeled-prefix
+  // layout), how many real columns sit there can vary bill-by-bill within the same sheet — e.g. a
+  // real file's Civil Works bill has both (Item "2.1", PD Ref "2.1.1", the latter often repeated
+  // across several rows), while its Prelim Fixed/Time bills have only Item ("1.2.1") with a
+  // meaningless running-count column where PD Ref would be. Decided per row: the standard
+  // two-column layout (Item at left2Col, PD Ref at leftCol) is trusted UNLESS left2Col holds a
+  // non-blank value that isn't itself a hierarchical ref — that only happens when there's really
+  // just one ref column, immediately left of Description (leftCol), and no PD Ref at all.
+  let rawItemRef, iw_cost_code;
+  if (cols.itemRefAmbiguous) {
+    const leftVal  = cols.leftCol  >= 0 ? String(cellVal(sheet, r, cols.leftCol)  ?? '').trim() : '';
+    const left2Val = cols.left2Col >= 0 ? String(cellVal(sheet, r, cols.left2Col) ?? '').trim() : '';
+    if (left2Val && !/^\d+(\.\d+){1,}$/.test(left2Val)) {
+      rawItemRef = leftVal;
+      iw_cost_code = null;
+    } else {
+      rawItemRef = left2Val;
+      iw_cost_code = leftVal || null;
+    }
+  } else {
+    rawItemRef = cols.item_ref != null ? String(cellVal(sheet, r, cols.item_ref) ?? '').trim() : '';
+    iw_cost_code = cols.iw_cost_code != null
+      ? (String(cellVal(sheet, r, cols.iw_cost_code) ?? '').trim() || null)
+      : null;
+  }
   const item_ref = rawItemRef || `AUTO-${batchTs}-${++autoRefState.n}`;
-  const iw_cost_code = cols.iw_cost_code != null
-    ? (String(cellVal(sheet, r, cols.iw_cost_code) ?? '').trim() || null)
-    : null;
 
   return { item_ref, iw_cost_code, qty: finalQty, rate, contract_sum: Math.round(finalQty * rate * 100) / 100 };
 }
@@ -423,9 +445,21 @@ router.post('/projects/:pid/boq-import/parse-excel-full', upload.single('file'),
     const above = mapCols(sheet, headerRow - 1, { section: FULL_SHEET_ALIASES.section });
     if (above.section != null) cols.section = above.section;
   }
-  //  - Item / PD Ref: unlabeled columns immediately left of Description (Item, then PD Ref).
-  if (cols.iw_cost_code == null && cols.description - 1 >= 0) cols.iw_cost_code = cols.description - 1; // PD Ref
-  if (cols.item_ref == null && cols.description - 2 >= 0)     cols.item_ref     = cols.description - 2; // Item
+  //  - Item / PD Ref: unlabeled column(s) immediately left of Description. Some bills in a REV1
+  //    sheet have two (Item, then PD Ref); others (seen in real files: Prelim Fixed/Time) have
+  //    just one (Item only, no PD Ref at all) — and this can differ bill-by-bill within the same
+  //    sheet, so it can't be decided once for the whole file. Flag it as ambiguous here; readDataRow
+  //    resolves it per row by checking whether the column right before Description holds a
+  //    hierarchical ref like "1.2.1" (making it Item, with no PD Ref column) or not (two-column
+  //    fallback: Item one column further left, PD Ref immediately before Description).
+  if (cols.item_ref == null && cols.iw_cost_code == null) {
+    cols.itemRefAmbiguous = true;
+    cols.leftCol  = cols.description - 1;
+    cols.left2Col = cols.description - 2;
+  } else {
+    if (cols.iw_cost_code == null && cols.description - 1 >= 0) cols.iw_cost_code = cols.description - 1;
+    if (cols.item_ref == null && cols.description - 2 >= 0)     cols.item_ref     = cols.description - 2;
+  }
 
   // Validate that columns are in the correct REV1 order (reject misturado layouts)
   const orderCheck = validateColumnOrder(cols, headerRow);
