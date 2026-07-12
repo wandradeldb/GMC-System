@@ -6,6 +6,7 @@ function SupplierSearch({ onSelect }) {
   const [results,  setResults] = useState([]);
   const [open,     setOpen]    = useState(false);
   const [selected, setSelected] = useState(null);
+  const [creating, setCreating] = useState(false);
   const timer = useRef(null);
 
   useEffect(() => {
@@ -25,6 +26,18 @@ function SupplierSearch({ onSelect }) {
     onSelect(s);
   };
 
+  // Not in the GMC master list — create it there first, then select it like any other supplier.
+  const createNew = async () => {
+    setCreating(true);
+    const s = await apiFetch('/api/v1/subcontractors', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ name: query.trim() }),
+    }).then(r => r.json());
+    setCreating(false);
+    pick(s);
+  };
+
   return (
     <div style={{ position: 'relative' }}>
       <input
@@ -32,10 +45,10 @@ function SupplierSearch({ onSelect }) {
         onChange={e => { setQuery(e.target.value); setSelected(null); onSelect(null); }}
         placeholder="Type supplier name or code…"
         style={{ width: '100%', padding: '8px 10px', border: '1px solid #d1d5db', borderRadius: 6, fontSize: 13 }}
-        onFocus={() => results.length && setOpen(true)}
+        onFocus={() => (results.length || query.trim().length >= 2) && setOpen(true)}
         onBlur={() => setTimeout(() => setOpen(false), 150)}
       />
-      {open && results.length > 0 && (
+      {open && (results.length > 0 || query.trim().length >= 2) && (
         <div style={{
           position: 'absolute', top: '100%', left: 0, right: 0, zIndex: 200,
           background: '#fff', border: '1px solid #d1d5db', borderRadius: 6,
@@ -56,6 +69,16 @@ function SupplierSearch({ onSelect }) {
               </div>
             </div>
           ))}
+          {query.trim().length >= 2 && (
+            <div
+              onMouseDown={createNew}
+              style={{ padding: '8px 12px', cursor: creating ? 'default' : 'pointer', fontSize: 13, fontWeight: 600, color: '#1d4ed8', background: '#f8faff' }}
+              onMouseEnter={e => e.currentTarget.style.background = '#eff6ff'}
+              onMouseLeave={e => e.currentTarget.style.background = '#f8faff'}
+            >
+              {creating ? 'Creating…' : `+ Create new supplier "${query.trim()}"`}
+            </div>
+          )}
         </div>
       )}
     </div>
