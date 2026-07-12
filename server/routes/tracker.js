@@ -254,6 +254,17 @@ function buildTrackerReport(con, pid) {
   const revMap = {};
   subRevRows.forEach(r => { revMap[`${r.sub_name}__${r.week_ending}`] = r; });
 
+  // Revenue generated per sub per WE -- authoritative source: revenue_week.sub_id, set when a
+  // subcontractor is assigned to an activity in the Revenue Generator (real FK, not name text).
+  const subRevWeek = con.prepare(`
+    SELECT sub_id, week_ending, ROUND(SUM(revenue),2) AS revenue_generated
+    FROM revenue_week
+    WHERE project_id=? AND sub_id IS NOT NULL
+    GROUP BY sub_id, week_ending
+  `).all(pid);
+  const revBySubId = {};
+  subRevWeek.forEach(r => { revBySubId[`${r.sub_id}__${r.week_ending}`] = r.revenue_generated; });
+
   // Build sub_lines: for each WE, for each sub, aggregate the 3 values
   const subLines = {}; // week_ending â†’ [{sub_id, sub_name, ref, cost_payment, cost_material, revenue_generated}]
   enriched.forEach(r => {
@@ -293,9 +304,11 @@ function buildTrackerReport(con, pid) {
       });
       const costMaterial = matRows.reduce((sum, m) => sum + (m.cost_material || 0), 0);
 
-      // Revenue: from manual entry
-      const revRow = revMap[`${sc.sub_name}__${we}`] || {};
-      const revenueGenerated = revRow.revenue_generated || 0;
+      // Revenue: prefer revenue_week (real sub_id assigned in Revenue Generator) over the
+      // legacy tracker_sub_revenue manual-entry table, which is matched by exact sub_name string
+      // and has no active UI writing to it -- any naming drift silently zeroed this out.
+      const revenueGenerated = revBySubId[`${sc.id}__${we}`]
+        ?? (revMap[`${sc.sub_name}__${we}`]?.revenue_generated || 0);
 
       const plannedCost = plannedMap[`${sc.id}__${we}`] || 0;
 
