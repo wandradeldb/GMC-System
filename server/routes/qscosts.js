@@ -14,11 +14,27 @@ function db() {
   return con;
 }
 
-// Map cost codes â†’ readable category
-function deriveCategory(transType, costCode) {
+// Direct "COST TYPE" column (seen in real exports, e.g. "PLANT", "MATERIALS", "Sub-contract") —
+// this is the authoritative source when present. A transaction's TRANSTYPE alone isn't reliable:
+// e.g. TRANSTYPE "POP" appears on both Plant and Material rows, distinguished only by COST TYPE.
+function mapCostType(costType) {
+  const t = (costType || '').toLowerCase().trim();
+  if (!t) return null;
+  if (t.includes('plant'))                            return 'Plant';
+  if (t.includes('material') || t.includes('stores')) return 'Material';
+  if (t.includes('agent'))                            return 'Labour';
+  if (t.includes('overhead'))                         return 'Overhead';
+  if (t.includes('sub'))                              return 'Sub';
+  return null;
+}
+
+// Fallback heuristic for files with no COST TYPE column — map cost codes/trans type to category.
+function deriveCategory(transType, costCode, costType) {
+  const direct = mapCostType(costType);
+  if (direct) return direct;
   const tt = (transType || '').toUpperCase();
   const cc = (costCode  || '').toLowerCase().trim();
-  if (tt === 'plant' || tt === 'plinv')              return 'Plant';
+  if (tt === 'PLANT' || tt === 'PLINV')               return 'Plant';
   if (cc === 'lab')                                   return 'Labour';
   if (cc === 'sal')                                   return 'Salary';
   if (cc === 'oheads gen' || cc.includes('overhead')) return 'Overhead';
@@ -26,8 +42,18 @@ function deriveCategory(transType, costCode) {
   if (cc === 'sun')                                   return 'Sundry';
   if (cc === 'pla' || cc === 'pl3')                   return 'Plant';
   if (cc === 'mat' || cc === 'm03')                   return 'Material';
-  if (tt === 'pop')                                   return 'Material';
+  if (tt === 'POP')                                   return 'Material';
   return 'Other';
+}
+
+// Next Friday on/after the given ISO date — derives week_ending from trans_date when the source
+// file has no dedicated WE/month/year columns at all (seen in real exports).
+function nextFriday(isoDate) {
+  if (!isoDate) return null;
+  const d = new Date(isoDate + 'T12:00:00');
+  const day = d.getDay(); // 0=Sun..6=Sat, Friday=5
+  d.setDate(d.getDate() + ((5 - day + 7) % 7));
+  return d.toISOString().slice(0, 10);
 }
 
 // Excel serial â†’ YYYY-MM-DD
@@ -114,6 +140,7 @@ router.post('/projects/:pid/qs-costs/import', upload.single('file'), (req, res) 
         unit_value:      ['unitvalue'],
         qty:             ['actualquantity'],
         cost:            ['cost'],
+        cost_type:       ['cost type'],
         week_ending:     ['we'],
         month:           ['month'],
         year:            ['year'],
@@ -144,19 +171,24 @@ router.post('/projects/:pid/qs-costs/import', upload.single('file'), (req, res) 
 
     const transType = getStr(COL.trans_type);
     const costCode  = getStr(COL.cost_code);
+    const costType  = getStr(COL.cost_type);
     const weSerial  = getNum(COL.week_ending);
     const tdSerial  = getNum(COL.trans_date);
+    const transDate = serialToISO(tdSerial);
+    // Some real exports have no WE/month/year columns at all — fall back to the Friday on/after
+    // trans_date, matching the "week ending" convention used everywhere else in the app.
+    const weekEnding = serialToISO(weSerial) || nextFriday(transDate);
 
     rows.push({
       transaction_id:   getStr(COL.transaction_id),
-      trans_date:       serialToISO(tdSerial),
+      trans_date:       transDate,
       agent_code:       getStr(COL.agent_code),
       agent_name:       getStr(COL.agent_name),
       gang_no:          getStr(COL.gang_no),
       gang_name:        getStr(COL.gang_name),
       trans_type:       transType,
       cost_code:        costCode,
-      cost_category:    deriveCategory(transType, costCode),
+      cost_category:    deriveCategory(transType, costCode, costType),
       supplier_account: getStr(COL.supplier_account),
       supplier_name:    getStr(COL.supplier_name),
       stock_item_text:  getStr(COL.stock_item_text),
@@ -165,7 +197,7 @@ router.post('/projects/:pid/qs-costs/import', upload.single('file'), (req, res) 
       unit_value:       getNum(COL.unit_value),
       qty:              getNum(COL.qty),
       cost:             cost,
-      week_ending:      serialToISO(weSerial),
+      week_ending:      weekEnding,
       month:            getStr(COL.month),
       year:             getNum(COL.year),
     });
