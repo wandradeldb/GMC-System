@@ -220,46 +220,31 @@ function NewPayAppForm({ projectId, onBack }) {
         <button className="btn-back" onClick={onBack}>← PayApps</button>
       </div>
 
-      {/* Header — sticky below topbar. Compact padding: this bar plus the tabs/filter row below it
-          are all sticky "chrome" competing with the scrollable table for vertical space. */}
-      <div className="assessment-header" style={{ position:'sticky', top:0, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb', marginBottom:0, padding:'8px 16px' }}>
-        <div className="assessment-title" style={{ marginBottom: 4 }}>
-          <span className="assessment-period">PayApp #{sheet.next_app_number}</span>
-          <span style={{ fontSize: 13, color: '#6b7280' }}>
-            Previously Certified: <strong>€{fmt(prevCert)}</strong>
-          </span>
-        </div>
-        <div className="assessment-kpis" style={{ marginBottom: 4 }}>
-          <div className="assess-kpi">
-            <div className="kpi-label">Works Gross (Cum.) €</div>
-            <div className="kpi-value" style={{ color: '#1e40af' }}>€{fmt(grossOverride || itemsGross, 2)}</div>
-          </div>
-          <div className="assess-kpi">
-            <div className="kpi-label">Retention ({retPct}%)</div>
-            <div className="kpi-value" style={{ color: '#dc2626' }}>€{fmt(retention, 0)}</div>
-          </div>
-          <div className="assess-kpi">
-            <div className="kpi-label">This Certificate</div>
-            <div className="kpi-value" style={{ color: thisCert >= 0 ? '#166534' : '#dc2626', fontWeight: 800 }}>€{fmt(thisCert, 0)}</div>
-          </div>
-        </div>
-        <div className="assessment-actions">
-          <input value={header.prepared_by} onChange={e => setHeader(h => ({ ...h, prepared_by: e.target.value }))}
-            placeholder="Prepared by" style={{ padding:'5px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:13, width:150 }} />
-          <button className="btn-save" onClick={save} disabled={saving}>
-            {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save PayApp'}
-          </button>
-        </div>
+      {/* Header — sticky below topbar. Everything on one row: this bar, the tabs, and the filter
+          row below it are all sticky "chrome" competing with the scrollable table for vertical
+          space, so the 3-row stacked layout got collapsed into one compact flex row. */}
+      <div style={{ position:'sticky', top:0, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb',
+        display:'flex', alignItems:'center', flexWrap:'wrap', gap:'4px 18px', padding:'4px 16px' }}>
+        <span style={{ fontSize:15, fontWeight:800 }}>PayApp #{sheet.next_app_number}</span>
+        <span style={{ fontSize:12, color:'#6b7280' }}>Prev. Certified <strong>€{fmt(prevCert)}</strong></span>
+        <span style={{ fontSize:12, color:'#6b7280' }}>Gross <strong style={{ color:'#1e40af' }}>€{fmt(grossOverride || itemsGross, 2)}</strong></span>
+        <span style={{ fontSize:12, color:'#6b7280' }}>Retention ({retPct}%) <strong style={{ color:'#dc2626' }}>€{fmt(retention, 0)}</strong></span>
+        <span style={{ fontSize:13, color:'#6b7280' }}>This Cert. <strong style={{ fontSize:15, color: thisCert >= 0 ? '#166534' : '#dc2626' }}>€{fmt(thisCert, 0)}</strong></span>
+        <input value={header.prepared_by} onChange={e => setHeader(h => ({ ...h, prepared_by: e.target.value }))}
+          placeholder="Prepared by" style={{ padding:'4px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:12, width:130 }} />
+        <button className="btn-save" onClick={save} disabled={saving} style={{ padding:'5px 14px', marginLeft:'auto' }}>
+          {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save PayApp'}
+        </button>
       </div>
 
-      {/* Tabs — sticky below assessment header */}
+      {/* Tabs — sticky below header */}
       <div className="das-tabs" style={{ position:'sticky', top:0, zIndex:8, background:'#fff', borderBottom:'1px solid #e5e7eb' }}>
         {[
           { id: 'boq',     label: `BOQ Detail (${items.length})` },
           { id: 'header',  label: 'Header / Certificate' },
           { id: 'summary', label: 'Summary Sheet' },
         ].map(t => (
-          <button key={t.id} className={`das-tab ${activeTab === t.id ? 'active' : ''}`} onClick={() => setActiveTab(t.id)}>
+          <button key={t.id} className={`das-tab ${activeTab === t.id ? 'active' : ''}`} onClick={() => setActiveTab(t.id)} style={{ padding:'4px 16px' }}>
             {t.label}
           </button>
         ))}
@@ -282,7 +267,7 @@ function NewPayAppForm({ projectId, onBack }) {
           return (
             <div>
               {/* Schedule filter + search */}
-              <div style={{ display:'flex', alignItems:'center', gap:14, padding:'6px 12px', flexWrap:'wrap', borderBottom:'1px solid #e5e7eb' }}>
+              <div style={{ display:'flex', alignItems:'center', gap:14, padding:'4px 12px', flexWrap:'wrap', borderBottom:'1px solid #e5e7eb' }}>
                 {schedules.map(s => (
                   <label key={s} style={{ display:'flex', alignItems:'center', gap:6, cursor:'pointer', fontSize:13, fontWeight:600, color: SEC_COLOR[s] || '#374151' }}>
                     <input type="checkbox" checked={activeSch.has(s)} onChange={() => toggleSch(s)}
@@ -321,7 +306,7 @@ function NewPayAppForm({ projectId, onBack }) {
                 });
 
                 return (
-                <div style={{ overflow:'auto', maxHeight:'calc(100vh - 300px)', WebkitOverflowScrolling:'touch', zoom: `${zoom}%` }}>
+                <div style={{ overflow:'auto', maxHeight:'calc(100vh - 190px)', WebkitOverflowScrolling:'touch', zoom: `${zoom}%` }}>
                   <table className="boq-table" style={{ minWidth: 730 + priorApps.length * 70 }}>
                     <thead>
                       <tr>
