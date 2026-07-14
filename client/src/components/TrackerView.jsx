@@ -88,7 +88,14 @@ function nextFriday(from) {
 
 // Nearest Friday on or before today
 function todayFriday() {
-  const d = new Date();
+  const now = new Date();
+  // Anchor on today's *local* calendar date at noon before doing any date math — building
+  // straight off `new Date()` and reading it back via toISOString() (UTC) let the local-time
+  // getDay()/setDate() arithmetic land on one calendar day while the UTC serialization rolled to
+  // the next, so the picked WE could silently not match any real column in ALL_TRACKER_WEEKS
+  // (which is anchored the same safe way) and the sub-revenue/material joins keyed off it.
+  const localISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const d = new Date(localISO + 'T12:00:00');
   const diff = (d.getDay() - 5 + 7) % 7; // days since last Friday (0 if today IS Friday)
   d.setDate(d.getDate() - diff);
   return d.toISOString().slice(0, 10);
@@ -130,22 +137,25 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
   const tableRef = useRef(null);
   const zoom = useZoom();
 
+  // Scroll the selected WE column into view — declared before any early return so hook order
+  // stays stable; recomputes activeWE locally since `rows`/`data` aren't available yet up here.
+  useEffect(() => {
+    if (!data) return;
+    const rows = data.rows || [];
+    const todayFri = todayFriday();
+    const weOptions = fridayRange(todayFri, 4, 2);
+    const existingWEs = new Set(rows.map(r => r.week_ending));
+    const activeWE = selectedWE || weOptions.find(w => !existingWEs.has(w)) || weOptions[weOptions.length - 1];
+    const th = tableRef.current?.querySelector(`[data-we="${activeWE}"]`);
+    th?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [data, selectedWE]);
+
   const load = useCallback(() => {
     apiFetch(`/api/v1/projects/${projectId}/tracker`)
       .then(r => r.json()).then(setData);
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
-
-  // Scroll to show latest data (around today) on load
-  useEffect(() => {
-    if (tableRef.current) {
-      const today = new Date().toISOString().slice(0, 10);
-      const idx = ALL_TRACKER_WEEKS.findIndex(w => w >= today);
-      const colW = 110; // approximate column width
-      tableRef.current.scrollLeft = Math.max(0, (idx - 3) * colW);
-    }
-  }, [data?.rows?.length]);
 
   if (!data) return <div className="state-box"><div className="icon">⏳</div><p>Loading tracker…</p></div>;
 
@@ -272,7 +282,7 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
                   <div className="tracker-we-num">{rows.length} weeks</div>
                 </th>
                 {rows.map(r => (
-                  <th key={r.week_ending} className="tracker-col-head"
+                  <th key={r.week_ending} className="tracker-col-head" data-we={r.week_ending}
                     style={r._empty ? { opacity: 0.55 } : {}}>
                     <div className="tracker-we-label">WE {fmtWE(r.week_ending)}</div>
                     <div className="tracker-we-num">{r.week_number ? `Wk ${r.week_number}` : ''}</div>

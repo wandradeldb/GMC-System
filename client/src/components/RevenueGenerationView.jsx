@@ -1,5 +1,5 @@
 import { apiFetch } from '../apiFetch.js';
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useZoom } from '../zoomContext.js';
 import ImportBOQModal from './ImportBOQModal.jsx';
 import NewSubcontractModal from './NewSubcontractModal.jsx';
@@ -19,7 +19,13 @@ const isoWeekNum = iso => {
 };
 
 function todayFriday() {
-  const d = new Date();
+  const now = new Date();
+  // Anchor on today's *local* calendar date at noon before doing date math -- building straight
+  // off `new Date()` and reading it back via toISOString() (UTC) let the local getDay()/setDate()
+  // arithmetic land on one calendar day while the UTC serialization rolled to the next, so the
+  // default WE could silently not match any real week column depending on timezone.
+  const localISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const d = new Date(localISO + 'T12:00:00');
   d.setDate(d.getDate() - ((d.getDay() - 5 + 7) % 7));
   return d.toISOString().slice(0, 10);
 }
@@ -69,6 +75,11 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
+  const curWeekThRef = useRef(null);
+
+  useEffect(() => {
+    curWeekThRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+  }, [weekEnding, allWeeks]);
   const [addingSubFor, setAddingSubFor] = useState(null); // activity id awaiting a new subcontract, or null
 
   const loadSubs = useCallback(() => {
@@ -305,7 +316,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
               <th style={thFixed(SL.rem,   { width: CW.rem,   textAlign:'right' })}>Remain. €</th>
               <th style={thFixed(SL.sub,   { width: CW.sub,   borderRight:'3px solid #60a5fa' })}>Subcontractor</th>
               {allWeeks.map(w => (
-                <th key={w} style={thWE(w)}>
+                <th key={w} style={thWE(w)} ref={w === weekEnding ? curWeekThRef : null}>
                   <div style={{ fontSize: 8, fontWeight: 700 }}>WE {fmtWEHead(w)}</div>
                   <div style={{ fontSize: 7, opacity: .7, marginTop: 1 }}>Wk {isoWeekNum(w)}</div>
                 </th>
