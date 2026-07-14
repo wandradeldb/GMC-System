@@ -167,7 +167,7 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
         }}
       />
 
-      <div className="das-tab-content">
+      <div className="das-tab-content" style={{ flex:1, minHeight:0, overflow:'auto' }}>
         {activeTab === 'sub' && (
           <SubSection rows={subs} setRows={setSubs} disabled={sectionDisabled} subcontracts={subcontracts}
             entry={entry} setEntry={setEntry} onNext={goNext} />

@@ -135,7 +135,7 @@ function ApplicationsTab({ applications, onOpen, retention_pct }) {
   };
 
   return (
-    <div>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div className="section-toolbar">
         <span className="section-stat">{applications.length} assessments</span>
       </div>
@@ -143,16 +143,19 @@ function ApplicationsTab({ applications, onOpen, retention_pct }) {
       {applications.length === 0 ? (
         <div className="empty-hint">No assessments yet.</div>
       ) : (
+        <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         <table className="boq-table" style={{ zoom: `${zoom}%` }}>
           <thead>
             <tr>
-              <th>No.</th><th>Period</th>
-              <th style={{textAlign:'right'}}>Sub Claim (€)</th>
-              <th style={{textAlign:'right'}}>GMC Assessed (€)</th>
-              <th style={{textAlign:'right'}}>Cumulative (€)</th>
-              <th style={{textAlign:'right'}}>Retention (€)</th>
-              <th style={{textAlign:'right'}}>Net Payable (€)</th>
-              <th>Status</th><th></th>
+              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>No.</th>
+              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Period</th>
+              <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Sub Claim (€)</th>
+              <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>GMC Assessed (€)</th>
+              <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Cumulative (€)</th>
+              <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Retention (€)</th>
+              <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Net Payable (€)</th>
+              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Status</th>
+              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}></th>
             </tr>
           </thead>
           <tbody>
@@ -180,6 +183,7 @@ function ApplicationsTab({ applications, onOpen, retention_pct }) {
             })}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );
@@ -419,7 +423,7 @@ function CETab({ ces, subcontractId, projectId, onRefresh }) {
   const CE_STATUS_BG    = { submitted:'#fef9c3', assessed:'#dbeafe', agreed:'#dcfce7', rejected:'#fee2e2' };
 
   return (
-    <div>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div className="section-toolbar">
         <span className="section-stat">{ces.length} compensation events · GMC agreed: €{fmt(ces.filter(c=>c.status==='agreed').reduce((s,c)=>s+c.gmc_value,0))}</span>
         <button className="btn-primary" onClick={() => setShowForm(s => !s)}>+ New CE</button>
@@ -451,14 +455,17 @@ function CETab({ ces, subcontractId, projectId, onRefresh }) {
       {ces.length === 0 && !showForm ? (
         <div className="empty-hint">No compensation events raised.</div>
       ) : (
+        <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         <table className="boq-table" style={{ marginTop: 12, zoom: `${zoom}%` }}>
           <thead>
             <tr>
-              <th>Ref</th><th>Description</th>
-              <th className="col-num">Sub Claim (€)</th>
-              <th className="col-num">GMC Value (€)</th>
-              <th className="col-num">Delta (€)</th>
-              <th>Status</th><th>Approved</th>
+              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Ref</th>
+              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Description</th>
+              <th className="col-num" style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Sub Claim (€)</th>
+              <th className="col-num" style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>GMC Value (€)</th>
+              <th className="col-num" style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Delta (€)</th>
+              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Status</th>
+              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Approved</th>
             </tr>
           </thead>
           <tbody>
@@ -477,6 +484,7 @@ function CETab({ ces, subcontractId, projectId, onRefresh }) {
             ))}
           </tbody>
         </table>
+        </div>
       )}
     </div>
   );

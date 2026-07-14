@@ -82,7 +82,7 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
   }
 
   return (
-    <div>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       {/* ── Breadcrumb ──────────────────────────────────────────────── */}
       <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
         <button onClick={onBack}
@@ -104,6 +104,7 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
       </div>
 
       {/* ── Views ───────────────────────────────────────────────────── */}
+      <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
       {view === 'list' && (
         <ListView
           apps={apps} boqItems={boqItems}
@@ -164,6 +165,7 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
           onBack={() => setView('list')}
         />
       )}
+      </div>
     </div>
   );
 }
@@ -177,7 +179,7 @@ function ListView({ apps, boqItems, onNew, onDetail, onCertificate, onStatusChan
   const weOptions = fridayRange(todayFriday(), 8, 2);
 
   return (
-    <div>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
         <h3 style={{ margin:0, fontSize:16, color:'#1a1a2e' }}>Payment Applications</h3>
         <div style={{ display:'flex', gap:8 }}>
@@ -259,17 +261,17 @@ function ListView({ apps, boqItems, onNew, onDetail, onCertificate, onStatusChan
           <p>No applications yet. Use "Import Claim" or "Manual Assessment" to start.</p>
         </div>
       ) : (
-        <div style={{ overflowX:'auto', zoom: `${zoom}%` }}>
+        <div style={{ overflow:'auto', flex:1, minHeight:0, zoom: `${zoom}%` }}>
           <table className="boq-table">
             <thead>
               <tr>
-                <th>App #</th>
-                <th>Week Ending</th>
-                <th style={{textAlign:'right'}}>This App (GMC)</th>
-                <th style={{textAlign:'right'}}>Cumulative (GMC)</th>
-                <th style={{textAlign:'right'}}>Sub Claimed</th>
-                <th>Status</th>
-                <th></th>
+                <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>App #</th>
+                <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Week Ending</th>
+                <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>This App (GMC)</th>
+                <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Cumulative (GMC)</th>
+                <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Sub Claimed</th>
+                <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Status</th>
+                <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}></th>
               </tr>
             </thead>
             <tbody>
@@ -465,7 +467,7 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
   };
 
   return (
-    <div>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       {/* Sticky top bar */}
       <div style={{ position:'sticky', top:56, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb',
         padding:'8px 0 10px', marginBottom:12 }}>
@@ -544,21 +546,21 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
             fontSize:13, fontFamily:'inherit', resize:'vertical', boxSizing:'border-box' }} />
       </div>
 
-      <div style={{ overflowX:'auto', zoom: `${zoom}%` }}>
+      <div style={{ overflow:'auto', flex:1, minHeight:0, zoom: `${zoom}%` }}>
         <table className="boq-table" style={{ minWidth:1000 }}>
           <thead>
             <tr>
-              <th>Ref</th>
-              <th>Description</th>
-              <th style={{textAlign:'right'}}>Contract €</th>
-              <th style={{textAlign:'right', color:'#6b7280'}}>Accum %</th>
-              <th style={{textAlign:'right', background:'#fffbeb', color:'#92400e'}}>Sub €</th>
-              <th style={{textAlign:'center', background:'#fef3c7', color:'#92400e'}}>Sub %</th>
-              <th style={{textAlign:'center', background:'#dcfce7', color:'#166534'}}>GMC %</th>
-              <th style={{textAlign:'right', background:'#dcfce7', color:'#166534'}}>This App €</th>
-              <th style={{textAlign:'right'}}>Cumul €</th>
-              <th style={{textAlign:'right', color:'#dc2626'}}>Remaining €</th>
-              <th style={{textAlign:'left'}}>Comments</th>
+              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Ref</th>
+              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Description</th>
+              <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Contract €</th>
+              <th style={{textAlign:'right', color:'#6b7280', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Accum %</th>
+              <th style={{textAlign:'right', background:'#fffbeb', color:'#92400e', position:'sticky', top:0, zIndex:2}}>Sub €</th>
+              <th style={{textAlign:'center', background:'#fef3c7', color:'#92400e', position:'sticky', top:0, zIndex:2}}>Sub %</th>
+              <th style={{textAlign:'center', background:'#dcfce7', color:'#166534', position:'sticky', top:0, zIndex:2}}>GMC %</th>
+              <th style={{textAlign:'right', background:'#dcfce7', color:'#166534', position:'sticky', top:0, zIndex:2}}>This App €</th>
+              <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Cumul €</th>
+              <th style={{textAlign:'right', color:'#dc2626', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Remaining €</th>
+              <th style={{textAlign:'left', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Comments</th>
             </tr>
           </thead>
           <tbody>
@@ -733,7 +735,7 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
   const cutPctApproved = totalSubC > 0 ? Math.round((1 - totalGmcC / totalSubC) * 1000) / 10 : 0;
 
   return (
-    <div>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       {/* Sticky header */}
       <div style={{ position:'sticky', top:56, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb',
         padding:'8px 0 10px', marginBottom:12 }}>
@@ -832,19 +834,19 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
         </div>
       )}
 
-      <div style={{ overflowX:'auto', zoom: `${zoom}%` }}>
+      <div style={{ overflow:'auto', flex:1, minHeight:0, zoom: `${zoom}%` }}>
         <table className="boq-table" style={{ minWidth:860 }}>
           <thead>
             <tr>
-              <th>Ref</th>
-              <th>Description</th>
-              <th style={{textAlign:'right'}}>Contract €</th>
-              <th style={{textAlign:'right', color:'#6b7280'}}>Accum %</th>
-              <th style={{textAlign:'right', color:'#92400e'}}>Folan %</th>
-              <th style={{textAlign:'right', color:'#92400e'}}>Folan €</th>
-              <th style={{textAlign:'center', color:'#166534'}}>GMC % {editable && '✎'}</th>
-              <th style={{textAlign:'right', color:'#166534'}}>GMC €</th>
-              <th style={{textAlign:'right', color:'#dc2626'}}>Cut €</th>
+              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Ref</th>
+              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Description</th>
+              <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Contract €</th>
+              <th style={{textAlign:'right', color:'#6b7280', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Accum %</th>
+              <th style={{textAlign:'right', color:'#92400e', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Folan %</th>
+              <th style={{textAlign:'right', color:'#92400e', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Folan €</th>
+              <th style={{textAlign:'center', color:'#166534', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>GMC % {editable && '✎'}</th>
+              <th style={{textAlign:'right', color:'#166534', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>GMC €</th>
+              <th style={{textAlign:'right', color:'#dc2626', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Cut €</th>
             </tr>
           </thead>
           <tbody>
@@ -884,12 +886,12 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
             })}
           </tbody>
           <tfoot>
-            <tr style={{background:'#f1f5f9', fontWeight:700}}>
-              <td colSpan={5} style={{textAlign:'right', paddingRight:8}}>TOTAL</td>
-              <td style={{textAlign:'right', color:'#92400e'}}>{fmtE(folanTotal,2)}</td>
+            <tr style={{background:'#1a1a2e', color:'#fff', fontWeight:700, position:'sticky', bottom:0, zIndex:2}}>
+              <td colSpan={5} style={{textAlign:'right', paddingRight:8, padding:'8px 10px'}}>TOTAL</td>
+              <td style={{textAlign:'right', color:'#fbbf24', padding:'8px 10px'}}>{fmtE(folanTotal,2)}</td>
               <td></td>
-              <td style={{textAlign:'right', color:'#166534'}}>{fmtE(gmcTotal,2)}</td>
-              <td style={{textAlign:'right', color:'#dc2626'}}>{cutTotal > 0.005 ? `−${fmtE(cutTotal,2)}` : '—'}</td>
+              <td style={{textAlign:'right', color:'#4ade80', padding:'8px 10px'}}>{fmtE(gmcTotal,2)}</td>
+              <td style={{textAlign:'right', color:'#f87171', padding:'8px 10px'}}>{cutTotal > 0.005 ? `−${fmtE(cutTotal,2)}` : '—'}</td>
             </tr>
           </tfoot>
         </table>

@@ -42,7 +42,7 @@ export default function PaymentCalendar({ projectId }) {
   const totalPaid      = runs.filter(r => r.status === 'paid').reduce((s, r) => s + (r.total_net || 0), 0);
 
   return (
-    <div>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div className="section-toolbar">
         <div>
           <span className="section-stat">{runs.length} payment runs</span>
@@ -74,7 +74,7 @@ export default function PaymentCalendar({ projectId }) {
       {runs.length === 0 && !showNew ? (
         <div className="empty-hint">No payment runs defined. Create a payment calendar for the project.</div>
       ) : (
-        <div className="payment-timeline">
+        <div className="payment-timeline" style={{ flex:1, minHeight:0, overflow:'auto' }}>
           {runs.map(run => (
             <div key={run.id} className={`payment-run-row ${run.status}`}>
               <div className="pr-date">

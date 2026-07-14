@@ -68,7 +68,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
   ) : null;
 
   return (
-    <div>
+    <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div className="detail-nav" style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
         <button className="btn-back" onClick={onBack}>← Tracker</button>
         <button onClick={async () => {
@@ -128,13 +128,14 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
         ))}
       </div>
 
-      <div className="das-tab-content">
+      <div className="das-tab-content" style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
         {activeTab === 'boq' && (
-          <div>
+          <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
             <div className="section-toolbar" style={{ marginBottom: 12 }}>
               <span className="section-stat">{items.filter(i => parseFloat(i.pct_complete_this) > 0).length} items with progress</span>
               <input type="search" placeholder="Filter items…" value={search} onChange={e => setSearch(e.target.value)} style={{ padding:'6px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:13, width:220 }} />
             </div>
+            <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
             {schedules.map(sch => {
               const schItems = items.map((it, idx) => ({...it, _idx: idx})).filter(it => it.schedule === sch &&
                 (!search || it.description.toLowerCase().includes(search.toLowerCase()) || it.item_ref.toLowerCase().includes(search.toLowerCase())));
@@ -149,14 +150,14 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
                   <table className="boq-table" style={{ zoom: `${zoom}%` }}>
                     <thead>
                       <tr>
-                        <th className="col-ref">Ref</th>
-                        <th>Description</th>
-                        <th className="col-unit">Unit</th>
-                        <th className="col-num">Contract Sum</th>
-                        <th className="col-num" style={{ background: '#eff6ff' }}>% Prev</th>
-                        <th className="col-num" style={{ background: '#f0fdf4' }}>% This WE</th>
-                        <th className="col-num" style={{ background: '#f0fdf4' }}>WE Revenue (€)</th>
-                        <th>Notes</th>
+                        <th className="col-ref" style={{ position:'sticky', top:0, background:'#f9fafb', zIndex:2 }}>Ref</th>
+                        <th style={{ position:'sticky', top:0, background:'#f9fafb', zIndex:2 }}>Description</th>
+                        <th className="col-unit" style={{ position:'sticky', top:0, background:'#f9fafb', zIndex:2 }}>Unit</th>
+                        <th className="col-num" style={{ position:'sticky', top:0, background:'#f9fafb', zIndex:2 }}>Contract Sum</th>
+                        <th className="col-num" style={{ position:'sticky', top:0, background: '#eff6ff', zIndex:2 }}>% Prev</th>
+                        <th className="col-num" style={{ position:'sticky', top:0, background: '#f0fdf4', zIndex:2 }}>% This WE</th>
+                        <th className="col-num" style={{ position:'sticky', top:0, background: '#f0fdf4', zIndex:2 }}>WE Revenue (€)</th>
+                        <th style={{ position:'sticky', top:0, background:'#f9fafb', zIndex:2 }}>Notes</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -200,6 +201,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
                 </div>
               );
             })}
+            </div>
           </div>
         )}
 
