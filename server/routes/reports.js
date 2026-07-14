@@ -86,7 +86,6 @@ router.get('/projects/:pid/reports/period-data', (req, res) => {
     })),
     summary: { revTotal, costTotal, marginTotal, marginPct },
     costBreakdown, revBreakdown, subs: activeSubs,
-    efa: { revenue: latest.efa_revenue, cost: latest.efa_cost, margin: latest.efa_margin, marginPct: latest.efa_margin_pct, targetPct: latest.target_margin_pct },
   });
 });
 
@@ -120,7 +119,6 @@ router.get('/projects/:pid/reports/period-pdf', (req, res) => {
     ['Revenue (period)', eur(revTotal)],
     ['Cost (period)',    eur(costTotal)],
     ['Margin (period)',  `${eur(marginTotal)}  (${pct(marginPct)})`],
-    ['EFA Margin % (latest WE)', `${pct(latest.efa_margin_pct)}  vs target ${pct(latest.target_margin_pct)}`],
   ];
   doc.fontSize(10).fillColor('#111827');
   summaryLines.forEach(([label, val]) => doc.text(`${label}:  ${val}`));
@@ -212,18 +210,6 @@ router.get('/projects/:pid/reports/period-pdf', (req, res) => {
     });
     doc.y = sy + 10;
   }
-
-  // ── EFA vs Actual ───────────────────────────────────────────────────────
-  if (doc.y > 680) doc.addPage();
-  doc.fontSize(13).fillColor('#1a1a2e').text('EFA vs Actual (latest week in period)', { underline: true });
-  doc.moveDown(0.3);
-  doc.fontSize(10).fillColor('#111827');
-  doc.text(`EFA Revenue:  ${eur(latest.efa_revenue)}`);
-  doc.text(`EFA Cost:  ${eur(latest.efa_cost)}`);
-  doc.text(`EFA Margin:  ${eur(latest.efa_margin)}  (${pct(latest.efa_margin_pct)})`);
-  doc.text(`Target Margin %:  ${pct(latest.target_margin_pct)}`);
-  doc.fillColor(latest.efa_margin_pct >= latest.target_margin_pct ? '#166534' : '#dc2626')
-    .text(latest.efa_margin_pct >= latest.target_margin_pct ? 'On target' : 'Below target — variance risk');
 
   doc.end();
 });

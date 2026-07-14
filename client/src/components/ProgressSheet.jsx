@@ -119,7 +119,6 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
         {[
           { id: 'boq',   label: `BOQ Progress (${items.length})` },
           { id: 'costs', label: 'Manual Costs' },
-          { id: 'efa',   label: 'EFA Forecast' },
           { id: 'notes', label: 'Notes' },
         ].map(t => (
           <button key={t.id} className={`das-tab ${activeTab === t.id ? 'active' : ''}`} onClick={() => setActiveTab(t.id)}>
@@ -225,31 +224,6 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
               <p style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
                 Subcontractor cost is auto-populated from approved SUB_APPLICATIONs for this period's month.
               </p>
-            </div>
-          </div>
-        )}
-
-        {activeTab === 'efa' && (
-          <div className="section-grid" style={{ maxWidth: 480 }}>
-            {[
-              { key: 'efa_revenue',      label: 'EFA Revenue (€)',      state: efa, set: setEfa },
-              { key: 'efa_cost',         label: 'EFA Cost (€)',          state: efa, set: setEfa },
-              { key: 'target_margin_pct', label: 'Target Margin (%)',    state: efa, set: setEfa },
-            ].map(f => (
-              <div key={f.key} className="field">
-                <label className="field-label">{f.label}</label>
-                <input type="number" step={f.key.includes('pct') ? '0.1' : '1000'} min="0"
-                  value={f.state[f.key]}
-                  onChange={e => f.set(s => ({ ...s, [f.key]: e.target.value }))} />
-              </div>
-            ))}
-            <div className="field span2">
-              <label className="field-label">EFA Margin (computed)</label>
-              <div style={{ fontWeight: 700, fontSize: 16, color: (parseFloat(efa.efa_revenue)||0) - (parseFloat(efa.efa_cost)||0) >= 0 ? '#166534' : '#dc2626', paddingTop: 4 }}>
-                €{fmt((parseFloat(efa.efa_revenue)||0) - (parseFloat(efa.efa_cost)||0), 0)}
-                {' '}
-                ({efa.efa_revenue > 0 ? (((parseFloat(efa.efa_revenue)||0) - (parseFloat(efa.efa_cost)||0)) / (parseFloat(efa.efa_revenue)||1) * 100).toFixed(1) : '0.0'}%)
-              </div>
             </div>
           </div>
         )}

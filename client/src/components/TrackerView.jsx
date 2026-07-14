@@ -47,15 +47,7 @@ const MARGIN_ROWS = [
   { key: 'margin_pct',        label: 'Margin % Cumulative', group: 'margin-pct', pct: true },
 ];
 
-const EFA_ROWS = [
-  { key: 'efa_revenue',    label: 'EFA Revenue',     group: 'efa' },
-  { key: 'efa_cost',       label: 'EFA Cost',        group: 'efa' },
-  { key: 'efa_margin',     label: 'EFA Margin',      group: 'efa' },
-  { key: 'efa_margin_pct', label: 'EFA Margin %',    group: 'efa', pct: true },
-  { key: 'target_margin_pct', label: 'Target Margin %', group: 'efa-target', pct: true },
-];
-
-const ALL_ROWS = [...REV_ROWS, ...COST_ROWS, ...MARGIN_ROWS, ...EFA_ROWS];
+const ALL_ROWS = [...REV_ROWS, ...COST_ROWS, ...MARGIN_ROWS];
 
 // ── group styling ────────────────────────────────────────────────────────────
 const GROUP_STYLE = {
@@ -67,15 +59,12 @@ const GROUP_STYLE = {
   'cost-cum':   { bg: '#fefce8', fontStyle: 'italic', color: '#92400e' },
   'margin':     { bg: '#f0fdf4' },
   'margin-pct': { bg: '#dcfce7', fontWeight: 700, color: '#166534' },
-  'efa':        { bg: '#f5f3ff' },
-  'efa-target': { bg: '#ede9fe', fontStyle: 'italic', color: '#7c3aed' },
 };
 
 const SECTION_HEADERS = [
   { before: 'rev_prelims_fixed', label: 'REVENUE', color: '#1e40af', bg: '#1e40af' },
   { before: 'cost_subs',         label: 'COST',    color: '#92400e', bg: '#b45309' },
   { before: 'margin_week',       label: 'MARGIN',  color: '#166534', bg: '#16a34a' },
-  { before: 'efa_revenue',       label: 'EFA — ESTIMATED FINAL ACCOUNT', color: '#7c3aed', bg: '#7c3aed' },
 ];
 
 // ── nextFriday ───────────────────────────────────────────────────────────────
@@ -223,7 +212,6 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
       {/* ── Project Summary ──────────────────────────────────────── */}
       <div className="tracker-summary">
         <SummaryCard label="Contract Value"   value={`€${fmt(contractValue, 0)}`} color="#1a1a2e" />
-        <SummaryCard label="BOQ Total"        value={`€${fmt(totalBOQ, 0)}`}      sub="120 items"         color="#374151" />
         <div className="summary-divider" />
         <SummaryCard label="This Week"        value={`€${fmt(latest?.rev_total_week, 0)}`}   sub={`WE ${fmtWE(latest?.week_ending)}`}      color="#1e40af" />
         <SummaryCard label="Previous Week"    value={`€${fmt(previous?.rev_total_week, 0)}`} sub={`WE ${fmtWE(previous?.week_ending)}`}    color="#374151" />
@@ -231,9 +219,6 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
         <div className="summary-divider" />
         <SummaryCard label="Margin This Week" value={`€${fmt(latest?.margin_week, 0)}`}        sub="week contribution"    color={latest?.margin_week >= 0 ? '#166534' : '#dc2626'} />
         <SummaryCard label="Margin Cumulative" value={`€${fmt(latest?.margin_cumulative, 0)}`} sub={fmtPct(latest?.margin_pct)}              color={latest?.margin_pct >= 0 ? '#166534' : '#dc2626'} />
-        <div className="summary-divider" />
-        <SummaryCard label="EFA Revenue"      value={`€${fmt(latest?.efa_revenue, 0)}`}      sub="estimated final"       color="#7c3aed" />
-        <SummaryCard label="EFA Margin %"     value={fmtPct(latest?.efa_margin_pct)}         sub={`target ${fmtPct(latest?.target_margin_pct)}`} color={latest?.efa_margin_pct >= (latest?.target_margin_pct || 8) ? '#166534' : '#dc2626'} />
       </div>
 
       {/* ── Toolbar ──────────────────────────────────────────────── */}
@@ -454,7 +439,7 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
                       <td className="tracker-row-label" style={{ background: gs.bg || '#fff', fontStyle: gs.fontStyle, fontWeight: gs.fontWeight || 500 }}>
                         {row.label}
                       </td>
-                      {/* Cumulative / EFA column — sticky after label */}
+                      {/* Cumulative column — sticky after label */}
                       <td className="tracker-cell tracker-cum-cell"
                         style={{ fontWeight: 700, color: gs.color }}>
                         {(() => {

@@ -85,7 +85,6 @@ export default function PeriodReportPreview({ projectId, from, to, onClose }) {
                 <div><span className="report-summary-label">Revenue (period)</span><span>{eur(data.summary.revTotal)}</span></div>
                 <div><span className="report-summary-label">Cost (period)</span><span>{eur(data.summary.costTotal)}</span></div>
                 <div><span className="report-summary-label">Margin (period)</span><span>{eur(data.summary.marginTotal)} ({pct(data.summary.marginPct)})</span></div>
-                <div><span className="report-summary-label">EFA Margin % (latest WE)</span><span>{pct(data.efa.marginPct)} vs target {pct(data.efa.targetPct)}</span></div>
               </div>
 
               <h3 className="report-section-title">Weekly Breakdown</h3>
@@ -140,17 +139,6 @@ export default function PeriodReportPreview({ projectId, from, to, onClose }) {
                   </table>
                 </>
               )}
-
-              <h3 className="report-section-title">EFA vs Actual (latest week in period)</h3>
-              <ul className="report-list">
-                <li>EFA Revenue: {eur(data.efa.revenue)}</li>
-                <li>EFA Cost: {eur(data.efa.cost)}</li>
-                <li>EFA Margin: {eur(data.efa.margin)} ({pct(data.efa.marginPct)})</li>
-                <li>Target Margin %: {pct(data.efa.targetPct)}</li>
-                <li style={{ color: data.efa.marginPct >= data.efa.targetPct ? '#166534' : '#dc2626', fontWeight: 600 }}>
-                  {data.efa.marginPct >= data.efa.targetPct ? 'On target' : 'Below target — variance risk'}
-                </li>
-              </ul>
             </>
           )}
         </div>

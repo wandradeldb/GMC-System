@@ -891,14 +891,14 @@ body {
   margin-top: 10px;
 }
 .tracker-table {
-  border-collapse: collapse; width: max-content; min-width: 100%;
+  border-collapse: separate; border-spacing: 0; width: max-content; min-width: 100%;
   font-size: 11px; font-variant-numeric: tabular-nums;
 }
 .tracker-row-label-head {
   position: sticky; left: 0; top: 0; z-index: 5;
   background: #1a1a2e; color: #fff; font-size: 9px; font-weight: 600;
   letter-spacing: .06em; text-transform: uppercase;
-  padding: 6px 10px; width: 170px; min-width: 170px; text-align: left;
+  padding: 6px 10px 6px 6px; width: 170px; min-width: 170px; text-align: left;
   border-right: none;
 }
 .tracker-col-head {
@@ -919,7 +919,7 @@ body {
 
 .tracker-row-label {
   position: sticky; left: 0; z-index: 2;
-  background: #fff; padding: 4px 10px; font-size: 11px;
+  background: #fff; padding: 4px 10px 4px 6px; font-size: 11px;
   border-right: none; border-bottom: 1px solid #e5e7eb;
   white-space: nowrap; width: 170px; min-width: 170px; max-width: 170px; overflow: hidden; text-overflow: ellipsis;
 }
