@@ -9,3 +9,6 @@ client/dist/
 # SQLite backups only — db/gmc.db is committed as seed for first deploy
 db/gmc.db.bak-*
 Userswagne*
+
+# Uploaded Programme PDFs (local dev fallback; production uses /data volume)
+server/uploads/

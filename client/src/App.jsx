@@ -12,6 +12,7 @@ import ProfileView from './components/ProfileView.jsx';
 import ProjectSettingsView from './components/ProjectSettingsView.jsx';
 import UsersView from './components/UsersView.jsx';
 import ProjectsView from './components/ProjectsView.jsx';
+import ProgrammeView from './components/ProgrammeView.jsx';
 import { apiFetch } from './apiFetch.js';
 import { ZoomContext } from './zoomContext.js';
 
@@ -38,7 +39,10 @@ const NAV_GROUPS = [
   },
   {
     label: 'Field',
-    items: [{ id: 'das', label: 'Daily Allocation', icon: 'ti-clipboard-list' }],
+    items: [
+      { id: 'das',       label: 'Daily Allocation', icon: 'ti-clipboard-list' },
+      { id: 'programme', label: 'Programme',        icon: 'ti-calendar' },
+    ],
   },
   {
     label: 'Settings',
@@ -252,6 +256,7 @@ export default function App() {
         {activeNav === 'tracker'   && <TrackerView projectId={projectId} readOnly={readOnly} onSubCellClick={subName => { setSubDeepLink({ subName }); setActiveNav('sub'); }} />}
         {activeNav === 'payapp'    && <PayAppView projectId={projectId} readOnly={readOnly} />}
         {activeNav === 'qscosts'   && <QSCostsView projectId={projectId} readOnly={readOnly} />}
+        {activeNav === 'programme' && <ProgrammeView projectId={projectId} readOnly={readOnly} />}
         {activeNav === 'settings'  && <ProjectSettingsView project={project} onProjectUpdated={p => setProject(p)} />}
       </>
     );

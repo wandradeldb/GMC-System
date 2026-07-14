@@ -17,6 +17,7 @@ const assessmentRouter    = require('./routes/assessment');
 const subAssessmentRouter = require('./routes/subassessment');
 const revenueRouter       = require('./routes/revenue');
 const reportsRouter       = require('./routes/reports');
+const programmeRouter     = require('./routes/programme');
 
 const app      = express();
 const PORT     = process.env.PORT || 3001;
@@ -50,6 +51,7 @@ app.use('/api/v1', requireAuth, requireProjectAccess, requireEditor, assessmentR
 app.use('/api/v1', requireAuth, requireProjectAccess, requireEditor, subAssessmentRouter);
 app.use('/api/v1', requireAuth, requireProjectAccess, requireEditor, revenueRouter);
 app.use('/api/v1', requireAuth, requireProjectAccess, requireEditor, reportsRouter);
+app.use('/api/v1', requireAuth, requireProjectAccess, requireEditor, programmeRouter);
 
 if (isProd) {
   app.get('*', (_req, res) => res.sendFile(path.join(DIST_DIR, 'index.html')));

@@ -935,6 +935,63 @@ body {
 .zero { color: #d1d5db; font-weight: 400; }
 
 /* ══════════════════════════════════════════════════════════════
+   Programme (schedule PDF upload + Gantt-style view)
+   ══════════════════════════════════════════════════════════════ */
+.programme-header {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 6px 12px; background: #fff; border-bottom: 1px solid #e5e7eb;
+}
+.programme-header-info { margin-right: auto; }
+.programme-filename { font-size: 13px; font-weight: 700; color: #1a1a2e; }
+.programme-meta     { font-size: 11px; color: #6b7280; margin-top: 1px; }
+.btn-danger-ghost {
+  padding: 6px 12px; border-radius: 6px; border: 1px solid #fca5a5; background: #fff5f5;
+  color: #dc2626; font-size: 12px; font-weight: 600; cursor: pointer;
+}
+.btn-danger-ghost:hover { background: #fee2e2; }
+
+.programme-scroll-wrap { overflow: auto; flex: 1; min-height: 0; }
+.programme-table { border-collapse: separate; border-spacing: 0; width: max-content; font-size: 11px; }
+
+.programme-task-head, .programme-task-cell {
+  position: sticky; left: 0; z-index: 3; width: 300px; min-width: 300px; max-width: 300px;
+  white-space: nowrap; overflow: hidden; text-overflow: ellipsis; text-align: left;
+}
+.programme-date-head, .programme-date-cell { width: 90px; min-width: 90px; text-align: center; white-space: nowrap; }
+.programme-start-head, .programme-start-cell   { position: sticky; left: 300px; z-index: 3; }
+.programme-finish-head, .programme-finish-cell { position: sticky; left: 390px; z-index: 3; }
+.programme-dur-head, .programme-dur-cell {
+  position: sticky; left: 480px; z-index: 3; width: 80px; min-width: 80px;
+  text-align: center; white-space: nowrap; border-right: 2px solid #9ca3af;
+}
+
+.programme-task-head, .programme-date-head, .programme-dur-head {
+  position: sticky; top: 0; z-index: 5; background: #1a1a2e; color: #fff;
+  font-size: 9px; font-weight: 600; letter-spacing: .06em; text-transform: uppercase;
+  padding: 6px 8px; border-bottom: 1px solid #374151;
+}
+.programme-task-cell, .programme-date-cell, .programme-dur-cell {
+  background: #fff; padding: 3px 8px; border-bottom: 1px solid #e5e7eb;
+}
+.programme-timeline-head { position: sticky; top: 0; z-index: 2; background: #1a1a2e; padding: 0; }
+.programme-timeline-marks { position: relative; height: 100%; min-height: 30px; }
+.programme-month-mark {
+  position: absolute; top: 0; height: 100%; display: flex; align-items: center;
+  padding-left: 4px; font-size: 9px; color: rgba(255,255,255,.7); font-weight: 600;
+  border-left: 1px solid #374151; white-space: nowrap;
+}
+.programme-timeline-cell { padding: 0; border-bottom: 1px solid #f3f4f6; }
+.programme-timeline-track { position: relative; height: 22px; }
+.programme-bar {
+  position: absolute; top: 4px; height: 14px; border-radius: 3px;
+  background: linear-gradient(180deg, #60a5fa, #2563eb); box-shadow: 0 0 0 1px rgba(29,64,175,.3);
+}
+.programme-milestone {
+  position: absolute; top: 3px; width: 14px; height: 14px; margin-left: -7px;
+  background: #f59e0b; transform: rotate(45deg); box-shadow: 0 0 0 1px rgba(180,83,9,.4);
+}
+
+/* ══════════════════════════════════════════════════════════════
    Block 5 — Application for Payment
    ══════════════════════════════════════════════════════════════ */
 
