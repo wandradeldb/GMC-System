@@ -83,25 +83,29 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
-      {/* ── Breadcrumb ──────────────────────────────────────────────── */}
-      <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:16 }}>
-        <button onClick={onBack}
-          style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:13, color:'#374151' }}>
-          ← Subcontracts
-        </button>
-        <span style={{ color:'#9ca3af', fontSize:13 }}>/</span>
-        <span style={{ fontWeight:700, color:'#1a1a2e' }}>{subRef} — {subName}</span>
-      </div>
+      {view === 'list' && (
+        <>
+          {/* ── Breadcrumb ──────────────────────────────────────────────── */}
+          <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
+            <button onClick={onBack}
+              style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12, color:'#374151' }}>
+              ← Subcontracts
+            </button>
+            <span style={{ color:'#6b7280', fontSize:12 }}>/</span>
+            <span style={{ fontWeight:700, color:'#1a1a2e', fontSize:13 }}>{subRef} — {subName}</span>
+          </div>
 
-      {/* ── Summary cards ───────────────────────────────────────────── */}
-      <div style={{ display:'flex', gap:12, flexWrap:'wrap', marginBottom:20 }}>
-        <SCard label="Contract Value"  value={fmtE(totalContract,0)}  color="#1a1a2e" />
-        <SCard label="Certified To-Date" value={fmtE(totalCertified,0)}
-          sub={totalContract > 0 ? fmtP(totalCertified/totalContract*100) : ''}
-          color="#166534" />
-        <SCard label="Remaining"       value={fmtE(totalRemaining,0)} color="#dc2626" />
-        <SCard label="Applications"    value={apps.length}            sub={latestApp ? `Last: App ${latestApp.application_number}` : 'None yet'} color="#7c3aed" />
-      </div>
+          {/* ── Summary cards ───────────────────────────────────────────── */}
+          <div style={{ display:'flex', gap:10, flexWrap:'wrap', marginBottom:6 }}>
+            <SCard label="Contract Value"  value={fmtE(totalContract,0)}  color="#1a1a2e" />
+            <SCard label="Certified To-Date" value={fmtE(totalCertified,0)}
+              sub={totalContract > 0 ? fmtP(totalCertified/totalContract*100) : ''}
+              color="#166534" />
+            <SCard label="Remaining"       value={fmtE(totalRemaining,0)} color="#dc2626" />
+            <SCard label="Applications"    value={apps.length}            sub={latestApp ? `Last: App ${latestApp.application_number}` : 'None yet'} color="#7c3aed" />
+          </div>
+        </>
+      )}
 
       {/* ── Views ───────────────────────────────────────────────────── */}
       <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
@@ -180,15 +184,15 @@ function ListView({ apps, boqItems, onNew, onDetail, onCertificate, onStatusChan
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
-      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:12 }}>
-        <h3 style={{ margin:0, fontSize:16, color:'#1a1a2e' }}>Payment Applications</h3>
+      <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
+        <h3 style={{ margin:0, fontSize:13, color:'#1a1a2e' }}>Payment Applications</h3>
         <div style={{ display:'flex', gap:8 }}>
           <button onClick={() => setShowImport(s => !s)}
-            style={{ padding:'6px 14px', borderRadius:6, border:'1px solid #6366f1', background:'#f5f3ff',
-              color:'#4338ca', cursor:'pointer', fontSize:13, fontWeight:600 }}>
+            style={{ padding:'4px 12px', borderRadius:6, border:'1px solid #6366f1', background:'#f5f3ff',
+              color:'#4338ca', cursor:'pointer', fontSize:12, fontWeight:600 }}>
             ↑ Import Claim
           </button>
-          <button className="btn-primary" onClick={onNew}>+ Manual Assessment</button>
+          <button className="btn-primary" onClick={onNew} style={{ padding:'5px 14px', fontSize:12 }}>+ Manual Assessment</button>
         </div>
       </div>
 
@@ -470,80 +474,80 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       {/* Sticky top bar */}
       <div style={{ position:'sticky', top:56, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb',
-        padding:'8px 0 10px', marginBottom:12 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+        padding:'4px 0 6px', marginBottom:4 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
           <button onClick={onCancel}
-            style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:13 }}>
+            style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12 }}>
             ← Back
           </button>
-          <h3 style={{ margin:0, fontSize:15, color:'#1a1a2e' }}>App {nextAppNum} — Manual Assessment</h3>
-          <label style={{ fontSize:13, fontWeight:600, color:'#374151' }}>
+          <h3 style={{ margin:0, fontSize:13, color:'#1a1a2e' }}>App {nextAppNum} — Manual Assessment</h3>
+          <label style={{ fontSize:12, fontWeight:600, color:'#374151' }}>
             WE:&nbsp;
             <select value={weekEnding} onChange={e=>handleWeChange(e.target.value)}
-              style={{ padding:'4px 8px', borderRadius:6, fontSize:13,
+              style={{ padding:'3px 6px', borderRadius:6, fontSize:12,
                 border: weLocked ? '1px solid #dc2626' : '1px solid #d1d5db',
                 background: weLocked ? '#fef2f2' : '#fff' }}>
               {weOptions.map(we => <option key={we} value={we}>{fmtDate(we)}</option>)}
             </select>
           </label>
           {!weConflict && (
-            <label style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, fontWeight:600,
+            <label style={{ display:'flex', alignItems:'center', gap:5, fontSize:12, fontWeight:600,
               color: weConfirmed ? '#166534' : '#92400e', cursor:'pointer' }}>
               <input type="checkbox" checked={weConfirmed} onChange={e => setWeConfirmed(e.target.checked)} />
               ✓ Confirm this is the correct Week Ending
             </label>
           )}
-          <label style={{ fontSize:13, fontWeight:600, color:'#374151' }}>
+          <label style={{ fontSize:12, fontWeight:600, color:'#374151' }}>
             Status:&nbsp;
             <select value={appStatus} onChange={e=>setAppStatus(e.target.value)}
-              style={{ padding:'4px 8px', borderRadius:6, border:'1px solid #d1d5db', fontSize:13 }}>
+              style={{ padding:'3px 6px', borderRadius:6, border:'1px solid #d1d5db', fontSize:12 }}>
               <option value="draft">Planejada</option>
               <option value="assessed">Assessed</option>
             </select>
           </label>
-          <div style={{ marginLeft:'auto', display:'flex', gap:14, alignItems:'center' }}>
+          <div style={{ marginLeft:'auto', display:'flex', gap:10, alignItems:'center' }}>
             <div style={{ textAlign:'right' }}>
-              <div style={{ fontSize:10, color:'#9ca3af' }}>SUB CLAIMED</div>
-              <div style={{ fontSize:16, fontWeight:700, color:'#92400e' }}>{fmtE(totalSub,2)}</div>
+              <div style={{ fontSize:8, color:'#6b7280' }}>SUB CLAIMED</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#92400e' }}>{fmtE(totalSub,2)}</div>
             </div>
             <div style={{ textAlign:'right' }}>
-              <div style={{ fontSize:10, color:'#9ca3af' }}>GMC APPROVED</div>
-              <div style={{ fontSize:16, fontWeight:700, color:'#1e40af' }}>{fmtE(totalGmc,2)}</div>
+              <div style={{ fontSize:8, color:'#6b7280' }}>GMC APPROVED</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#1e40af' }}>{fmtE(totalGmc,2)}</div>
             </div>
             <div style={{ textAlign:'right' }}>
-              <div style={{ fontSize:10, color:'#9ca3af' }}>CUMULATIVE</div>
-              <div style={{ fontSize:16, fontWeight:700, color:'#166534' }}>{fmtE(cumGmc,2)}</div>
+              <div style={{ fontSize:8, color:'#6b7280' }}>CUMULATIVE</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#166534' }}>{fmtE(cumGmc,2)}</div>
             </div>
             <button onClick={handleSave} disabled={saving || weLocked} className="btn-primary"
-              style={{ padding:'7px 22px', fontSize:14, opacity: weLocked ? 0.5 : 1, cursor: weLocked ? 'not-allowed' : 'pointer' }}>
+              style={{ padding:'5px 16px', fontSize:12, opacity: weLocked ? 0.5 : 1, cursor: weLocked ? 'not-allowed' : 'pointer' }}>
               {saving ? 'Saving…' : `Save App ${nextAppNum}`}
             </button>
           </div>
         </div>
         {weConflict && (
-          <div style={{ background:'#fef2f2', color:'#991b1b', border:'1px solid #fecaca', padding:'8px 12px',
-            borderRadius:6, marginTop:8, fontSize:13, fontWeight:600 }}>
+          <div style={{ background:'#fef2f2', color:'#991b1b', border:'1px solid #fecaca', padding:'4px 10px',
+            borderRadius:6, marginTop:4, fontSize:11, fontWeight:600 }}>
             ⚠ Week Ending {fmtDate(weekEnding)} already has App #{weConflict.application_number} (status: {STATUS_STYLE[weConflict.status]?.label || weConflict.status}).
             Choose a different Week Ending to enable the % fields below.
           </div>
         )}
         {!weConflict && !weConfirmed && (
-          <div style={{ background:'#fffbeb', color:'#92400e', border:'1px solid #fde68a', padding:'8px 12px',
-            borderRadius:6, marginTop:8, fontSize:13, fontWeight:600 }}>
+          <div style={{ background:'#fffbeb', color:'#92400e', border:'1px solid #fde68a', padding:'4px 10px',
+            borderRadius:6, marginTop:4, fontSize:11, fontWeight:600 }}>
             ⚠ Check the Week Ending above and tick "Confirm this is the correct Week Ending" to unlock the % fields below.
           </div>
         )}
-        {error && <div style={{ background:'#fee2e2', color:'#991b1b', padding:'6px 12px', borderRadius:6, marginTop:8, fontSize:13 }}>{error}</div>}
+        {error && <div style={{ background:'#fee2e2', color:'#991b1b', padding:'4px 10px', borderRadius:6, marginTop:4, fontSize:11 }}>{error}</div>}
       </div>
 
-      <div style={{ marginBottom:14 }}>
-        <label style={{ fontSize:12, fontWeight:600, color:'#374151', display:'block', marginBottom:4 }}>
+      <div style={{ marginBottom:6 }}>
+        <label style={{ fontSize:11, fontWeight:600, color:'#374151', display:'block', marginBottom:2 }}>
           Notes / Comments
         </label>
         <textarea value={notes} onChange={e => setNotes(e.target.value)}
-          placeholder="Optional notes for this application…" rows={2}
-          style={{ width:'100%', padding:'8px 10px', borderRadius:6, border:'1px solid #d1d5db',
-            fontSize:13, fontFamily:'inherit', resize:'vertical', boxSizing:'border-box' }} />
+          placeholder="Optional notes for this application…" rows={1}
+          style={{ width:'100%', padding:'5px 8px', borderRadius:6, border:'1px solid #d1d5db',
+            fontSize:12, fontFamily:'inherit', resize:'vertical', boxSizing:'border-box' }} />
       </div>
 
       <div style={{ overflow:'auto', flex:1, minHeight:0, zoom: `${zoom}%` }}>
@@ -738,76 +742,76 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       {/* Sticky header */}
       <div style={{ position:'sticky', top:56, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb',
-        padding:'8px 0 10px', marginBottom:12 }}>
-        <div style={{ display:'flex', alignItems:'center', gap:12, flexWrap:'wrap' }}>
+        padding:'4px 0 6px', marginBottom:4 }}>
+        <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
           <button onClick={onBack}
-            style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'4px 10px', cursor:'pointer', fontSize:13 }}>
+            style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12 }}>
             ← Back
           </button>
-          <h3 style={{ margin:0, fontSize:15, color:'#1a1a2e' }}>
+          <h3 style={{ margin:0, fontSize:13, color:'#1a1a2e' }}>
             App {app.application_number} — WE {fmtDate(app.week_ending || app.period)}
           </h3>
-          <span style={{ background:ss.bg, color:ss.color, borderRadius:12, padding:'2px 10px', fontSize:12, fontWeight:600 }}>
+          <span style={{ background:ss.bg, color:ss.color, borderRadius:12, padding:'2px 8px', fontSize:11, fontWeight:600 }}>
             {ss.label}
           </span>
-          <div style={{ marginLeft:'auto', display:'flex', gap:14, alignItems:'center' }}>
+          <div style={{ marginLeft:'auto', display:'flex', gap:10, alignItems:'center' }}>
             <div style={{ textAlign:'right' }}>
-              <div style={{ fontSize:10, color:'#9ca3af' }}>GMC ASSESSMENT</div>
-              <div style={{ fontSize:16, fontWeight:700, color:'#166534' }}>{fmtE(editable ? gmcTotal : app.value_gmc, 2)}</div>
+              <div style={{ fontSize:8, color:'#6b7280' }}>GMC ASSESSMENT</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#166534' }}>{fmtE(editable ? gmcTotal : app.value_gmc, 2)}</div>
             </div>
             <div style={{ textAlign:'right' }}>
-              <div style={{ fontSize:10, color:'#9ca3af' }}>CUMULATIVE</div>
-              <div style={{ fontSize:16, fontWeight:700, color:'#1e40af' }}>{fmtE(app.cumulative_gmc,2)}</div>
+              <div style={{ fontSize:8, color:'#6b7280' }}>CUMULATIVE</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#1e40af' }}>{fmtE(app.cumulative_gmc,2)}</div>
             </div>
             {editable && (
               <>
                 <button onClick={handleSave} disabled={saving || approving}
-                  style={{ padding:'7px 16px', borderRadius:6, border:'1px solid #16a34a', background:'#fff', color:'#166534',
-                    cursor: saving||approving ? 'not-allowed' : 'pointer', fontSize:13, fontWeight:600 }}>
+                  style={{ padding:'5px 12px', borderRadius:6, border:'1px solid #16a34a', background:'#fff', color:'#166534',
+                    cursor: saving||approving ? 'not-allowed' : 'pointer', fontSize:12, fontWeight:600 }}>
                   {saving ? 'Saving…' : 'Save'}
                 </button>
                 <button onClick={handleApprove} disabled={saving || approving} className="btn-primary"
-                  style={{ padding:'7px 18px', fontSize:13 }}>
+                  style={{ padding:'5px 14px', fontSize:12 }}>
                   {approving ? 'Approving…' : '✓ Approve'}
                 </button>
               </>
             )}
           </div>
         </div>
-        {error && <div style={{ background:'#fee2e2', color:'#991b1b', padding:'6px 12px', borderRadius:6, marginTop:8, fontSize:13 }}>{error}</div>}
+        {error && <div style={{ background:'#fee2e2', color:'#991b1b', padding:'4px 10px', borderRadius:6, marginTop:4, fontSize:11 }}>{error}</div>}
       </div>
 
       {app.notes && (
-        <div style={{ background:'#f8fafc', border:'1px solid #e5e7eb', borderRadius:8, padding:'10px 14px', marginBottom:16, fontSize:13, color:'#374151' }}>
-          <div style={{ fontSize:11, fontWeight:600, color:'#9ca3af', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4 }}>Notes</div>
+        <div style={{ background:'#f8fafc', border:'1px solid #e5e7eb', borderRadius:8, padding:'6px 10px', marginBottom:6, fontSize:12, color:'#374151' }}>
+          <div style={{ fontSize:10, fontWeight:600, color:'#6b7280', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:2 }}>Notes</div>
           {app.notes}
         </div>
       )}
 
       {/* Painel de corte do QS (só quando editável) */}
       {editable && (
-        <div style={{ background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:8, padding:14, marginBottom:16 }}>
-          <div style={{ fontSize:13, fontWeight:700, color:'#9a3412', marginBottom:10 }}>✂️ QS Assessment — adjust GMC % before approving</div>
-          <div style={{ display:'flex', gap:20, flexWrap:'wrap', alignItems:'center' }}>
-            <div style={{ display:'flex', alignItems:'center', gap:8 }}>
-              <label style={{ fontSize:13, fontWeight:600, color:'#374151' }}>Global cut:</label>
+        <div style={{ background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:8, padding:8, marginBottom:6 }}>
+          <div style={{ fontSize:12, fontWeight:700, color:'#9a3412', marginBottom:4 }}>✂️ QS Assessment — adjust GMC % before approving</div>
+          <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
+            <div style={{ display:'flex', alignItems:'center', gap:6 }}>
+              <label style={{ fontSize:12, fontWeight:600, color:'#374151' }}>Global cut:</label>
               <input type="number" min={0} max={100} step={1} value={cut}
                 onChange={e => setCut(e.target.value)} placeholder="ex: 10"
-                style={{ width:70, padding:'5px 8px', borderRadius:6, border:'1px solid #fb923c', fontSize:13, textAlign:'center' }} />
-              <span style={{ fontSize:13, color:'#6b7280' }}>%</span>
+                style={{ width:60, padding:'3px 6px', borderRadius:6, border:'1px solid #fb923c', fontSize:12, textAlign:'center' }} />
+              <span style={{ fontSize:12, color:'#6b7280' }}>%</span>
               <button onClick={applyGlobalCut}
-                style={{ padding:'5px 12px', borderRadius:6, border:'none', background:'#ea580c', color:'#fff', cursor:'pointer', fontSize:12, fontWeight:600 }}>
+                style={{ padding:'3px 10px', borderRadius:6, border:'none', background:'#ea580c', color:'#fff', cursor:'pointer', fontSize:11, fontWeight:600 }}>
                 Apply to all
               </button>
             </div>
-            <div style={{ marginLeft:'auto', display:'flex', gap:18, alignItems:'center' }}>
+            <div style={{ marginLeft:'auto', display:'flex', gap:12, alignItems:'center' }}>
               <Stat label="FOLAN (CLAIM)" value={fmtE(folanTotal,2)} color="#92400e" />
               <Stat label="GMC (ASSESSED)" value={fmtE(gmcTotal,2)}   color="#166534" />
               <Stat label="CUT" value={`${fmtE(cutTotal,2)} · ${cutPctLive.toFixed(1)}%`} color="#dc2626" />
             </div>
           </div>
           {overItems.length > 0 && (
-            <div style={{ marginTop:10, color:'#b45309', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:6, padding:'6px 10px', fontSize:12 }}>
+            <div style={{ marginTop:6, color:'#b45309', background:'#fffbeb', border:'1px solid #fde68a', borderRadius:6, padding:'4px 8px', fontSize:11 }}>
               ⚠ Over 100% — these items need a <strong>variation</strong> (compensation event): {overItems.map(o => `${o.item_ref} (${cumPctOf(o)}%)`).join(', ')}
             </div>
           )}
@@ -816,8 +820,8 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
 
       {/* Resumo aprovado */}
       {!editable && (
-        <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:8, padding:12, marginBottom:16 }}>
-          <div style={{ fontSize:12, fontWeight:600, color:'#166534', marginBottom:8 }}>✓ {ss.label.toUpperCase()}</div>
+        <div style={{ background:'#f0fdf4', border:'1px solid #86efac', borderRadius:8, padding:8, marginBottom:6 }}>
+          <div style={{ fontSize:11, fontWeight:600, color:'#166534', marginBottom:4 }}>✓ {ss.label.toUpperCase()}</div>
           <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
             <Stat label="Sub Claimed"  value={fmtE(totalSubC,2)} color="#1a1a2e" small />
             <Stat label="GMC Approved" value={fmtE(totalGmcC,2)} color="#166534" small />
@@ -1076,10 +1080,10 @@ function CSign({ role }) {
 
 function SCard({ label, value, sub, color }) {
   return (
-    <div style={{ background:'#f8fafc', border:'1px solid #e5e7eb', borderRadius:8, padding:'10px 16px', minWidth:140 }}>
-      <div style={{ fontSize:11, color:'#9ca3af', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em' }}>{label}</div>
-      <div style={{ fontSize:20, fontWeight:700, color, marginTop:2 }}>{value}</div>
-      {sub && <div style={{ fontSize:11, color:'#9ca3af', marginTop:2 }}>{sub}</div>}
+    <div style={{ background:'#f8fafc', border:'1px solid #e5e7eb', borderRadius:8, padding:'5px 12px', minWidth:120 }}>
+      <div style={{ fontSize:9, color:'#6b7280', fontWeight:600, textTransform:'uppercase', letterSpacing:'0.05em' }}>{label}</div>
+      <div style={{ fontSize:14, fontWeight:700, color, marginTop:1 }}>{value}</div>
+      {sub && <div style={{ fontSize:9, color:'#6b7280', marginTop:1 }}>{sub}</div>}
     </div>
   );
 }

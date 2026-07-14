@@ -69,7 +69,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
-      <div className="detail-nav" style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
+      <div className="detail-nav" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
         <button className="btn-back" onClick={onBack}>← Tracker</button>
         <button onClick={async () => {
           if (!window.confirm(`Apagar semana WE ${weekEnding} e todos os dados de progresso desta semana?`)) return;
@@ -86,7 +86,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
         <div className="assessment-title">
           <span className="assessment-period">WE {fmtWE(weekEnding)}</span>
           {sheet.prev_week_ending && (
-            <span style={{ fontSize: 13, color: '#6b7280' }}>prev WE: {new Date(sheet.prev_week_ending + 'T12:00:00').toLocaleDateString('en-IE', { day: 'numeric', month: 'short' })}</span>
+            <span style={{ fontSize: 11, color: '#6b7280' }}>prev WE: {new Date(sheet.prev_week_ending + 'T12:00:00').toLocaleDateString('en-IE', { day: 'numeric', month: 'short' })}</span>
           )}
         </div>
         <div className="assessment-kpis">
@@ -107,15 +107,15 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
         </div>
         <div className="assessment-actions">
           <input value={enteredBy} onChange={e => setEnteredBy(e.target.value)}
-            placeholder="Entered by" style={{ padding:'7px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:13, width:160 }} />
-          <button className="btn-save" onClick={save} disabled={saving}>
+            placeholder="Entered by" style={{ padding:'5px 8px', border:'1px solid #d1d5db', borderRadius:6, fontSize:12, width:150 }} />
+          <button className="btn-save" onClick={save} disabled={saving} style={{ padding:'5px 12px', fontSize:12 }}>
             {saving ? 'Saving…' : saved ? '✓ Saved' : 'Save & Recalculate'}
           </button>
         </div>
       </div>
 
       {/* Tabs */}
-      <div className="das-tabs">
+      <div className="das-tabs" style={{ marginTop: 2 }}>
         {[
           { id: 'boq',   label: `BOQ Progress (${items.length})` },
           { id: 'costs', label: 'Manual Costs' },
@@ -131,7 +131,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
       <div className="das-tab-content" style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
         {activeTab === 'boq' && (
           <div style={{ flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
-            <div className="section-toolbar" style={{ marginBottom: 12 }}>
+            <div className="section-toolbar" style={{ marginBottom: 6 }}>
               <span className="section-stat">{items.filter(i => parseFloat(i.pct_complete_this) > 0).length} items with progress</span>
               <input type="search" placeholder="Filter items…" value={search} onChange={e => setSearch(e.target.value)} style={{ padding:'6px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:13, width:220 }} />
             </div>
