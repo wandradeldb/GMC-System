@@ -1,8 +1,19 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect } from 'react';
+import { SECTIONS } from '../lib/sections.js';
 
 const fmtE = (n, d = 0) => n == null ? '—' : `€${new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n)}`;
 const fmtK = n => n == null ? '—' : (Math.abs(n) >= 1000 ? `€${(n / 1000).toFixed(0)}k` : `€${n.toFixed(0)}`);
+
+// Section name -> the weekly tracker_we column it rolls up into (mirrors server/routes/revenue.js's SECTION_COL)
+const SECTION_TO_TRACKER_COL = {
+  'Prelim Fixed': 'rev_prelims_fixed',
+  'Prelim Time':  'rev_prelims_time',
+  'Civil Works':  'rev_civil',
+  'MEICA Works':  'rev_meica',
+  'Landscape':    'rev_landscape',
+  'Commission':   'rev_commissioning',
+};
 
 const PIPELINE = [
   { key: 'draft',    label: 'Planejada', color: '#92400e', bg: '#fef9c3' },
@@ -15,13 +26,15 @@ const PIPELINE = [
 export default function DashboardView({ projectId, onNavigate }) {
   const [dash, setDash] = useState(null);
   const [tracker, setTracker] = useState(null);
+  const [activities, setActivities] = useState(null);
 
   useEffect(() => {
     apiFetch(`/api/v1/projects/${projectId}/dashboard`).then(r => r.json()).then(setDash).catch(() => {});
     apiFetch(`/api/v1/projects/${projectId}/tracker`).then(r => r.json()).then(setTracker).catch(() => {});
+    apiFetch(`/api/v1/projects/${projectId}/revenue/activities`).then(r => r.json()).then(setActivities).catch(() => setActivities([]));
   }, [projectId]);
 
-  if (!dash || !tracker) return <div className="state-box"><div className="icon">⏳</div><p>Loading dashboard…</p></div>;
+  if (!dash || !tracker || !activities) return <div className="state-box"><div className="icon">⏳</div><p>Loading dashboard…</p></div>;
 
   const rows = (tracker.rows || []).filter(r => r.rev_cumulative > 0 || r.cost_cumulative > 0);
   const latest = rows[rows.length - 1] || {};
@@ -41,6 +54,32 @@ export default function DashboardView({ projectId, onNavigate }) {
   });
   const costTotal = Object.values(cost).reduce((a, b) => a + b, 0) || 1;
 
+  // Revenue by category: tender value per section (from revenue_activity) vs cumulative
+  // certified per section (summed weekly tracker_we columns) — same pattern as Cost Breakdown above.
+  const catTender = {};
+  activities.forEach(a => { catTender[a.section] = (catTender[a.section] || 0) + (a.contract_value || 0); });
+  const catRevenue = {};
+  SECTIONS.forEach(s => {
+    const col = SECTION_TO_TRACKER_COL[s];
+    catRevenue[s] = rows.reduce((sum, r) => sum + (r[col] || 0), 0);
+  });
+  const categories = SECTIONS
+    .map(s => {
+      const tender = catTender[s] || 0;
+      const revenue = catRevenue[s] || 0;
+      const pct = tender > 0 ? (revenue / tender) * 100 : 0;
+      const shareOfContract = contractValue > 0 ? (tender / contractValue) * 100 : 0;
+      // Flag categories that are a meaningful slice of the contract (>=10%) and lagging the
+      // project's own average pace — not just "0% = bad", since a category can legitimately not
+      // be due yet. A small-value category sitting at 0% stays neutral rather than alarming.
+      let status = 'neutral';
+      if (shareOfContract >= 10 && pct < pctComplete) status = 'bad';
+      else if (pct >= pctComplete) status = 'good';
+      return { section: s, tender, revenue, pct, shareOfContract, status };
+    })
+    .filter(c => c.tender > 0)
+    .sort((a, b) => b.tender - a.tender);
+
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
       {/* KPIs */}
@@ -59,6 +98,20 @@ export default function DashboardView({ projectId, onNavigate }) {
           sub={`Retention held ${fmtE(dash.kpis.retentionHeld, 0)}`}
           color="#dc2626" onClick={() => onNavigate('sub')} />
       </div>
+
+      {/* Revenue by category */}
+      <Card title="Revenue by Category" onClick={() => onNavigate('boq')}>
+        {categories.length === 0 ? <Empty /> : (
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+            {categories.map(c => <CategoryRow key={c.section} {...c} />)}
+            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 4, paddingTop: 10, borderTop: '1px solid #f1f5f9', fontSize: 11, color: '#6b7280' }}>
+              <StatusKey color="#166534" label="On track" />
+              <StatusKey color="#b45309" label="Behind — large share of contract, lagging project pace" />
+              <StatusKey color="#9ca3af" label="Below pace, low value at stake" />
+            </div>
+          </div>
+        )}
+      </Card>
 
       {/* S-curve + weekly margin */}
       <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
@@ -184,6 +237,34 @@ function Pipeline({ pipeline }) {
         </div>
       ))}
     </div>
+  );
+}
+
+const STATUS_COLOR = { good: '#166534', bad: '#b45309', neutral: '#9ca3af' };
+const STATUS_LABEL = { good: 'on track', bad: 'behind pace', neutral: 'below pace' };
+function CategoryRow({ section, tender, revenue, pct, shareOfContract, status }) {
+  const color = STATUS_COLOR[status];
+  return (
+    <div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 12, marginBottom: 3 }}>
+        <span style={{ fontWeight: 600, color: '#1a1a2e' }}>{section}</span>
+        <span style={{ color: '#9ca3af' }}>{fmtE(tender, 0)} tender · {shareOfContract.toFixed(0)}% of contract</span>
+      </div>
+      <div style={{ height: 12, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
+        <div style={{ width: `${Math.min(100, pct)}%`, height: '100%', background: color }} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginTop: 2 }}>
+        <span style={{ color, fontWeight: 600 }}>{pct.toFixed(1)}% certified{status !== 'neutral' ? ` · ${STATUS_LABEL[status]}` : ''}</span>
+        <span style={{ color: '#9ca3af' }}>{fmtE(revenue, 0)}</span>
+      </div>
+    </div>
+  );
+}
+function StatusKey({ color, label }) {
+  return (
+    <span style={{ display: 'flex', alignItems: 'center', gap: 5 }}>
+      <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, flexShrink: 0 }} />{label}
+    </span>
   );
 }
 
