@@ -131,11 +131,6 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
 /* ── Applications Tab ───────────────────────────────────────────────────── */
 function ApplicationsTab({ applications, onOpen, retention_pct }) {
   const zoom = useZoom();
-  const fmtPeriod = p => {
-    if (!p) return '—';
-    const [y, m] = p.split('-');
-    return new Date(parseInt(y), parseInt(m) - 1, 1).toLocaleDateString('en-IE', { month: 'long', year: 'numeric' });
-  };
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
@@ -151,7 +146,7 @@ function ApplicationsTab({ applications, onOpen, retention_pct }) {
           <thead>
             <tr>
               <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>No.</th>
-              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Period</th>
+              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Week Ending</th>
               <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Sub Claim (€)</th>
               <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>GMC Assessed (€)</th>
               <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Cumulative (€)</th>
@@ -167,7 +162,7 @@ function ApplicationsTab({ applications, onOpen, retention_pct }) {
               return (
                 <tr key={a.id}>
                   <td style={{ fontWeight: 700 }}>#{a.application_number}</td>
-                  <td>{fmtPeriod(a.period)}</td>
+                  <td>{fmtDate(a.week_ending)}</td>
                   <td style={{textAlign:'right'}}>{fmt(a.value_sub)}</td>
                   <td style={{textAlign:'right', fontWeight: 600, color:'#166534'}}>{fmt(a.value_gmc)}</td>
                   <td style={{textAlign:'right', color:'#1e40af'}}>{fmt(a.cumulative_gmc)}</td>
@@ -340,7 +335,7 @@ function AppDetailView({ detail, sc, projectId, subcontractId, onBack, onApprove
       <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16, flexWrap:'wrap' }}>
         <div>
           <div style={{ fontSize:18, fontWeight:700, color:'#1a1a2e' }}>
-            App #{app.application_number} — {app.period}
+            App #{app.application_number} — WE {fmtDate(app.week_ending)}
           </div>
           {app.notes && <div style={{ fontSize:12, color:'#9ca3af', marginTop:2 }}>{app.notes}</div>}
         </div>
