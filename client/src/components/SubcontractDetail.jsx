@@ -313,14 +313,19 @@ function AppDetailView({ detail, sc, projectId, subcontractId, onBack, onApprove
   const retHeld = Math.round((app.cumulative_gmc || 0) * (retention_pct / 100) * 100) / 100;
   const [approving, setApproving] = useState(false);
 
-  const handleApprove = async () => {
-    if (!window.confirm(`Approve App ${app.application_number} with GMC €${fmt(app.value_gmc)}?`)) return;
+  // draft -> assessed -> approved; invoiced/paid go through the dedicated invoice flow, not this button
+  const nextStatus  = app.status === 'draft' ? 'assessed' : app.status === 'assessed' ? 'approved' : null;
+  const ADVANCE_LABEL = { draft: 'Mark Assessed', assessed: '✓ Approve' };
+
+  const handleAdvance = async () => {
+    if (!nextStatus) return;
+    if (!window.confirm(`Move App ${app.application_number} (GMC €${fmt(app.value_gmc)}) to "${STATUS_LABEL[nextStatus]}"?`)) return;
     setApproving(true);
     const r = await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${app.id}/status`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved' }),
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: nextStatus }),
     });
     setApproving(false);
-    if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || 'Error approving'); return; }
+    if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || 'Error updating status'); return; }
     onApproved();
   };
 
@@ -341,9 +346,9 @@ function AppDetailView({ detail, sc, projectId, subcontractId, onBack, onApprove
         <span style={{ background:ss.bg, color:ss.color, borderRadius:12, padding:'3px 12px', fontSize:12, fontWeight:600 }}>
           {STATUS_LABEL[app.status] || app.status}
         </span>
-        {app.status === 'assessed' && (
-          <button onClick={handleApprove} disabled={approving} className="btn-primary" style={{ padding:'6px 16px', fontSize:13 }}>
-            {approving ? 'Approving…' : '✓ Approve'}
+        {nextStatus && (
+          <button onClick={handleAdvance} disabled={approving} className="btn-primary" style={{ padding:'6px 16px', fontSize:13 }}>
+            {approving ? 'Saving…' : ADVANCE_LABEL[app.status]}
           </button>
         )}
         <div style={{ marginLeft:'auto', display:'flex', gap:20 }}>
