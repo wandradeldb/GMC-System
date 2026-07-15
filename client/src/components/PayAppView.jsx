@@ -226,6 +226,9 @@ function NewPayAppForm({ projectId, onBack }) {
       <div style={{ position:'sticky', top:0, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb',
         display:'flex', alignItems:'center', flexWrap:'wrap', gap:'4px 18px', padding:'4px 16px' }}>
         <span style={{ fontSize:15, fontWeight:800 }}>PayApp #{sheet.next_app_number}</span>
+        <input type="month" value={header.period} onChange={e => setHeader(h => ({ ...h, period: e.target.value }))}
+          title="Period this application is for"
+          style={{ padding:'4px 10px', border:'1px solid #d1d5db', borderRadius:6, fontSize:12, fontWeight:600 }} />
         <span style={{ fontSize:12, color:'#6b7280' }}>Prev. Certified <strong>€{fmt(prevCert)}</strong></span>
         <span style={{ fontSize:12, color:'#6b7280' }}>Gross <strong style={{ color:'#1e40af' }}>€{fmt(grossOverride || itemsGross, 2)}</strong></span>
         <span style={{ fontSize:12, color:'#6b7280' }}>Retention ({retPct}%) <strong style={{ color:'#dc2626' }}>€{fmt(retention, 0)}</strong></span>
@@ -431,7 +434,7 @@ function NewPayAppForm({ projectId, onBack }) {
         {activeTab === 'header' && (
           <div className="section-grid" style={{ maxWidth: 520 }}>
             {[
-              { key: 'period',         label: 'Period (YYYY-MM)',   type: 'text',   placeholder: '2026-07' },
+              { key: 'period',         label: 'Period',             type: 'month',  placeholder: '' },
               { key: 'date_submitted', label: 'Date Submitted',     type: 'date',   placeholder: '' },
               { key: 'retention_pct',  label: 'Retention %',        type: 'number', placeholder: '3.0' },
               { key: 'notes',          label: 'Notes / Commentary', type: 'text',   placeholder: 'Optional notes…' },

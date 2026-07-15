@@ -68,7 +68,8 @@ export default function ProjectsView({ onSelectProject }) {
     if (r2.ok) setMembers(await r2.json());
   }
 
-  async function handleRemoveMember(userId) {
+  async function handleRemoveMember(userId, username) {
+    if (!confirm(`Remove "${username}" from "${shareProject.name}"? They will lose access immediately.`)) return;
     await apiFetch(`/api/v1/projects/${shareProject.id}/members/${userId}`, { method: 'DELETE' });
     setMembers(m => m.filter(x => x.id !== userId));
   }
@@ -244,7 +245,7 @@ export default function ProjectsView({ onSelectProject }) {
                       <tr key={m.id}>
                         <td>{m.username}</td>
                         <td><span className="share-role-badge">{m.project_role}</span></td>
-                        <td><button className="share-remove-btn" onClick={() => handleRemoveMember(m.id)}>✕</button></td>
+                        <td><button className="share-remove-btn" onClick={() => handleRemoveMember(m.id, m.username)}>✕</button></td>
                       </tr>
                     ))}
                   </tbody>

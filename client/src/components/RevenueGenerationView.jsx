@@ -437,6 +437,8 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
                                   type="number" min={0} max={100} step={1}
                                   className={isCur ? 'cell-input rev-pct' : 'cell-input'}
                                   value={pct}
+                                  disabled={!isCur}
+                                  title={isCur ? undefined : 'Click "edit" on this week\'s column header to enter its %'}
                                   onChange={e => setPct(a.id, w, e.target.value)}
                                   ref={isCur ? el => { if (el) currentInputs.push(el); } : null}
                                   onKeyDown={isCur ? e => {
@@ -451,11 +453,12 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
                                   } : undefined}
                                   style={{
                                     width: 34, textAlign: 'right', padding: '1px 2px',
-                                    border: `1px solid ${isCur ? '#16a34a' : '#d1d5db'}`,
+                                    border: `1px solid ${isCur ? '#16a34a' : '#e5e7eb'}`,
                                     borderRadius: 3, fontSize: 9,
-                                    background: isCur ? '#f0fdf4' : '#fff',
+                                    background: isCur ? '#f0fdf4' : '#f9fafb',
                                     fontWeight: isCur ? 700 : 400,
-                                    color: '#111',
+                                    color: isCur ? '#111' : '#9ca3af',
+                                    cursor: isCur ? 'text' : 'not-allowed',
                                   }}
                                 />
                               )}

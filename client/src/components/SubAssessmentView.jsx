@@ -289,12 +289,16 @@ function ListView({ apps, boqItems, onNew, onDetail, onCertificate, onStatusChan
                     <td style={{textAlign:'right', color:'#1e40af'}}>{fmtE(a.cumulative_gmc, 2)}</td>
                     <td style={{textAlign:'right', color:'#6b7280'}}>{fmtE(a.value_sub, 2)}</td>
                     <td>
-                      <select value={a.status}
-                        onChange={e => onStatusChange(a.id, e.target.value)}
-                        style={{ background: ss.bg, color: ss.color, border:'none', borderRadius:12,
-                          padding:'2px 8px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                        {Object.entries(STATUS_STYLE).map(([k,v]) => <option key={k} value={k}>{v.label}</option>)}
-                      </select>
+                      {['invoiced','paid'].includes(a.status) ? (
+                        <span className="status-badge" style={{ background: ss.bg, color: ss.color }}>{ss.label}</span>
+                      ) : (
+                        <select value={a.status}
+                          onChange={e => onStatusChange(a.id, e.target.value)}
+                          style={{ background: ss.bg, color: ss.color, border:'none', borderRadius:12,
+                            padding:'2px 8px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                          {['draft','assessed','approved'].map(k => <option key={k} value={k}>{STATUS_STYLE[k].label}</option>)}
+                        </select>
+                      )}
                     </td>
                     <td style={{ display:'flex', gap:4, alignItems:'center' }}>
                       <button onClick={() => onDetail(a.id)}

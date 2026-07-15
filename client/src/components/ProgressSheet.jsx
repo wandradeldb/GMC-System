@@ -72,12 +72,12 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
       <div className="detail-nav" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
         <button className="btn-back" onClick={onBack}>← Tracker</button>
         <button onClick={async () => {
-          if (!window.confirm(`Apagar semana WE ${weekEnding} e todos os dados de progresso desta semana?`)) return;
+          if (!window.confirm(`Delete week WE ${weekEnding} and all progress data for this week?`)) return;
           await apiFetch(`/api/v1/projects/${projectId}/tracker/${weekEnding}`, { method:'DELETE' });
           onBack();
         }} style={{ padding:'5px 12px', borderRadius:6, border:'1px solid #fca5a5',
           background:'#fff5f5', cursor:'pointer', fontSize:12, color:'#dc2626', fontWeight:600 }}>
-          ✕ Apagar Semana
+          ✕ Delete Week
         </button>
       </div>
 

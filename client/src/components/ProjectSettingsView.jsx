@@ -38,6 +38,8 @@ export default function ProjectSettingsView({ project, onProjectUpdated }) {
     e.preventDefault();
     setError(''); setSuccess(false);
     if (!form.name.trim() || !form.ref.trim()) { setError('Name and Reference are required.'); return; }
+    if (form.status === 'closed' && project.status !== 'closed' &&
+        !confirm(`Set "${form.name}" to Closed? It will be hidden from the project list but all data is kept — you can reopen it any time.`)) return;
     setSaving(true);
     const r = await apiFetch(`/api/v1/projects/${project.id}`, {
       method: 'PUT',
