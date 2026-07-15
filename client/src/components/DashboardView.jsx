@@ -4,6 +4,7 @@ import { SECTIONS } from '../lib/sections.js';
 
 const fmtE = (n, d = 0) => n == null ? '—' : `€${new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n)}`;
 const fmtK = n => n == null ? '—' : (Math.abs(n) >= 1000 ? `€${(n / 1000).toFixed(0)}k` : `€${n.toFixed(0)}`);
+const fmtDate = iso => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-IE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
 
 // Section name -> the weekly tracker_we column it rolls up into (mirrors server/routes/revenue.js's SECTION_COL)
 const SECTION_TO_TRACKER_COL = {
@@ -16,11 +17,11 @@ const SECTION_TO_TRACKER_COL = {
 };
 
 const PIPELINE = [
-  { key: 'draft',    label: 'Planejada', color: '#92400e', bg: '#fef9c3' },
-  { key: 'assessed', label: 'Assessed', color: '#d97706', bg: '#fef3c7' },
-  { key: 'approved', label: 'Approved', color: '#166534', bg: '#dcfce7' },
-  { key: 'invoiced', label: 'Invoiced', color: '#6d28d9', bg: '#ede9fe' },
-  { key: 'paid',     label: 'Paid',     color: '#1e40af', bg: '#dbeafe' },
+  { key: 'draft',    label: 'Planejada', color: '#c9973b', bg: '#3a2c12' },
+  { key: 'assessed', label: 'Assessed',  color: '#e0a940', bg: '#3a2c12' },
+  { key: 'approved', label: 'Approved',  color: '#6fd189', bg: '#112b19' },
+  { key: 'invoiced', label: 'Invoiced',  color: '#a99be0', bg: '#221c33' },
+  { key: 'paid',     label: 'Paid',      color: '#3fd3e0', bg: '#0e2a2e' },
 ];
 
 export default function DashboardView({ projectId, onNavigate }) {
@@ -80,83 +81,109 @@ export default function DashboardView({ projectId, onNavigate }) {
     .filter(c => c.tender > 0)
     .sort((a, b) => b.tender - a.tender);
 
+  // The single biggest risk to surface: the "behind" category carrying the largest share of the
+  // contract. If nothing qualifies as behind, there's no callout to show — an all-clear project
+  // shouldn't get a fabricated warning.
+  const riskCategory = categories.filter(c => c.status === 'bad').sort((a, b) => b.shareOfContract - a.shareOfContract)[0];
+
   return (
-    <div style={{ display: 'flex', flexDirection: 'column', gap: 20 }}>
-      {/* KPIs */}
-      <div style={{ display: 'flex', gap: 14, flexWrap: 'wrap' }}>
+    <div className="exec-dashboard">
+      <header className="ed-titleblock">
+        <div>
+          <div className="ed-eyebrow">Executive dashboard</div>
+          <h1>{dash.project?.name || 'Project'}</h1>
+          {dash.project?.client && <div className="ed-sub">{dash.project.client}</div>}
+        </div>
+        <dl className="ed-stampgrid">
+          <div><dt>Project code</dt><dd>{dash.project?.ref || '—'}</dd></div>
+          <div><dt>Week no.</dt><dd>{latest.week_number ?? '—'}</dd></div>
+          <div><dt>Week ending</dt><dd>{fmtDate(latest.week_ending)}</dd></div>
+        </dl>
+      </header>
+
+      <section className="ed-kpi-strip">
         <Kpi label="Margin (cumulative)" value={fmtE(marginCum, 0)}
-          sub={`${marginPct.toFixed(1)}% · target ${targetPct}%`}
-          color={marginPct >= targetPct ? '#166534' : marginPct >= 0 ? '#d97706' : '#dc2626'}
+          delta={`${marginPct.toFixed(1)}% · target ${targetPct}%`}
+          color={marginPct >= targetPct ? 'var(--ed-good)' : marginPct >= 0 ? 'var(--ed-warn)' : 'var(--ed-bad)'}
           onClick={() => onNavigate('tracker')} />
         <Kpi label="Works Completed" value={`${pctComplete.toFixed(1)}%`}
-          sub={`${fmtE(revenueCum, 0)} of ${fmtE(contractValue, 0)}`}
-          color="#1e40af" onClick={() => onNavigate('tracker')} />
+          delta={`${fmtE(revenueCum, 0)} of ${fmtE(contractValue, 0)}`}
+          color="var(--ed-accent)" onClick={() => onNavigate('tracker')} />
         <Kpi label="Certified to Subs" value={fmtE(dash.kpis.certifiedTotal, 0)}
-          sub={`of ${fmtE(dash.kpis.committedTotal, 0)} committed`}
-          color="#7c3aed" onClick={() => onNavigate('sub')} />
+          delta={`of ${fmtE(dash.kpis.committedTotal, 0)} committed`}
+          color="var(--ed-cost)" onClick={() => onNavigate('sub')} />
         <Kpi label="Owed to Subs" value={fmtE(dash.kpis.owedToSubs, 0)}
-          sub={`Retention held ${fmtE(dash.kpis.retentionHeld, 0)}`}
-          color="#dc2626" onClick={() => onNavigate('sub')} />
-      </div>
+          delta={`Retention held ${fmtE(dash.kpis.retentionHeld, 0)}`}
+          color="var(--ed-bad)" onClick={() => onNavigate('sub')} />
+      </section>
 
-      {/* Revenue by category */}
-      <Card title="Revenue by Category" onClick={() => onNavigate('boq')}>
-        {categories.length === 0 ? <Empty /> : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
-            {categories.map(c => <CategoryRow key={c.section} {...c} />)}
-            <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap', marginTop: 4, paddingTop: 10, borderTop: '1px solid #f1f5f9', fontSize: 11, color: '#6b7280' }}>
-              <StatusKey color="#166534" label="On track" />
-              <StatusKey color="#b45309" label="Behind — large share of contract, lagging project pace" />
-              <StatusKey color="#9ca3af" label="Below pace, low value at stake" />
+      {riskCategory && (
+        <div className="ed-callout">
+          <div className="ed-callout-mark" aria-hidden="true" />
+          <div>
+            <div className="ed-callout-head">{riskCategory.section} is the number the {pctComplete.toFixed(1)}% headline hides</div>
+            <div className="ed-callout-text">
+              {riskCategory.section} is <b>{fmtE(riskCategory.tender, 0)}</b> — <b>{riskCategory.shareOfContract.toFixed(0)}%</b> of
+              the entire contract — and is only <b>{riskCategory.pct.toFixed(1)}%</b> certified, against the
+              project's overall <b>{pctComplete.toFixed(1)}%</b> pace.
             </div>
           </div>
-        )}
-      </Card>
+        </div>
+      )}
 
-      {/* S-curve + weekly margin */}
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <Card title="Revenue vs Cost (cumulative)" onClick={() => onNavigate('tracker')} grow>
+      <div className="ed-grid-2">
+        <Card title="Revenue vs Cost (cumulative)" onClick={() => onNavigate('tracker')}>
           <SCurve rows={rows} />
         </Card>
-        <Card title="Weekly Margin" onClick={() => onNavigate('tracker')} grow>
+        <Card title="Revenue by Category" sub="Cumulative % of each category's tender value certified" onClick={() => onNavigate('boq')}>
+          {categories.length === 0 ? <Empty /> : (
+            <div className="ed-catlist">
+              {categories.map(c => <CategoryRow key={c.section} {...c} />)}
+              <div className="ed-statuskey">
+                <StatusKey color="var(--ed-good)" label="On track" />
+                <StatusKey color="var(--ed-warn)" label="Behind — large share of contract, lagging pace" />
+                <StatusKey color="var(--ed-ink-faint)" label="Below pace, low value at stake" />
+              </div>
+            </div>
+          )}
+        </Card>
+      </div>
+
+      <div className="ed-grid-2">
+        <Card title="Weekly Margin" onClick={() => onNavigate('tracker')}>
           <MarginBars rows={rows} target={targetPct} />
         </Card>
-      </div>
-
-      {/* Cost breakdown + Pipeline */}
-      <div style={{ display: 'flex', gap: 16, flexWrap: 'wrap' }}>
-        <Card title="Cost Breakdown (to date)" onClick={() => onNavigate('tracker')} grow>
+        <Card title="Cost Breakdown (to date)" onClick={() => onNavigate('tracker')}>
           {costTotal <= 1 ? <Empty /> : Object.entries(cost).map(([k, v]) => (
-            <BarRow key={k} label={k} value={v} pct={v / costTotal * 100} color="#6366f1" />
+            <BarRow key={k} label={k} value={v} pct={v / costTotal * 100} color="var(--ed-cost)" />
           ))}
         </Card>
-        <Card title="Applications Pipeline" onClick={() => onNavigate('sub')} grow>
-          <Pipeline pipeline={dash.pipeline} />
-        </Card>
       </div>
 
-      {/* Sub exposure */}
-      <Card title="Subcontract Exposure (committed · certified · remaining)" onClick={() => onNavigate('sub')}>
-        {dash.subExposure.length === 0 ? <Empty /> : (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-            {dash.subExposure.map(s => {
-              const cv = s.contract_value || 1;
-              const certPct = Math.min(100, s.certified / cv * 100);
-              return (
-                <div key={s.id}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 3 }}>
-                    <span style={{ fontWeight: 600, color: '#1a1a2e' }}>{s.ref} — {s.sub_name}</span>
-                    <span style={{ color: '#6b7280' }}>{fmtE(s.certified, 0)} / {fmtE(s.contract_value, 0)}</span>
+      <div className="ed-grid-2">
+        <Card title="Applications Pipeline" onClick={() => onNavigate('sub')}>
+          <Pipeline pipeline={dash.pipeline} />
+        </Card>
+        <Card title="Subcontract Exposure" sub="committed · certified · remaining" onClick={() => onNavigate('sub')}>
+          {dash.subExposure.length === 0 ? <Empty /> : (
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {dash.subExposure.map(s => {
+                const cv = s.contract_value || 1;
+                const certPct = Math.min(100, s.certified / cv * 100);
+                return (
+                  <div key={s.id}>
+                    <div className="ed-catrow-head">
+                      <span className="ed-cat-name">{s.ref} — {s.sub_name}</span>
+                      <span className="ed-cat-amt">{fmtE(s.certified, 0)} / {fmtE(s.contract_value, 0)}</span>
+                    </div>
+                    <div className="ed-track"><div className="ed-fill" style={{ width: `${certPct}%`, background: 'var(--ed-good)' }} /></div>
                   </div>
-                  <div style={{ height: 16, background: '#fee2e2', borderRadius: 4, overflow: 'hidden' }}>
-                    <div style={{ width: `${certPct}%`, height: '100%', background: '#16a34a' }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </Card>
+                );
+              })}
+            </div>
+          )}
+        </Card>
+      </div>
     </div>
   );
 }
@@ -177,14 +204,14 @@ function SCurve({ rows }) {
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }}>
         {[0, 0.5, 1].map(f => (
           <g key={f}>
-            <line x1={pad} y1={y(maxV * f)} x2={W - 10} y2={y(maxV * f)} stroke="#eef2f7" />
-            <text x={4} y={y(maxV * f) + 4} fontSize="9" fill="#9ca3af">{fmtK(maxV * f)}</text>
+            <line x1={pad} y1={y(maxV * f)} x2={W - 10} y2={y(maxV * f)} stroke="var(--ed-line)" />
+            <text x={4} y={y(maxV * f) + 4} fontSize="9" fontFamily="var(--ed-font-mono)" fill="var(--ed-ink-faint)">{fmtK(maxV * f)}</text>
           </g>
         ))}
-        <path d={path(rev)} fill="none" stroke="#1e40af" strokeWidth="2.5" />
-        <path d={path(cost)} fill="none" stroke="#dc2626" strokeWidth="2.5" />
+        <path d={path(rev)} fill="none" stroke="var(--ed-accent)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        <path d={path(cost)} fill="none" stroke="var(--ed-cost)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
       </svg>
-      <Legend items={[{ c: '#1e40af', l: 'Revenue' }, { c: '#dc2626', l: 'Cost' }]} />
+      <Legend items={[{ c: 'var(--ed-accent)', l: 'Revenue' }, { c: 'var(--ed-cost)', l: 'Cost' }]} />
     </div>
   );
 }
@@ -202,15 +229,15 @@ function MarginBars({ rows, target }) {
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }}>
-        <line x1={pad} y1={zeroY} x2={W - 10} y2={zeroY} stroke="#cbd5e1" />
-        <text x={4} y={zeroY + 4} fontSize="9" fill="#9ca3af">0</text>
+        <line x1={pad} y1={zeroY} x2={W - 10} y2={zeroY} stroke="var(--ed-line-strong)" />
+        <text x={4} y={zeroY + 4} fontSize="9" fontFamily="var(--ed-font-mono)" fill="var(--ed-ink-faint)">0</text>
         {rows.map((r, i) => {
           const v = r.margin_week || 0;
           return <rect key={i} x={x(i)} y={Math.min(zeroY, y(v))} width={bw} height={Math.abs(y(v) - zeroY)}
-            fill={v >= 0 ? '#16a34a' : '#dc2626'} rx="1" />;
+            fill={v >= 0 ? 'var(--ed-good)' : 'var(--ed-bad)'} rx="1" />;
         })}
       </svg>
-      <Legend items={[{ c: '#16a34a', l: 'Positive' }, { c: '#dc2626', l: 'Negative' }]} />
+      <Legend items={[{ c: 'var(--ed-good)', l: 'Positive' }, { c: 'var(--ed-bad)', l: 'Negative' }]} />
     </div>
   );
 }
@@ -220,7 +247,7 @@ function Pipeline({ pipeline }) {
   if (total <= 0) return <Empty />;
   return (
     <div>
-      <div style={{ display: 'flex', height: 26, borderRadius: 6, overflow: 'hidden', marginBottom: 12 }}>
+      <div className="ed-pipeline-strip">
         {PIPELINE.map(p => {
           const v = pipeline[p.key] || 0;
           if (v <= 0) return null;
@@ -229,33 +256,31 @@ function Pipeline({ pipeline }) {
         })}
       </div>
       {PIPELINE.filter(p => (pipeline[p.key] || 0) > 0).map(p => (
-        <div key={p.key} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, padding: '2px 0' }}>
+        <div key={p.key} className="ed-pipeline-row">
           <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
             <span style={{ width: 10, height: 10, borderRadius: 2, background: p.color }} />{p.label}
           </span>
-          <span style={{ fontWeight: 600 }}>{fmtE(pipeline[p.key], 0)}</span>
+          <b>{fmtE(pipeline[p.key], 0)}</b>
         </div>
       ))}
     </div>
   );
 }
 
-const STATUS_COLOR = { good: '#166534', bad: '#b45309', neutral: '#9ca3af' };
+const STATUS_COLOR = { good: 'var(--ed-good)', bad: 'var(--ed-warn)', neutral: 'var(--ed-ink-faint)' };
 const STATUS_LABEL = { good: 'on track', bad: 'behind pace', neutral: 'below pace' };
 function CategoryRow({ section, tender, revenue, pct, shareOfContract, status }) {
   const color = STATUS_COLOR[status];
   return (
     <div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'baseline', fontSize: 12, marginBottom: 3 }}>
-        <span style={{ fontWeight: 600, color: '#1a1a2e' }}>{section}</span>
-        <span style={{ color: '#9ca3af' }}>{fmtE(tender, 0)} tender · {shareOfContract.toFixed(0)}% of contract</span>
+      <div className="ed-catrow-head">
+        <span className="ed-cat-name">{section}</span>
+        <span className="ed-cat-amt">{fmtE(tender, 0)} tender · {shareOfContract.toFixed(0)}% of contract</span>
       </div>
-      <div style={{ height: 12, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
-        <div style={{ width: `${Math.min(100, pct)}%`, height: '100%', background: color }} />
-      </div>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginTop: 2 }}>
+      <div className="ed-track"><div className="ed-fill" style={{ width: `${Math.min(100, pct)}%`, background: color }} /></div>
+      <div className="ed-catrow-foot">
         <span style={{ color, fontWeight: 600 }}>{pct.toFixed(1)}% certified{status !== 'neutral' ? ` · ${STATUS_LABEL[status]}` : ''}</span>
-        <span style={{ color: '#9ca3af' }}>{fmtE(revenue, 0)}</span>
+        <span>{fmtE(revenue, 0)}</span>
       </div>
     </div>
   );
@@ -269,54 +294,46 @@ function StatusKey({ color, label }) {
 }
 
 // ── UI helpers ──────────────────────────────────────────────────────────────
-function Kpi({ label, value, sub, color, onClick }) {
+function Kpi({ label, value, delta, color, onClick }) {
   return (
-    <div onClick={onClick} title="Open source tab"
-      style={{ flex: 1, minWidth: 180, background: '#fff', border: '1px solid #e5e7eb', borderRadius: 10,
-        padding: '14px 18px', cursor: 'pointer', boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
-      <div style={{ fontSize: 11, color: '#9ca3af', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>{label}</div>
-      <div style={{ fontSize: 24, fontWeight: 800, color, marginTop: 4 }}>{value}</div>
-      {sub && <div style={{ fontSize: 11, color: '#6b7280', marginTop: 2 }}>{sub}</div>}
+    <div className="ed-kpi" onClick={onClick} title="Open source tab">
+      <div className="ed-kpi-label">{label}</div>
+      <div className="ed-kpi-value ed-mono" style={{ color }}>{value}</div>
+      {delta && <div className="ed-kpi-delta">{delta}</div>}
     </div>
   );
 }
-function Card({ title, children, onClick, grow }) {
+function Card({ title, sub, children, onClick }) {
   return (
-    <div style={{ flex: grow ? 1 : 'unset', minWidth: grow ? 340 : 'unset', background: '#fff',
-      border: '1px solid #e5e7eb', borderRadius: 10, padding: 16 }}>
-      <div onClick={onClick} title="Open source tab"
-        style={{ fontSize: 13, fontWeight: 700, color: '#1a1a2e', marginBottom: 12, cursor: onClick ? 'pointer' : 'default',
-          display: 'flex', justifyContent: 'space-between' }}>
-        {title} {onClick && <span style={{ color: '#6366f1', fontSize: 12 }}>↗</span>}
+    <div className="ed-panel">
+      <div className="ed-panel-title" onClick={onClick} title="Open source tab">
+        {title} {onClick && <span style={{ color: 'var(--ed-accent)', fontSize: 12 }}>↗</span>}
       </div>
+      {sub && <div className="ed-panel-sub">{sub}</div>}
       {children}
     </div>
   );
 }
 function BarRow({ label, value, pct, color }) {
   return (
-    <div style={{ marginBottom: 8 }}>
-      <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 12, marginBottom: 2 }}>
-        <span style={{ color: '#374151' }}>{label}</span>
-        <span style={{ fontWeight: 600 }}>{fmtE(value, 0)} <span style={{ color: '#9ca3af' }}>({pct.toFixed(0)}%)</span></span>
+    <div className="ed-barrow">
+      <div className="ed-barrow-head">
+        <span>{label}</span>
+        <span><b className="ed-mono">{fmtE(value, 0)}</b> <span>({pct.toFixed(0)}%)</span></span>
       </div>
-      <div style={{ height: 12, background: '#f1f5f9', borderRadius: 4, overflow: 'hidden' }}>
-        <div style={{ width: `${pct}%`, height: '100%', background: color }} />
-      </div>
+      <div className="ed-barrow-track"><div className="ed-barrow-fill" style={{ width: `${pct}%`, background: color }} /></div>
     </div>
   );
 }
 function Legend({ items }) {
   return (
-    <div style={{ display: 'flex', gap: 16, justifyContent: 'center', marginTop: 6 }}>
+    <div className="ed-legend">
       {items.map(it => (
-        <span key={it.l} style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 11, color: '#6b7280' }}>
-          <span style={{ width: 12, height: 3, background: it.c, borderRadius: 2 }} />{it.l}
-        </span>
+        <span key={it.l}><i style={{ background: it.c }} />{it.l}</span>
       ))}
     </div>
   );
 }
 function Empty() {
-  return <div style={{ color: '#9ca3af', fontSize: 13, textAlign: 'center', padding: '20px 0' }}>No data yet.</div>;
+  return <div className="ed-empty">No data yet.</div>;
 }
