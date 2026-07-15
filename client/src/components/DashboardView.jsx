@@ -206,25 +206,33 @@ export default function DashboardView({ projectId, onNavigate }) {
 // ── Charts ──────────────────────────────────────────────────────────────────
 function SCurve({ rows }) {
   if (rows.length < 2) return <Empty />;
-  const W = 560, H = 220, pad = 40;
+  const W = 560, H = 230, padL = 40, padB = 50, padT = 14;
   const rev = rows.map(r => r.rev_cumulative || 0);
   const cost = rows.map(r => r.cost_cumulative || 0);
   const maxV = Math.max(...rev, ...cost, 1);
   const n = rows.length;
-  const x = i => pad + (i / (n - 1)) * (W - pad - 10);
-  const y = v => H - pad - (v / maxV) * (H - pad - 14);
+
+  // X axis is a real time scale (by week_ending date), not point order — a missing week in
+  // tracker_we (a gap in the data) then draws as a visibly wider gap in the line instead of being
+  // silently compressed to look like a normal 1-week step.
+  const dates = rows.map(r => new Date(r.week_ending + 'T12:00:00').getTime());
+  const span = Math.max(1, dates[n - 1] - dates[0]);
+  const x = i => padL + ((dates[i] - dates[0]) / span) * (W - padL - 10);
+  const y = v => (H - padB) - (v / maxV) * (H - padB - padT);
   const path = arr => arr.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
-  // Weekly x-axis ticks — thin to ~6 evenly-spaced labels so a 6-month project doesn't clutter,
-  // but always keep the last week so "where are we now" is never cut off.
-  const tickEvery = Math.max(1, Math.ceil(n / 6));
+
+  // Label every week when there's room for it (rotated so short labels don't need much width);
+  // only thin out once a project has run long enough that even rotated labels would overlap.
+  const tickEvery = n <= 30 ? 1 : Math.ceil(n / 30);
   const tickIdxs = [...new Set(rows.map((_, i) => i).filter(i => i % tickEvery === 0).concat(n - 1))];
   const fmtTick = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { day: '2-digit', month: 'short' }) : '';
+
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }}>
         {[0, 0.5, 1].map(f => (
           <g key={f}>
-            <line x1={pad} y1={y(maxV * f)} x2={W - 10} y2={y(maxV * f)} stroke="var(--ed-line)" />
+            <line x1={padL} y1={y(maxV * f)} x2={W - 10} y2={y(maxV * f)} stroke="var(--ed-line)" />
             <text x={4} y={y(maxV * f) + 4} fontSize="9" fontFamily="var(--ed-font-mono)" fill="var(--ed-ink-faint)">{fmtK(maxV * f)}</text>
           </g>
         ))}
@@ -232,8 +240,9 @@ function SCurve({ rows }) {
         <path d={path(cost)} fill="none" stroke="var(--ed-cost)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
         {tickIdxs.map(i => (
           <g key={i}>
-            <line x1={x(i)} y1={H - pad} x2={x(i)} y2={H - pad + 4} stroke="var(--ed-line)" />
-            <text x={x(i)} y={H - pad + 14} fontSize="8" fontFamily="var(--ed-font-mono)" fill="var(--ed-ink-faint)" textAnchor="middle">
+            <line x1={x(i)} y1={H - padB} x2={x(i)} y2={H - padB + 4} stroke="var(--ed-line)" />
+            <text x={x(i)} y={H - padB + 8} fontSize="7" fontFamily="var(--ed-font-mono)" fill="var(--ed-ink-faint)"
+              textAnchor="end" transform={`rotate(-55 ${x(i).toFixed(1)} ${H - padB + 8})`}>
               {fmtTick(rows[i].week_ending)}
             </text>
           </g>
