@@ -54,7 +54,10 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
     <AppDetailView
       detail={appDetail}
       sc={sc}
+      projectId={projectId}
+      subcontractId={subcontractId}
       onBack={() => { setSelectedAppId(null); setAppDetail(null); }}
+      onApproved={() => { openApp(selectedAppId); load(); }}
     />
   );
 
@@ -301,13 +304,25 @@ function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh })
 }
 
 /* ── App Detail View (read-only) ─────────────────────────────────────────── */
-function AppDetailView({ detail, sc, onBack }) {
+function AppDetailView({ detail, sc, projectId, subcontractId, onBack, onApproved }) {
   const zoom = useZoom();
   const app   = detail.application || detail.app;
   const items = detail.items || [];
   const ss    = STATUS_BG[app.status] ? { bg: STATUS_BG[app.status], color: STATUS_COLOR[app.status] } : { bg:'#f3f4f6', color:'#6b7280' };
   const retention_pct = sc.retention_pct || 0;
   const retHeld = Math.round((app.cumulative_gmc || 0) * (retention_pct / 100) * 100) / 100;
+  const [approving, setApproving] = useState(false);
+
+  const handleApprove = async () => {
+    if (!window.confirm(`Approve App ${app.application_number} with GMC €${fmt(app.value_gmc)}?`)) return;
+    setApproving(true);
+    const r = await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${app.id}/status`, {
+      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: 'approved' }),
+    });
+    setApproving(false);
+    if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || 'Error approving'); return; }
+    onApproved();
+  };
 
   return (
     <div>
@@ -326,6 +341,11 @@ function AppDetailView({ detail, sc, onBack }) {
         <span style={{ background:ss.bg, color:ss.color, borderRadius:12, padding:'3px 12px', fontSize:12, fontWeight:600 }}>
           {STATUS_LABEL[app.status] || app.status}
         </span>
+        {app.status === 'assessed' && (
+          <button onClick={handleApprove} disabled={approving} className="btn-primary" style={{ padding:'6px 16px', fontSize:13 }}>
+            {approving ? 'Approving…' : '✓ Approve'}
+          </button>
+        )}
         <div style={{ marginLeft:'auto', display:'flex', gap:20 }}>
           {[
             { label:'Sub Claimed', val:`€${fmt(app.value_sub)}`, color:'#92400e' },
