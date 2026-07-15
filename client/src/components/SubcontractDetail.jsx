@@ -135,7 +135,14 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
 // Revenue Generator, etc.) — offering a free date picker here let an off-cycle date (e.g. Thursday)
 // get saved, which then silently never matches any tracker_we row and vanishes from Cost Tracker.
 function todayFriday() {
-  const d = new Date();
+  const now = new Date();
+  // Anchor on today's *local* calendar date at noon before doing any date math — building
+  // straight off `new Date()` and reading it back via toISOString() (UTC) lets the local-time
+  // getDay()/setDate() arithmetic land on one calendar day while the UTC serialization rolls to
+  // the previous one (whenever local time-of-day is within the UTC offset of midnight), so the
+  // picked WE could silently be a day early and never match any real tracker_we row.
+  const localISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  const d = new Date(localISO + 'T12:00:00');
   const diff = (d.getDay() - 5 + 7) % 7;
   d.setDate(d.getDate() - diff);
   return d.toISOString().slice(0, 10);

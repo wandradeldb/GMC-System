@@ -7,6 +7,15 @@ function toISODate(d) {
   return d.toISOString().slice(0, 10);
 }
 
+// `new Date()` carries the current time-of-day; feeding it straight into toISODate (UTC) can roll
+// back to the previous calendar day whenever local time is within the UTC offset of midnight.
+// Anchor on local year/month/day at noon first so the result always matches the local calendar date.
+function todayLocal() {
+  const now = new Date();
+  const localISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
+  return toISODate(new Date(localISO + 'T12:00:00'));
+}
+
 function isFriday(dateStr) {
   return new Date(dateStr + 'T12:00:00').getDay() === 5;
 }
@@ -53,7 +62,7 @@ function friRange(refWE, before = 8, after = 2) {
 }
 
 export default function DASView({ projectId, readOnly }) {
-  const [selectedDate, setSelectedDate] = useState(toISODate(new Date()));
+  const [selectedDate, setSelectedDate] = useState(todayLocal());
   const [entries, setEntries]           = useState([]);
   const [view, setView]                 = useState('form'); // 'form' | 'list'
 
@@ -68,7 +77,7 @@ export default function DASView({ projectId, readOnly }) {
   const handleSaved = () => { loadEntries(); };
 
   const currentWE = weekEndingOf(selectedDate);
-  const weOptions = friRange(weekEndingOf(toISODate(new Date())), 8, 2);
+  const weOptions = friRange(weekEndingOf(todayLocal()), 8, 2);
   const dayFmt = d => new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { weekday: 'short', day: 'numeric', month: 'short' });
   const weFmt  = d => new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { day: 'numeric', month: 'short' });
 
@@ -95,7 +104,7 @@ export default function DASView({ projectId, readOnly }) {
               </button>
             ))}
           </div>
-          <button className="btn-ghost" onClick={() => setSelectedDate(toISODate(new Date()))}>Today</button>
+          <button className="btn-ghost" onClick={() => setSelectedDate(todayLocal())}>Today</button>
         </div>
 
         {!readOnly && (
