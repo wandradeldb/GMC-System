@@ -253,6 +253,15 @@ function NewPayAppForm({ projectId, onBack }) {
         ))}
       </div>
 
+      {(() => {
+        const conflict = priorApps.find(a => a.period === header.period);
+        return conflict && (
+          <div style={{ background:'#fffbeb', border:'1px solid #fde68a', color:'#92400e', padding:'6px 16px', fontSize:12 }}>
+            ⚠ Period {fmtPeriod(header.period)} already has PayApp #{conflict.app_number}. Saving will create a second application for the same month.
+          </div>
+        );
+      })()}
+
       <div className="das-tab-content" style={{ padding: 0, flex:1, minHeight:0, display:'flex', flexDirection:'column' }}>
         {activeTab === 'boq' && (() => {
           const activeSch = schOn || new Set(schedules);
@@ -372,21 +381,26 @@ function NewPayAppForm({ projectId, onBack }) {
                                   </td>
                                 ))}
                                 <td className="col-num" style={{ background:'#f0fff4' }}>
-                                  <div style={{ display:'flex', alignItems:'center', gap:4, justifyContent:'flex-end' }}>
-                                    <input type="number" min="0" max={100 - prev} step="0.5"
-                                      value={row.pct_complete}
-                                      onChange={e => setItem(row._idx, e.target.value)}
-                                      onKeyDown={e => {
-                                        if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-                                        e.preventDefault(); e.stopPropagation();
-                                        const all = [...document.querySelectorAll('.assess-input-gmc')];
-                                        const i = all.findIndex(el => el === e.target);
-                                        const next = all[i + (e.key === 'ArrowUp' ? -1 : 1)];
-                                        if (next) { next.focus(); next.select(); }
-                                      }}
-                                      className="assess-input assess-input-gmc" style={{ width:54 }} />
-                                    <span style={{ fontSize:10, color:'#6b7280' }}>%</span>
-                                  </div>
+                                  {prev >= 100 ? (
+                                    <div style={{ fontSize:9, color:'#f59e0b', fontWeight:700, textAlign:'center' }}>⚠ 100%</div>
+                                  ) : (
+                                    <div style={{ display:'flex', alignItems:'center', gap:4, justifyContent:'flex-end' }}>
+                                      <input type="number" min="0" max={100 - prev} step="0.5"
+                                        value={row.pct_complete}
+                                        onChange={e => setItem(row._idx, e.target.value)}
+                                        title={`${fmt(100 - prev, 1)}% remaining`}
+                                        onKeyDown={e => {
+                                          if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+                                          e.preventDefault(); e.stopPropagation();
+                                          const all = [...document.querySelectorAll('.assess-input-gmc')];
+                                          const i = all.findIndex(el => el === e.target);
+                                          const next = all[i + (e.key === 'ArrowUp' ? -1 : 1)];
+                                          if (next) { next.focus(); next.select(); }
+                                        }}
+                                        className="assess-input assess-input-gmc" style={{ width:54 }} />
+                                      <span style={{ fontSize:10, color:'#6b7280' }}>%</span>
+                                    </div>
+                                  )}
                                 </td>
                                 <td className="col-num" style={{ background:'#f0fff4', color: val > 0 ? '#166534' : '#d1d5db', fontWeight: val > 0 ? 700 : 400 }}>
                                   {val > 0 ? `€${fmt(val,2)}` : '—'}

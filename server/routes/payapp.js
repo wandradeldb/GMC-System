@@ -48,12 +48,20 @@ router.get('/projects/:pid/payapps/:id', (req, res) => {
 router.get('/projects/:pid/payapps/new/boq-sheet', (req, res) => {
   const con = db();
 
-  // Last certified PayApp
+  // Last certified PayApp — this is the accounting baseline (previously_certified below); only a
+  // formally certified app counts as officially certified money.
   const lastCert = con.prepare(`
     SELECT * FROM payapp WHERE project_id=? AND status='certified' ORDER BY app_number DESC LIMIT 1
   `).get(req.params.pid);
 
-  // BOQ items with prev pct from last certified payapp_items
+  // pct_prev must track the latest application regardless of status — a draft/submitted app's
+  // measured % already represents claimed physical progress and must not be re-claimable, even
+  // though its money only becomes "previously certified" once the ER actually certifies it.
+  const lastApp = con.prepare(`
+    SELECT * FROM payapp WHERE project_id=? ORDER BY app_number DESC LIMIT 1
+  `).get(req.params.pid);
+
+  // BOQ items with prev pct from the latest payapp_items (any status)
   const items = con.prepare(`
     SELECT bi.id AS boq_item_id, bi.item_ref, bi.description, bi.schedule, bi.section,
            bi.unit, bi.type, bi.rate, bi.qty, ROUND(bi.qty*bi.rate,2) AS contract_sum, bi.sort_order,
@@ -63,7 +71,7 @@ router.get('/projects/:pid/payapps/new/boq-sheet', (req, res) => {
     LEFT JOIN payapp_item pi ON pi.boq_item_id = bi.id AND pi.payapp_id = ?
     WHERE bi.project_id = ?
     ORDER BY bi.sort_order, bi.schedule
-  `).all(lastCert?.id || -1, req.params.pid);
+  `).all(lastApp?.id || -1, req.params.pid);
 
   const nextAppNumber = (con.prepare('SELECT COALESCE(MAX(app_number),0)+1 AS n FROM payapp WHERE project_id=?').get(req.params.pid) || {}).n || 1;
 
