@@ -118,6 +118,9 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
             applications={applications}
             onOpen={openApp}
             retention_pct={sc.retention_pct}
+            projectId={projectId}
+            subcontractId={subcontractId}
+            onRefresh={load}
           />
         )}
         {tab === 'boq' && <BOQTab boqItems={boq_items} boqCertified={boqCertified} projectId={projectId} subcontractId={subcontractId} onRefresh={load} />}
@@ -129,14 +132,48 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
 }
 
 /* ── Applications Tab ───────────────────────────────────────────────────── */
-function ApplicationsTab({ applications, onOpen, retention_pct }) {
+function ApplicationsTab({ applications, onOpen, retention_pct, projectId, subcontractId, onRefresh }) {
   const zoom = useZoom();
+  const [showForm, setShowForm] = useState(false);
+  const [weekEnding, setWeekEnding] = useState('');
+  const [notes, setNotes] = useState('');
+  const [saving, setSaving] = useState(false);
+
+  const submit = async () => {
+    if (!weekEnding) return;
+    setSaving(true);
+    await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ week_ending: weekEnding, notes: notes || null }),
+    });
+    setSaving(false);
+    setShowForm(false);
+    setWeekEnding('');
+    setNotes('');
+    onRefresh();
+  };
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div className="section-toolbar">
         <span className="section-stat">{applications.length} assessments</span>
+        <button className="btn-primary" onClick={() => setShowForm(s => !s)}>+ New Application</button>
       </div>
+
+      {showForm && (
+        <div className="inline-form">
+          <div className="section-grid">
+            <div className="field"><label className="field-label">Week Ending *</label>
+              <input type="date" value={weekEnding} onChange={e => setWeekEnding(e.target.value)} /></div>
+            <div className="field span2"><label className="field-label">Notes</label>
+              <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional…" /></div>
+          </div>
+          <div style={{ display:'flex', gap:8, marginTop:12 }}>
+            <button className="btn-primary" onClick={submit} disabled={saving || !weekEnding}>{saving ? 'Saving…' : 'Save'}</button>
+            <button className="btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
+          </div>
+        </div>
+      )}
 
       {applications.length === 0 ? (
         <div className="empty-hint">No assessments yet.</div>
