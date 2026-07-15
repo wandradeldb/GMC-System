@@ -131,6 +131,26 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
   );
 }
 
+// Week endings on this project are always the Friday closing a week (matches Cost Tracker,
+// Revenue Generator, etc.) — offering a free date picker here let an off-cycle date (e.g. Thursday)
+// get saved, which then silently never matches any tracker_we row and vanishes from Cost Tracker.
+function todayFriday() {
+  const d = new Date();
+  const diff = (d.getDay() - 5 + 7) % 7;
+  d.setDate(d.getDate() - diff);
+  return d.toISOString().slice(0, 10);
+}
+function fridayOptions(before = 12, after = 4) {
+  const ref = todayFriday();
+  const out = [];
+  for (let i = -before; i <= after; i++) {
+    const d = new Date(ref + 'T12:00:00');
+    d.setDate(d.getDate() + i * 7);
+    out.push(d.toISOString().slice(0, 10));
+  }
+  return out;
+}
+
 /* ── Applications Tab ───────────────────────────────────────────────────── */
 function ApplicationsTab({ applications, onOpen, retention_pct, projectId, subcontractId, onRefresh }) {
   const zoom = useZoom();
@@ -138,6 +158,7 @@ function ApplicationsTab({ applications, onOpen, retention_pct, projectId, subco
   const [weekEnding, setWeekEnding] = useState('');
   const [notes, setNotes] = useState('');
   const [saving, setSaving] = useState(false);
+  const weOptions = fridayOptions();
 
   const submit = async () => {
     if (!weekEnding) return;
@@ -164,7 +185,10 @@ function ApplicationsTab({ applications, onOpen, retention_pct, projectId, subco
         <div className="inline-form">
           <div className="section-grid">
             <div className="field"><label className="field-label">Week Ending *</label>
-              <input type="date" value={weekEnding} onChange={e => setWeekEnding(e.target.value)} /></div>
+              <select value={weekEnding} onChange={e => setWeekEnding(e.target.value)}>
+                <option value="">Select…</option>
+                {weOptions.map(w => <option key={w} value={w}>{fmtDate(w)}</option>)}
+              </select></div>
             <div className="field span2"><label className="field-label">Notes</label>
               <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional…" /></div>
           </div>
