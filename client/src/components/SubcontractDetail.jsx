@@ -449,6 +449,13 @@ function CETab({ ces, subcontractId, projectId, onRefresh }) {
   const CE_STATUS_COLOR = { submitted:'#92400e', assessed:'#1e40af', agreed:'#166534', rejected:'#991b1b' };
   const CE_STATUS_BG    = { submitted:'#fef9c3', assessed:'#dbeafe', agreed:'#dcfce7', rejected:'#fee2e2' };
 
+  const changeCEStatus = async (ceId, status) => {
+    await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/ces/${ceId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+    });
+    onRefresh();
+  };
+
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div className="section-toolbar">
@@ -505,7 +512,13 @@ function CETab({ ces, subcontractId, projectId, onRefresh }) {
                 <td className="col-num" style={{ color: ce.gmc_value >= ce.sub_value ? '#166534' : '#dc2626' }}>
                   {ce.gmc_value - ce.sub_value >= 0 ? '+' : ''}{fmt(ce.gmc_value - ce.sub_value)}
                 </td>
-                <td><span className="status-badge" style={{ background: CE_STATUS_BG[ce.status], color: CE_STATUS_COLOR[ce.status] }}>{ce.status}</span></td>
+                <td>
+                  <select value={ce.status} onChange={e => changeCEStatus(ce.id, e.target.value)}
+                    style={{ background: CE_STATUS_BG[ce.status], color: CE_STATUS_COLOR[ce.status], border:'none', borderRadius:12,
+                      padding:'2px 8px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                    {Object.keys(CE_STATUS_BG).map(s => <option key={s} value={s}>{s}</option>)}
+                  </select>
+                </td>
                 <td style={{ fontSize:12 }}>{ce.approved_date ? new Date(ce.approved_date+'T12:00:00').toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric'}) : '—'}</td>
               </tr>
             ))}

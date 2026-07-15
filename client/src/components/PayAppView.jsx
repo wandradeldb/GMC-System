@@ -483,17 +483,23 @@ function PayAppDetail({ payapp, projectId, onBack, onStatusChange }) {
   const [saving,  setSaving]  = useState(false);
 
   const nextStatus = { draft: 'submitted', submitted: 'certified', certified: 'paid' };
+  const prevStatus = { submitted: 'draft', certified: 'submitted', paid: 'certified' };
   const btnLabel   = { draft: 'Submit to Client', submitted: 'Record ER Cert', certified: 'Mark Paid', paid: null };
 
-  const advance = async () => {
+  const changeStatus = async (status, extra = {}) => {
     setSaving(true);
-    const body = { status: nextStatus[payapp.status], ...erCert };
     await apiFetch(`/api/v1/projects/${projectId}/payapps/${payapp.id}/status`, {
-      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status, ...extra }),
     });
     setSaving(false);
     onStatusChange();
     onBack();
+  };
+  const advance = () => changeStatus(nextStatus[payapp.status], erCert);
+  const revert  = () => {
+    const target = prevStatus[payapp.status];
+    if (!window.confirm(`Move PayApp #${payapp.app_number} back to "${STATUS_LABEL[target]}"?`)) return;
+    changeStatus(target);
   };
 
   return (
@@ -514,11 +520,19 @@ function PayAppDetail({ payapp, projectId, onBack, onStatusChange }) {
           <div className="assess-kpi"><div className="kpi-label">Net Cumulative</div><div className="kpi-value">€{fmt(payapp.net_cumulative)}</div></div>
           <div className="assess-kpi"><div className="kpi-label">This Certificate</div><div className="kpi-value" style={{ color: '#166534', fontWeight: 800 }}>€{fmt(payapp.this_certificate)}</div></div>
         </div>
-        {btnLabel[payapp.status] && (
+        {(btnLabel[payapp.status] || prevStatus[payapp.status]) && (
           <div className="assessment-actions">
-            <button className="btn-save" onClick={advance} disabled={saving}>
-              {saving ? 'Saving…' : btnLabel[payapp.status]}
-            </button>
+            {prevStatus[payapp.status] && (
+              <button onClick={revert} disabled={saving}
+                style={{ background:'none', border:'none', color:'#6b7280', fontSize:12, cursor: saving ? 'not-allowed' : 'pointer', textDecoration:'underline', padding:0, marginRight:12 }}>
+                ← back to {STATUS_LABEL[prevStatus[payapp.status]]}
+              </button>
+            )}
+            {btnLabel[payapp.status] && (
+              <button className="btn-save" onClick={advance} disabled={saving}>
+                {saving ? 'Saving…' : btnLabel[payapp.status]}
+              </button>
+            )}
           </div>
         )}
       </div>
