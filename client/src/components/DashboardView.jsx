@@ -28,14 +28,23 @@ export default function DashboardView({ projectId, onNavigate }) {
   const [dash, setDash] = useState(null);
   const [tracker, setTracker] = useState(null);
   const [activities, setActivities] = useState(null);
+  const [payapps, setPayapps] = useState(null);
 
   useEffect(() => {
     apiFetch(`/api/v1/projects/${projectId}/dashboard`).then(r => r.json()).then(setDash).catch(() => {});
     apiFetch(`/api/v1/projects/${projectId}/tracker`).then(r => r.json()).then(setTracker).catch(() => {});
     apiFetch(`/api/v1/projects/${projectId}/revenue/activities`).then(r => r.json()).then(setActivities).catch(() => setActivities([]));
+    apiFetch(`/api/v1/projects/${projectId}/payapps`).then(r => r.json()).then(setPayapps).catch(() => setPayapps({ payapps: [] }));
   }, [projectId]);
 
-  if (!dash || !tracker || !activities) return <div className="state-box"><div className="icon">⏳</div><p>Loading dashboard…</p></div>;
+  if (!dash || !tracker || !activities || !payapps) return <div className="state-box"><div className="icon">⏳</div><p>Loading dashboard…</p></div>;
+
+  // Client side of the cash picture: certified = latest cert issued by the ER (any status from
+  // 'certified' on); received = latest cert that's actually been marked paid. Both cumulative,
+  // read off the most recent PayApp that qualifies (payapps are cumulative by design).
+  const paList = payapps.payapps || [];
+  const certifiedByClient  = [...paList].reverse().find(p => ['certified', 'paid'].includes(p.status))?.net_cumulative || 0;
+  const receivedFromClient = [...paList].reverse().find(p => p.status === 'paid')?.net_cumulative || 0;
 
   const rows = (tracker.rows || []).filter(r => r.rev_cumulative > 0 || r.cost_cumulative > 0);
   const latest = rows[rows.length - 1] || {};
@@ -109,6 +118,12 @@ export default function DashboardView({ projectId, onNavigate }) {
         <Kpi label="Works Completed" value={`${pctComplete.toFixed(1)}%`}
           delta={`${fmtE(revenueCum, 0)} of ${fmtE(contractValue, 0)}`}
           color="var(--ed-accent)" onClick={() => onNavigate('tracker')} />
+        <Kpi label="Certified by Client" value={fmtE(certifiedByClient, 0)}
+          delta={`${contractValue > 0 ? (certifiedByClient / contractValue * 100).toFixed(1) : '0.0'}% of contract`}
+          color="var(--ed-good)" onClick={() => onNavigate('payapp')} />
+        <Kpi label="Received from Client" value={fmtE(receivedFromClient, 0)}
+          delta={`${fmtE(certifiedByClient - receivedFromClient, 0)} certified, not yet paid`}
+          color="var(--ed-accent)" onClick={() => onNavigate('payapp')} />
         <Kpi label="Certified to Subs" value={fmtE(dash.kpis.certifiedTotal, 0)}
           delta={`of ${fmtE(dash.kpis.committedTotal, 0)} committed`}
           color="var(--ed-cost)" onClick={() => onNavigate('sub')} />
@@ -199,6 +214,11 @@ function SCurve({ rows }) {
   const x = i => pad + (i / (n - 1)) * (W - pad - 10);
   const y = v => H - pad - (v / maxV) * (H - pad - 14);
   const path = arr => arr.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+  // Weekly x-axis ticks — thin to ~6 evenly-spaced labels so a 6-month project doesn't clutter,
+  // but always keep the last week so "where are we now" is never cut off.
+  const tickEvery = Math.max(1, Math.ceil(n / 6));
+  const tickIdxs = [...new Set(rows.map((_, i) => i).filter(i => i % tickEvery === 0).concat(n - 1))];
+  const fmtTick = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { day: '2-digit', month: 'short' }) : '';
   return (
     <div>
       <svg viewBox={`0 0 ${W} ${H}`} style={{ width: '100%', height: 'auto' }}>
@@ -210,6 +230,14 @@ function SCurve({ rows }) {
         ))}
         <path d={path(rev)} fill="none" stroke="var(--ed-accent)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
         <path d={path(cost)} fill="none" stroke="var(--ed-cost)" strokeWidth="2.5" strokeLinejoin="round" strokeLinecap="round" />
+        {tickIdxs.map(i => (
+          <g key={i}>
+            <line x1={x(i)} y1={H - pad} x2={x(i)} y2={H - pad + 4} stroke="var(--ed-line)" />
+            <text x={x(i)} y={H - pad + 14} fontSize="8" fontFamily="var(--ed-font-mono)" fill="var(--ed-ink-faint)" textAnchor="middle">
+              {fmtTick(rows[i].week_ending)}
+            </text>
+          </g>
+        ))}
       </svg>
       <Legend items={[{ c: 'var(--ed-accent)', l: 'Revenue' }, { c: 'var(--ed-cost)', l: 'Cost' }]} />
     </div>
