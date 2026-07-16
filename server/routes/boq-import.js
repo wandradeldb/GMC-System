@@ -299,6 +299,16 @@ function parseFullSheet(sheet, headerRow, cols, batchTs) {
   // ── REV1 standard: an explicit Section column gives the category per row ──
   if (cols.section != null) {
     let prevSchedule = null;
+    // Some source files wrap a single item's own (long) description onto its own row, with the
+    // qty/unit/rate on the very next row — indistinguishable from a real multi-item sub-section
+    // title by position alone. Track the most recent title-only row so an immediately-following
+    // row with values but no description of its own can borrow that text as ITS description,
+    // rather than being rejected as invalid and without leaving the title stuck as the section
+    // header for whatever comes after (sectionBeforeLabel restores the real prior section).
+    let pendingLabel = null;
+    let pendingLabelRow = -1;
+    let sectionBeforeLabel = null;
+
     for (let r = headerRow + 1; r <= range.e.r; r++) {
       const description = cols.description != null ? String(cellVal(sheet, r, cols.description) ?? '').trim() : '';
       const unit = cols.unit != null ? String(cellVal(sheet, r, cols.unit) ?? '').trim() : '';
@@ -307,7 +317,10 @@ function parseFullSheet(sheet, headerRow, cols, batchTs) {
       if (!unit) {
         // marker / sub-section-title row (no unit). Skip bill/page-total/subtotal noise; carry sub-section text.
         if (description && !BILL_START_RE.test(description) && !PAGE_TOTAL_RE.test(description) && !TOTAL_MARKER_RE.test(description)) {
+          sectionBeforeLabel = currentSection;
           currentSection = description;
+          pendingLabel = description;
+          pendingLabelRow = r;
         }
         continue;
       }
@@ -323,8 +336,15 @@ function parseFullSheet(sheet, headerRow, cols, batchTs) {
       if (prevSchedule !== null && schedule !== prevSchedule) currentSection = null;
       prevSchedule = schedule;
 
+      let rowDescription = description;
+      if (!rowDescription && pendingLabelRow === r - 1) {
+        rowDescription = pendingLabel;
+        currentSection = sectionBeforeLabel;
+      }
+      if (!rowDescription) { warnings.push(`Row ${r + 1} skipped: no description found`); continue; }
+
       rows.push({
-        ...data, description, unit, section: currentSection, type: 'M',
+        ...data, description: rowDescription, unit, section: currentSection, type: 'M',
         schedule, sort_order: sortOrder++,
       });
       bumpSchedule(schedule, schedule, data.qty * data.rate);

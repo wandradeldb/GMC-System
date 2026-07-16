@@ -112,8 +112,8 @@ export default function ImportBOQModal({ projectId, onClose, onImported }) {
     <tr key={i}>
       <td className="col-ref">{r.iw_cost_code || r.item_ref}</td>
       <td className="col-desc">{r.description}</td>
-      <td className="col-unit">{r.unit}</td>
       <td className="col-num">{r.qty}</td>
+      <td className="col-unit">{r.unit}</td>
       <td className="col-num">{fmt2(r.rate)}</td>
       <td className="col-num">{fmt2(r.contract_sum ?? r.qty * r.rate)}</td>
       <td><span className="import-row-remove" onClick={() => removeRow(i)} title="Remove row">✕</span></td>
@@ -244,8 +244,8 @@ export default function ImportBOQModal({ projectId, onClose, onImported }) {
                         <tr>
                           <th className="col-ref">Ref</th>
                           <th className="col-desc">Description</th>
-                          <th className="col-unit">Unit</th>
                           <th className="col-num">Qty</th>
+                          <th className="col-unit">Unit</th>
                           <th className="col-num">Rate (€)</th>
                           <th className="col-num">Contract Sum (€)</th>
                           <th style={{ width: 28 }}></th>
