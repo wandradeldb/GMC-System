@@ -102,7 +102,10 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
       // around today. Either way, the window is stretched to also cover the currently selected
       // week and any week that already has saved history — so past % entries never silently
       // drop out of totalPctOf's 100%-lock calculation just because they fall outside the window.
-      const today = new Date();
+      // Anchor at local noon before doing ms arithmetic — same reasoning as todayFriday() above:
+      // building straight off `new Date()` (arbitrary time-of-day) and later reading the result
+      // back via toISOString() (UTC) can roll the window boundary back a calendar day.
+      const today = new Date(`${new Date().getFullYear()}-${String(new Date().getMonth()+1).padStart(2,'0')}-${String(new Date().getDate()).padStart(2,'0')}T12:00:00`);
       const fallbackStart = new Date(today.getTime() - 39 * 7 * 24 * 60 * 60 * 1000);
       const fallbackEnd   = new Date(today.getTime() + 39 * 7 * 24 * 60 * 60 * 1000);
       let lo = project?.start_date ? new Date(project.start_date + 'T12:00:00') : fallbackStart;

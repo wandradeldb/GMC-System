@@ -964,7 +964,7 @@ function CertificateView({ data, onBack }) {
           </div>
           <div style={{ textAlign:'right', fontSize:11, color:'#c7cad1', lineHeight:1.6 }}>
             <div>Approved: <strong style={{ color:'#fff' }}>{fmtDate(app.qs_approved_date)}</strong></div>
-            <div>Printed: {fmtDate(new Date().toISOString())}</div>
+            <div>Printed: {fmtDate((d => `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`)(new Date()))}</div>
           </div>
         </div>
 
