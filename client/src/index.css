@@ -355,7 +355,7 @@ body {
   vertical-align: top; font-size: 13px;
 }
 .boq-table tr:hover td { background: #fafbff; }
-.boq-table .col-ref  { width: 80px;  color: #6b7280; font-size: 12px; font-family: monospace; white-space: nowrap; }
+.boq-table .col-ref  { width: 80px; max-width: 80px; color: #6b7280; font-size: 12px; font-family: monospace; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .boq-table .col-desc { width: 340px; max-width: 340px; }
 .boq-table .col-unit { width: 55px;  text-align: center; color: #6b7280; }
 .boq-table .col-num  { width: 120px; text-align: right; font-variant-numeric: tabular-nums; }

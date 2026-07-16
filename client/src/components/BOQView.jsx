@@ -245,7 +245,7 @@ export default function BOQView({ projectId, schedule, scheduleLabels = SCHED_LA
                           const rowBg = dataRowIdx % 2 !== 0 ? ROW_ODD : ROW_EVEN;
                           return (
                             <tr key={item.id}>
-                              <td className="col-ref" style={{ background: rowBg }}>{item.item_ref}</td>
+                              <td className="col-ref" title={item.item_ref} style={{ background: rowBg }}>{item.item_ref}</td>
                               <td className="col-desc" style={{ background: rowBg }}>{item.description}</td>
                               <td className="col-num" style={{ background: rowBg }}>{fmt(item.qty)}</td>
                               <td className="col-unit" style={{ background: rowBg }}>{item.unit}</td>

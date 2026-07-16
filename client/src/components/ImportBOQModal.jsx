@@ -51,10 +51,15 @@ export default function ImportBOQModal({ projectId, onClose, onImported }) {
     setWarnings(json.warnings || []);
     setSectioned(!!json.sectioned);
     const seeded = {};
-    // REV1 layout: each bill/group IS a revenue category already → map identity (no manual choice).
-    // Older layout: pre-fill a best-guess per bill, user confirms/edits.
+    // REV1 layout: when the file's own Section value already IS one of the 6 revenue categories,
+    // map identity (no manual choice needed). Otherwise — same as the older layout — pre-fill a
+    // best-guess (left blank if not confident) and require the user to confirm/pick one; the file's
+    // categories aren't guaranteed to match the app's fixed 6 (e.g. an asset-based breakdown like
+    // "Pump Station"/"Wastewater Network" has no direct match and must be mapped manually).
     (json.schedules || []).forEach(s => {
-      seeded[s.schedule] = json.sectioned ? s.schedule : guessRevenueSection(s.label);
+      seeded[s.schedule] = json.sectioned
+        ? (REVENUE_SECTIONS.includes(s.schedule) ? s.schedule : guessRevenueSection(s.schedule))
+        : guessRevenueSection(s.label);
     });
     setSectionByBill(seeded);
     setStep('preview');
@@ -222,7 +227,7 @@ export default function ImportBOQModal({ projectId, onClose, onImported }) {
                           {s.itemCount} items · € {fmt2(s.subtotal)}
                         </span>
                       </div>
-                      {sectioned ? (
+                      {sectioned && REVENUE_SECTIONS.includes(s.schedule) ? (
                         <span style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic' }}>
                           Revenue Section from file
                         </span>
