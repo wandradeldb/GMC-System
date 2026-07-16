@@ -168,7 +168,12 @@ function numOrNull(v) {
 // than being one sheet per schedule, and section names appear as their own text-only rows.
 
 const FULL_SHEET_ALIASES = {
-  item_ref:     ['item'],
+  // 'ref' is listed explicitly (not just 'item') so a bare "Ref" header is claimed here by exact
+  // match before mapCols's fuzzy pass gets a chance to mis-claim it as iw_cost_code — "ref" is a
+  // substring of the "pd ref" alias below, and the fuzzy fallback would otherwise match it there,
+  // leaving item_ref unresolved and every row falling back to an auto-generated ref (which then
+  // duplicates the whole sheet on every re-import instead of updating existing items).
+  item_ref:     ['item', 'ref', 'item ref'],
   iw_cost_code: ['pd ref', 'pd', 'cost code'],
   description:  ['description'],
   qty:          ['qty', 'quantity'],
@@ -227,6 +232,42 @@ function validateColumnOrder(cols, headerRow) {
   return { valid: true };
 }
 
+// Item ref / PD Ref: when a header explicitly labeled one, cols.item_ref/iw_cost_code are fixed
+// column indices, used directly. When neither had a header (REV1's common unlabeled-prefix
+// layout), how many real columns sit there can vary bill-by-bill within the same sheet — e.g. a
+// real file's Civil Works bill has both (Item "2.1", PD Ref "2.1.1", the latter often repeated
+// across several rows), while its Prelim Fixed/Time bills have only Item ("1.2.1") with a
+// meaningless running-count column where PD Ref would be. Decided per row: the standard
+// two-column layout (Item at left2Col, PD Ref at leftCol) is trusted UNLESS left2Col holds a
+// non-blank value that isn't itself a hierarchical ref — that only happens when there's really
+// just one ref column, immediately left of Description (leftCol), and no PD Ref at all.
+// Returns the raw (possibly empty) ref pair for a row — callers decide the AUTO- fallback.
+function resolveRowRef(sheet, r, cols) {
+  if (cols.itemRefAmbiguous) {
+    const leftVal  = cols.leftCol  >= 0 ? String(cellVal(sheet, r, cols.leftCol)  ?? '').trim() : '';
+    const left2Val = cols.left2Col >= 0 ? String(cellVal(sheet, r, cols.left2Col) ?? '').trim() : '';
+    if (cols.left2Col < 0) {
+      // No second ref column exists at all (Description sits in column 0 or 1, leaving no room to
+      // its left for a separate PD Ref) — the single column immediately before Description IS the
+      // item ref. Previously this fell into the two-column branch below, which always resolved
+      // left2Val (blank, since the column doesn't exist) as item_ref, leaving every row with no
+      // real item_ref and an auto-generated one instead — duplicating the whole sheet on re-import
+      // instead of updating.
+      return { rawItemRef: leftVal, iw_cost_code: null };
+    }
+    if (left2Val && !/^\d+(\.\d+){1,}$/.test(left2Val)) {
+      return { rawItemRef: leftVal, iw_cost_code: null };
+    }
+    return { rawItemRef: left2Val, iw_cost_code: leftVal || null };
+  }
+  return {
+    rawItemRef: cols.item_ref != null ? String(cellVal(sheet, r, cols.item_ref) ?? '').trim() : '',
+    iw_cost_code: cols.iw_cost_code != null
+      ? (String(cellVal(sheet, r, cols.iw_cost_code) ?? '').trim() || null)
+      : null,
+  };
+}
+
 // Reads the common data-row fields (item_ref, iw_cost_code/PD Ref, qty, rate). Returns null for
 // rows that carry no usable qty/rate/amount (caller skips with a warning).
 function readDataRow(sheet, r, cols, batchTs, autoRefState) {
@@ -244,32 +285,7 @@ function readDataRow(sheet, r, cols, batchTs, autoRefState) {
     else rate = 0;
   }
 
-  // Item ref / PD Ref: when a header explicitly labeled one, cols.item_ref/iw_cost_code are fixed
-  // column indices, used directly. When neither had a header (REV1's common unlabeled-prefix
-  // layout), how many real columns sit there can vary bill-by-bill within the same sheet — e.g. a
-  // real file's Civil Works bill has both (Item "2.1", PD Ref "2.1.1", the latter often repeated
-  // across several rows), while its Prelim Fixed/Time bills have only Item ("1.2.1") with a
-  // meaningless running-count column where PD Ref would be. Decided per row: the standard
-  // two-column layout (Item at left2Col, PD Ref at leftCol) is trusted UNLESS left2Col holds a
-  // non-blank value that isn't itself a hierarchical ref — that only happens when there's really
-  // just one ref column, immediately left of Description (leftCol), and no PD Ref at all.
-  let rawItemRef, iw_cost_code;
-  if (cols.itemRefAmbiguous) {
-    const leftVal  = cols.leftCol  >= 0 ? String(cellVal(sheet, r, cols.leftCol)  ?? '').trim() : '';
-    const left2Val = cols.left2Col >= 0 ? String(cellVal(sheet, r, cols.left2Col) ?? '').trim() : '';
-    if (left2Val && !/^\d+(\.\d+){1,}$/.test(left2Val)) {
-      rawItemRef = leftVal;
-      iw_cost_code = null;
-    } else {
-      rawItemRef = left2Val;
-      iw_cost_code = leftVal || null;
-    }
-  } else {
-    rawItemRef = cols.item_ref != null ? String(cellVal(sheet, r, cols.item_ref) ?? '').trim() : '';
-    iw_cost_code = cols.iw_cost_code != null
-      ? (String(cellVal(sheet, r, cols.iw_cost_code) ?? '').trim() || null)
-      : null;
-  }
+  const { rawItemRef, iw_cost_code } = resolveRowRef(sheet, r, cols);
   const item_ref = rawItemRef || `AUTO-${batchTs}-${++autoRefState.n}`;
 
   return { item_ref, iw_cost_code, qty: finalQty, rate, contract_sum: Math.round(finalQty * rate * 100) / 100 };
@@ -337,14 +353,30 @@ function parseFullSheet(sheet, headerRow, cols, batchTs) {
       prevSchedule = schedule;
 
       let rowDescription = description;
-      if (!rowDescription && pendingLabelRow === r - 1) {
+      let rowData = data;
+      const adjacentToLabel = pendingLabelRow === r - 1;
+      if (!rowDescription && adjacentToLabel) {
         rowDescription = pendingLabel;
         currentSection = sectionBeforeLabel;
+      }
+      // The item's real ref sometimes lives only on the title row too — either because the whole
+      // item is split across two rows (description here is also blank, handled above) or because
+      // just the ref got left off this row while its own description is already filled in (e.g. a
+      // "2.1.1. Farganstown PS Civil Works" title immediately followed by a row that already has its
+      // own long description but a blank ref column). Only borrow when this row's own ref actually
+      // came back auto-generated — a row with its own real ref is a genuine standalone item and must
+      // not have its section silently reassigned.
+      if (rowData.item_ref.startsWith('AUTO-') && adjacentToLabel) {
+        const labelRef = resolveRowRef(sheet, pendingLabelRow, cols);
+        if (labelRef.rawItemRef) {
+          rowData = { ...rowData, item_ref: labelRef.rawItemRef, iw_cost_code: labelRef.iw_cost_code };
+          currentSection = sectionBeforeLabel;
+        }
       }
       if (!rowDescription) { warnings.push(`Row ${r + 1} skipped: no description found`); continue; }
 
       rows.push({
-        ...data, description: rowDescription, unit, section: currentSection, type: 'M',
+        ...rowData, description: rowDescription, unit, section: currentSection, type: 'M',
         schedule, sort_order: sortOrder++,
       });
       bumpSchedule(schedule, schedule, data.qty * data.rate);
