@@ -11,6 +11,7 @@ const fmtWE     = iso => { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})
 const fmtDate   = iso => { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : iso; };
 const MONTHS    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
 const fmtWEHead = iso => { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${parseInt(m[3])} ${MONTHS[parseInt(m[2])-1]}` : iso; };
+const fmtWK     = n => !n ? '—' : (Math.abs(n) >= 1000 ? `${(n / 1000).toFixed(0)}k` : n.toFixed(0));
 const isoWeekNum = iso => {
   const d = new Date(iso + 'T12:00:00');
   d.setUTCDate(d.getUTCDate() + 4 - (d.getUTCDay() || 7));
@@ -329,8 +330,12 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
               <th colSpan={6} style={{ position:'sticky', top: THEAD_H, left:0, zIndex:14, background:'#1e3a8a', padding:0 }} />
               {allWeeks.map(w => {
                 const isCur = w === weekEnding;
+                const weekTotal = visible.reduce((s, a) => s + revOf(a, w), 0);
                 return (
                   <th key={w} style={{ position:'sticky', top: THEAD_H, zIndex:9, background: isCur ? '#166534' : '#1e3a8a', padding:'1px 2px', borderLeft: isCur ? '2px solid #4ade80' : '1px solid #1e3a8a' }}>
+                    <div title={fmtE(weekTotal, 2)} style={{ fontSize: 7, color: weekTotal ? '#4ade80' : 'rgba(255,255,255,0.4)', fontWeight: 700, textAlign: 'center', lineHeight: 1.3 }}>
+                      €{fmtWK(weekTotal)}
+                    </div>
                     <button onClick={() => setWeek(w)} className="tracker-edit-btn"
                       style={{ display: 'block', width: '100%', marginTop: 0,
                         background: isCur ? 'rgba(74,222,128,0.25)' : 'rgba(255,255,255,0.1)',
