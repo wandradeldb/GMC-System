@@ -29,8 +29,10 @@ const STATUS_STYLE = {
 };
 
 // initialView lets a caller jump straight into the "new assessment" form (e.g. "+ New Application"
-// on the Subcontract detail page) instead of landing on the applications list first.
-export default function SubAssessmentView({ projectId, subcontractId, subRef, subName, contractValue, onBack, initialView = 'list' }) {
+// on the Subcontract detail page) instead of landing on the applications list first. initialAppId
+// pairs with initialView="detail" to jump straight into one specific application's detail (e.g.
+// "Ver detalhe" on that same page, which used to open its own more limited read-only view).
+export default function SubAssessmentView({ projectId, subcontractId, subRef, subName, contractValue, onBack, initialView = 'list', initialAppId }) {
   const [boqItems,      setBoqItems]      = useState([]);
   const [apps,          setApps]          = useState([]);
   const [view,          setView]          = useState(initialView); // 'list' | 'new' | 'detail' | 'certificate'
@@ -57,6 +59,12 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
     setDetailApp(await res.json());
     setView('detail');
   };
+
+  // Jump straight to a specific application's detail once loaded, when opened that way.
+  useEffect(() => {
+    if (!loading && initialView === 'detail' && initialAppId) openDetail(initialAppId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loading]);
 
   const openCertificate = async (appId) => {
     const res = await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${appId}/certificate`);

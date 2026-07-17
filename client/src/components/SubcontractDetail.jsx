@@ -3,10 +3,8 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import PaymentCalendar from './PaymentCalendar.jsx';
 import { useZoom } from '../zoomContext.js';
 
-const STATUS_STEPS = ['draft','assessed','approved','invoiced','paid'];
 const STATUS_COLOR = { draft:'#92400e', assessed:'#1e40af', approved:'#166534', invoiced:'#7c3aed', paid:'#065f46' };
 const STATUS_BG    = { draft:'#fef9c3', assessed:'#dbeafe', approved:'#dcfce7', invoiced:'#ede9fe', paid:'#d1fae5' };
-const STATUS_LABEL = { draft:'Planejada', assessed:'Assessed', approved:'Approved', invoiced:'Invoiced', paid:'Paid' };
 
 function fmt(n, decimals=2) {
   if (n == null) return '—';
@@ -20,8 +18,6 @@ function fmtDate(d) {
 export default function SubcontractDetail({ projectId, subcontractId, onBack, onOpenAssessment }) {
   const [data,       setData]       = useState(null);
   const [tab,        setTab]        = useState('overview');
-  const [selectedAppId, setSelectedAppId] = useState(null);
-  const [appDetail,  setAppDetail]  = useState(null);
   const [boqCertified, setBoqCertified] = useState([]);
 
   const load = useCallback(() => {
@@ -33,13 +29,6 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
 
   useEffect(() => { load(); }, [load]);
 
-  const openApp = async (appId) => {
-    const res = await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${appId}`);
-    const json = await res.json();
-    setAppDetail(json);
-    setSelectedAppId(appId);
-  };
-
   if (!data) return <div className="state-box"><div className="icon">⏳</div><p>Loading…</p></div>;
 
   const { subcontract: sc, boq_items, applications, compensation_events } = data;
@@ -49,17 +38,6 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
   const totalPaid      = applications.filter(a => a.status === 'paid')
                                      .reduce((s, a) => s + (a.net_payable || 0), 0);
   const retention      = Math.round(totalCertified * (sc.retention_pct / 100) * 100) / 100;
-
-  if (selectedAppId !== null && appDetail) return (
-    <AppDetailView
-      detail={appDetail}
-      sc={sc}
-      projectId={projectId}
-      subcontractId={subcontractId}
-      onBack={() => { setSelectedAppId(null); setAppDetail(null); }}
-      onApproved={() => { openApp(selectedAppId); load(); }}
-    />
-  );
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
@@ -116,7 +94,7 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
         {tab === 'overview' && (
           <ApplicationsTab
             applications={applications}
-            onOpen={openApp}
+            onView={appId => onOpenAssessment(sc, appId)}
             retention_pct={sc.retention_pct}
             onNewAssessment={() => onOpenAssessment(sc)}
             projectId={projectId}
@@ -143,12 +121,12 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
 // Week endings on this project are always the Friday closing a week (matches Cost Tracker,
 // Revenue Generator, etc.) — offering a free date picker here let an off-cycle date (e.g. Thursday)
 /* ── Applications Tab ───────────────────────────────────────────────────── */
-// "+ New Application" opens the real Manual Assessment screen (SubAssessmentView, via
-// onNewAssessment -- wired up in SubcontractView.jsx) instead of a lightweight local form. That
-// local form used to create a bare draft sub_application with no item-level % data attached, which
-// this tab's own "Ver detalhe" view (AppDetailView, below) has no way to fill in -- only
-// SubAssessmentView's item table actually captures Sub %/GMC % per BOQ line.
-function ApplicationsTab({ applications, onOpen, retention_pct, onNewAssessment, projectId, subcontractId, onRefresh }) {
+// "+ New Application" and "Ver detalhe" both open SubAssessmentView (via onNewAssessment /
+// onView, wired up in SubcontractView.jsx) instead of this tab's own local form + read-only
+// AppDetailView. Those used to be a separate, more limited path: the create form had no way to
+// enter item-level % data, and AppDetailView could advance status but had no Approve-with-cut,
+// no Payment Certificate, and no invoice recording -- all of which only exist on SubAssessmentView.
+function ApplicationsTab({ applications, onView, retention_pct, onNewAssessment, projectId, subcontractId, onRefresh }) {
   const zoom = useZoom();
 
   const deleteApp = async (a) => {
@@ -200,7 +178,7 @@ function ApplicationsTab({ applications, onOpen, retention_pct, onNewAssessment,
                     </span>
                   </td>
                   <td style={{ display:'flex', gap:4, alignItems:'center' }}>
-                    <button className="btn-link" onClick={() => onOpen(a.id)}>Ver detalhe →</button>
+                    <button className="btn-link" onClick={() => onView(a.id)}>Ver detalhe →</button>
                     <button onClick={() => deleteApp(a)} title="Delete application"
                       style={{ background:'none', border:'1px solid #fca5a5', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12, color:'#dc2626' }}>
                       ✕
@@ -324,133 +302,6 @@ function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh })
           </table>
         </div>
       )}
-    </div>
-  );
-}
-
-/* ── App Detail View (read-only) ─────────────────────────────────────────── */
-function AppDetailView({ detail, sc, projectId, subcontractId, onBack, onApproved }) {
-  const zoom = useZoom();
-  const app   = detail.application || detail.app;
-  const items = detail.items || [];
-  const ss    = STATUS_BG[app.status] ? { bg: STATUS_BG[app.status], color: STATUS_COLOR[app.status] } : { bg:'#f3f4f6', color:'#6b7280' };
-  const retention_pct = sc.retention_pct || 0;
-  const retHeld = Math.round((app.cumulative_gmc || 0) * (retention_pct / 100) * 100) / 100;
-  const [approving, setApproving] = useState(false);
-
-  // draft <-> assessed <-> approved; invoiced/paid go through the dedicated invoice flow, not these buttons
-  const nextStatus  = app.status === 'draft' ? 'assessed' : app.status === 'assessed' ? 'approved' : null;
-  const prevStatus  = app.status === 'assessed' ? 'draft' : app.status === 'approved' ? 'assessed' : null;
-  const ADVANCE_LABEL = { draft: 'Mark Assessed', assessed: '✓ Approve' };
-
-  const changeStatus = async (target) => {
-    if (!target) return;
-    if (!window.confirm(`Move App ${app.application_number} (GMC €${fmt(app.value_gmc)}) to "${STATUS_LABEL[target]}"?`)) return;
-    setApproving(true);
-    const r = await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${app.id}/status`, {
-      method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status: target }),
-    });
-    setApproving(false);
-    if (!r.ok) { const j = await r.json().catch(() => ({})); alert(j.error || 'Error updating status'); return; }
-    onApproved();
-  };
-
-  return (
-    <div>
-      <div className="detail-nav">
-        <button className="btn-back" onClick={onBack}>← Back to list</button>
-      </div>
-
-      {/* Header */}
-      <div style={{ display:'flex', alignItems:'center', gap:12, marginBottom:16, flexWrap:'wrap' }}>
-        <div>
-          <div style={{ fontSize:18, fontWeight:700, color:'#1a1a2e' }}>
-            App #{app.application_number} — WE {fmtDate(app.week_ending)}
-          </div>
-          {app.notes && <div style={{ fontSize:12, color:'#9ca3af', marginTop:2 }}>{app.notes}</div>}
-        </div>
-        <span style={{ background:ss.bg, color:ss.color, borderRadius:12, padding:'3px 12px', fontSize:12, fontWeight:600 }}>
-          {STATUS_LABEL[app.status] || app.status}
-        </span>
-        {prevStatus && (
-          <button onClick={() => changeStatus(prevStatus)} disabled={approving}
-            style={{ background:'none', border:'none', color:'#6b7280', fontSize:12, cursor: approving ? 'not-allowed' : 'pointer', textDecoration:'underline', padding:0 }}>
-            ← back to {STATUS_LABEL[prevStatus]}
-          </button>
-        )}
-        {nextStatus && (
-          <button onClick={() => changeStatus(nextStatus)} disabled={approving} className="btn-primary" style={{ padding:'6px 16px', fontSize:13 }}>
-            {approving ? 'Saving…' : ADVANCE_LABEL[app.status]}
-          </button>
-        )}
-        <div style={{ marginLeft:'auto', display:'flex', gap:20 }}>
-          {[
-            { label:'Sub Claimed', val:`€${fmt(app.value_sub)}`, color:'#92400e' },
-            { label:'GMC Assessed', val:`€${fmt(app.value_gmc)}`, color:'#166534' },
-            { label:'Cumulative', val:`€${fmt(app.cumulative_gmc)}`, color:'#1e40af' },
-            { label:'Retention', val:`€${fmt(retHeld)}`, color:'#7c3aed' },
-            { label:'Net Payable', val:`€${fmt(app.net_payable)}`, color:'#1a1a2e' },
-          ].map(k => (
-            <div key={k.label} style={{ textAlign:'right' }}>
-              <div style={{ fontSize:10, color:'#9ca3af', fontWeight:600, textTransform:'uppercase' }}>{k.label}</div>
-              <div style={{ fontSize:16, fontWeight:700, color:k.color }}>{k.val}</div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Item table */}
-      <div style={{ overflowX:'auto', zoom: `${zoom}%` }}>
-        <table className="boq-table" style={{ minWidth:900 }}>
-          <thead>
-            <tr>
-              <th>Ref</th>
-              <th>Description</th>
-              <th>Unit</th>
-              <th style={{textAlign:'right'}}>Contract (€)</th>
-              <th style={{textAlign:'right', color:'#6b7280'}}>Prev %</th>
-              <th style={{textAlign:'right', color:'#92400e'}}>Sub %</th>
-              <th style={{textAlign:'right', color:'#166534'}}>GMC %</th>
-              <th style={{textAlign:'right', color:'#166534'}}>Esta App (€)</th>
-              <th style={{textAlign:'right', color:'#1e40af'}}>Cumul. (€)</th>
-              <th style={{textAlign:'right', color:'#dc2626'}}>Remaining (€)</th>
-            </tr>
-          </thead>
-          <tbody>
-            {items.map((it, idx) => {
-              const cv       = it.contract_value || Math.round((it.qty_contracted || 0) * (it.rate || 0) * 100) / 100;
-              const pctCum   = (it.pct_prev || 0) + (it.pct_complete_gmc || 0);
-              const cumVal   = Math.round(pctCum / 100 * cv * 100) / 100;
-              const remVal   = Math.round((cv - cumVal) * 100) / 100;
-              const thisApp  = Math.round((it.pct_complete_gmc || 0) / 100 * cv * 100) / 100;
-              return (
-                <tr key={it.id} style={{ background: idx%2===0 ? '#f8fafc' : '#fff' }}>
-                  <td style={{fontFamily:'monospace', fontSize:11, whiteSpace:'nowrap'}}>{it.item_ref}</td>
-                  <td style={{maxWidth:280, overflow:'hidden', textOverflow:'ellipsis', whiteSpace:'nowrap', fontSize:12}} title={it.description}>{it.description}</td>
-                  <td style={{fontSize:12, color:'#6b7280'}}>{it.unit}</td>
-                  <td style={{textAlign:'right', fontSize:12}}>€{fmt(cv)}</td>
-                  <td style={{textAlign:'right', color:'#9ca3af', fontSize:12}}>{fmt(it.pct_prev, 1)}%</td>
-                  <td style={{textAlign:'right', color:'#92400e', fontSize:12}}>{fmt(it.pct_complete_sub, 1)}%</td>
-                  <td style={{textAlign:'right', color:'#166534', fontWeight:600, fontSize:12}}>{fmt(it.pct_complete_gmc, 1)}%</td>
-                  <td style={{textAlign:'right', fontWeight:600, color: thisApp > 0 ? '#166534' : '#9ca3af', fontSize:12}}>
-                    {thisApp > 0 ? `€${fmt(thisApp)}` : '—'}
-                  </td>
-                  <td style={{textAlign:'right', color:'#1e40af', fontSize:12}}>€{fmt(cumVal)}</td>
-                  <td style={{textAlign:'right', color: remVal > 0.01 ? '#dc2626' : '#16a34a', fontSize:12}}>€{fmt(remVal)}</td>
-                </tr>
-              );
-            })}
-          </tbody>
-          <tfoot>
-            <tr style={{background:'#f1f5f9', fontWeight:700}}>
-              <td colSpan={7} style={{textAlign:'right', paddingRight:8}}>TOTAL</td>
-              <td style={{textAlign:'right', color:'#166534'}}>€{fmt(app.value_gmc)}</td>
-              <td style={{textAlign:'right', color:'#1e40af'}}>€{fmt(app.cumulative_gmc)}</td>
-              <td></td>
-            </tr>
-          </tfoot>
-        </table>
-      </div>
     </div>
   );
 }
