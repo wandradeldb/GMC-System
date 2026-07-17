@@ -7,7 +7,40 @@ const DB_PATH = require('../db-path');
 function db() {
   const con = new DatabaseSync(DB_PATH, { open: true });
   con.exec('PRAGMA foreign_keys = ON');
+  ensureCategoryTable(con);
   return con;
+}
+
+// Flexible per-project revenue categories (migration 017) — see server/routes/tracker.js's copy
+// of this same function for the full rationale. Duplicated here (not shared via a module) because
+// either route file's db() may be the first one hit after a deploy, and each needs the table to
+// exist before it runs. Guarded so the backfill only actually executes once.
+function ensureCategoryTable(con) {
+  con.exec(`CREATE TABLE IF NOT EXISTS tracker_we_category (
+    id            INTEGER PRIMARY KEY AUTOINCREMENT,
+    project_id    INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+    week_ending   TEXT    NOT NULL,
+    category      TEXT    NOT NULL,
+    revenue       REAL    NOT NULL DEFAULT 0,
+    updated_at    TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+    UNIQUE (project_id, week_ending, category)
+  )`);
+  con.exec('CREATE INDEX IF NOT EXISTS idx_trackercat_project_week ON tracker_we_category(project_id, week_ending)');
+  con.exec('CREATE INDEX IF NOT EXISTS idx_trackercat_project_cat  ON tracker_we_category(project_id, category)');
+
+  const alreadyBackfilled = con.prepare('SELECT COUNT(*) c FROM tracker_we_category').get().c > 0;
+  if (!alreadyBackfilled) {
+    con.exec(`
+      INSERT OR IGNORE INTO tracker_we_category (project_id, week_ending, category, revenue)
+      SELECT project_id, week_ending, 'Prelim Fixed', rev_prelims_fixed FROM tracker_we WHERE rev_prelims_fixed   != 0
+      UNION ALL SELECT project_id, week_ending, 'Prelim Time',  rev_prelims_time   FROM tracker_we WHERE rev_prelims_time   != 0
+      UNION ALL SELECT project_id, week_ending, 'Civil Works',  rev_civil          FROM tracker_we WHERE rev_civil          != 0
+      UNION ALL SELECT project_id, week_ending, 'MEICA Works',  rev_meica          FROM tracker_we WHERE rev_meica          != 0
+      UNION ALL SELECT project_id, week_ending, 'Landscape',    rev_landscape      FROM tracker_we WHERE rev_landscape      != 0
+      UNION ALL SELECT project_id, week_ending, 'Commission',   rev_commissioning  FROM tracker_we WHERE rev_commissioning  != 0
+      UNION ALL SELECT project_id, week_ending, 'A&E / Design', rev_ae             FROM tracker_we WHERE rev_ae             != 0
+    `);
+  }
 }
 
 // secÃ§Ã£o â†’ coluna de revenue no tracker_we
