@@ -119,6 +119,9 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
             onOpen={openApp}
             retention_pct={sc.retention_pct}
             onNewAssessment={() => onOpenAssessment(sc)}
+            projectId={projectId}
+            subcontractId={subcontractId}
+            onRefresh={load}
           />
         )}
         {tab === 'boq' && <BOQTab boqItems={boq_items} boqCertified={boqCertified} projectId={projectId} subcontractId={subcontractId} onRefresh={load} />}
@@ -145,8 +148,14 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
 // local form used to create a bare draft sub_application with no item-level % data attached, which
 // this tab's own "Ver detalhe" view (AppDetailView, below) has no way to fill in -- only
 // SubAssessmentView's item table actually captures Sub %/GMC % per BOQ line.
-function ApplicationsTab({ applications, onOpen, retention_pct, onNewAssessment }) {
+function ApplicationsTab({ applications, onOpen, retention_pct, onNewAssessment, projectId, subcontractId, onRefresh }) {
   const zoom = useZoom();
+
+  const deleteApp = async (a) => {
+    if (!window.confirm(`Delete App ${a.application_number} (WE ${fmtDate(a.week_ending)})?`)) return;
+    await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications/${a.id}`, { method: 'DELETE' });
+    onRefresh();
+  };
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
@@ -190,8 +199,12 @@ function ApplicationsTab({ applications, onOpen, retention_pct, onNewAssessment 
                       {a.status}
                     </span>
                   </td>
-                  <td>
+                  <td style={{ display:'flex', gap:4, alignItems:'center' }}>
                     <button className="btn-link" onClick={() => onOpen(a.id)}>Ver detalhe →</button>
+                    <button onClick={() => deleteApp(a)} title="Delete application"
+                      style={{ background:'none', border:'1px solid #fca5a5', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12, color:'#dc2626' }}>
+                      ✕
+                    </button>
                   </td>
                 </tr>
               );
