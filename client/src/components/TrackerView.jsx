@@ -20,17 +20,9 @@ const fmtWE  = we => {
 };
 
 // ── row definitions ──────────────────────────────────────────────────────────
-const REV_ROWS = [
-  { key: 'rev_prelims_fixed', label: 'Prelims — Fixed',   group: 'rev' },
-  { key: 'rev_prelims_time',  label: 'Prelims — Time',    group: 'rev' },
-  { key: 'rev_ae',            label: 'A&E / Design',      group: 'rev' },
-  { key: 'rev_civil',         label: 'Civil',             group: 'rev' },
-  { key: 'rev_meica',         label: 'MEICA',             group: 'rev' },
-  { key: 'rev_landscape',     label: 'Landscape',         group: 'rev' },
-  { key: 'rev_commissioning', label: 'Commissioning',     group: 'rev' },
-  { key: 'rev_total_week',    label: 'REVENUE THIS WEEK', group: 'rev-total', bold: true },
-  { key: 'rev_cumulative',    label: 'Revenue Cumulative', group: 'rev-cum', italic: true },
-];
+// Revenue category rows are built per-render from the project's own categoryList (migration 017
+// -- see buildRevRows below), not a fixed list, since tracker_we's old 6 rev_* columns are frozen
+// and no longer written to.
 
 const COST_ROWS = [
   { key: 'cost_subs',      label: 'Subcontractors',   group: 'cost' },
@@ -47,7 +39,15 @@ const MARGIN_ROWS = [
   { key: 'margin_pct',        label: 'Margin % Cumulative', group: 'margin-pct', pct: true },
 ];
 
-const ALL_ROWS = [...REV_ROWS, ...COST_ROWS, ...MARGIN_ROWS];
+// Builds the revenue rows for one render, from the project's own category list -- a category row's
+// `cat` field is looked up in each week's `categories` map rather than a fixed column name.
+function buildRevRows(categoryList) {
+  return [
+    ...categoryList.map(cat => ({ key: `cat:${cat}`, cat, label: cat, group: 'rev' })),
+    { key: 'rev_total_week', label: 'REVENUE THIS WEEK', group: 'rev-total', bold: true },
+    { key: 'rev_cumulative', label: 'Revenue Cumulative', group: 'rev-cum', italic: true },
+  ];
+}
 
 // ── group styling ────────────────────────────────────────────────────────────
 const GROUP_STYLE = {
@@ -60,12 +60,6 @@ const GROUP_STYLE = {
   'margin':     { bg: '#f0fdf4' },
   'margin-pct': { bg: '#dcfce7', fontWeight: 700, color: '#166534' },
 };
-
-const SECTION_HEADERS = [
-  { before: 'rev_prelims_fixed', label: 'REVENUE', color: '#1e40af', bg: '#1e40af' },
-  { before: 'cost_subs',         label: 'COST',    color: '#92400e', bg: '#b45309' },
-  { before: 'margin_week',       label: 'MARGIN',  color: '#166534', bg: '#16a34a' },
-];
 
 // ── nextFriday ───────────────────────────────────────────────────────────────
 function nextFriday(from) {
@@ -148,7 +142,14 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
 
   if (!data) return <div className="state-box"><div className="icon">⏳</div><p>Loading tracker…</p></div>;
 
-  const { rows: dbRows, summary, sub_lines = {}, subs: allSubs = [] } = data;
+  const { rows: dbRows, summary, sub_lines = {}, subs: allSubs = [], categoryList = [] } = data;
+  const revRows = buildRevRows(categoryList);
+  const allRows = [...revRows, ...COST_ROWS, ...MARGIN_ROWS];
+  const sectionHeaderByKey = {
+    [revRows[0]?.key]: { label: 'REVENUE', color: '#1e40af', bg: '#1e40af' },
+    cost_subs:         { label: 'COST',    color: '#92400e', bg: '#b45309' },
+    margin_week:       { label: 'MARGIN',  color: '#166534', bg: '#16a34a' },
+  };
   // Merge all pre-generated weeks with DB data; show empty cells for unsaved weeks
   const rowMap = {};
   dbRows.forEach((r, i) => { rowMap[r.week_ending] = { ...r, week_number: i + 1 }; });
@@ -249,12 +250,12 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
         </div>
       </div>
 
-      {dbRows.length === 0 ? (
-        <div className="state-box">
-          <div className="icon">📊</div>
-          <p>No weeks entered yet. Click "+ Enter WE" to record the first week.</p>
+      {dbRows.length === 0 && (
+        <div style={{ background: '#eff6ff', border: '1px solid #bfdbfe', color: '#1e40af', padding: '7px 12px', borderRadius: 6, marginBottom: 8, fontSize: 12 }}>
+          No weeks entered yet — showing registered subcontractors and the upcoming week columns. Click "+ Enter WE" to record the first week.
         </div>
-      ) : (
+      )}
+      {(
         /* ── Tracker Matrix ───────────────────────────────────────── */
         <div className="tracker-scroll-wrap" ref={tableRef} style={{ zoom: `${zoom}%` }}>
           <table className="tracker-table">
@@ -277,8 +278,8 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
               </tr>
             </thead>
             <tbody>
-              {ALL_ROWS.map(row => {
-                const sectionHdr = SECTION_HEADERS.find(s => s.before === row.key);
+              {allRows.map(row => {
+                const sectionHdr = sectionHeaderByKey[row.key];
                 const gs = GROUP_STYLE[row.group] || {};
                 const colSpan = rows.length + 2;
                 return (
@@ -443,7 +444,12 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
                       <td className="tracker-cell tracker-cum-cell"
                         style={{ fontWeight: 700, color: gs.color }}>
                         {(() => {
-                          const v = latest?.[row.key];
+                          // Category rows have no running-cumulative column of their own (migration
+                          // 017 replaced the fixed rev_* columns with per-week category rows), so
+                          // it's summed here across every real week instead of read off `latest`.
+                          const v = row.cat
+                            ? rows.reduce((s, r) => s + (r.categories?.[row.cat] || 0), 0)
+                            : latest?.[row.key];
                           if (v == null) return '—';
                           if (row.pct) return fmtPct(v);
                           return v !== 0 ? `€${fmt(v, 0)}` : <span className="zero">—</span>;
@@ -451,7 +457,7 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
                       </td>
                       {rows.map(r => {
                         if (r._empty) return <td key={r.week_ending} className="tracker-cell"><span className="zero">—</span></td>;
-                        const val = r[row.key];
+                        const val = row.cat ? (r.categories?.[row.cat] ?? 0) : r[row.key];
                         const isNeg = typeof val === 'number' && val < 0;
                         return (
                           <td key={r.week_ending} className="tracker-cell"
