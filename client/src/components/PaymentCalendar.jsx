@@ -86,8 +86,7 @@ export default function PaymentCalendar({ projectId, subcontractId, applications
       )}
 
       {showNew && (
-        <div className="inline-form" style={{ marginBottom: 16 }}>
-          <div className="modal-section-label">New invoice</div>
+        <div className="inline-form">
           <div className="section-grid">
             <div className="field span2"><label className="field-label">Application *</label>
               <select value={form.application_id} onChange={e => pickApp(e.target.value)}>
