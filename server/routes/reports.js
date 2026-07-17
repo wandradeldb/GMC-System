@@ -202,7 +202,7 @@ router.get('/projects/:pid/reports/period-pdf', (req, res) => {
       doc.fillColor(bg);
       doc.rect(40, sy, 515, 14).fill();
       doc.fontSize(9).fillColor('#111827')
-        .text(`${t.ref} — ${name}`.slice(0, 38), sColX[0] + 2, sy + 3)
+        .text(name.slice(0, 38), sColX[0] + 2, sy + 3)
         .text(eur(t.cost_payment),  sColX[1] + 2, sy + 3)
         .text(eur(t.cost_material), sColX[2] + 2, sy + 3)
         .text(eur(t.revenue_generated), sColX[3] + 2, sy + 3);

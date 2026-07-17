@@ -415,7 +415,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
                         <select value={subEdits[a.id] ?? ''} onChange={e => setSub(a.id, e.target.value)}
                           style={{ width:'100%', padding:'1px 2px', fontSize:9, borderRadius:3, border:'1px solid #d1d5db', background:'#fff' }}>
                           <option value="">GMC (none)</option>
-                          {subs.map(s => <option key={s.id} value={s.id}>{s.ref} — {s.subcontractor_name}</option>)}
+                          {subs.map(s => <option key={s.id} value={s.id}>{s.subcontractor_name}</option>)}
                           <option value="__new__">+ Add new sub…</option>
                         </select>
                       </td>

@@ -94,7 +94,7 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
               ← Subcontracts
             </button>
             <span style={{ color:'#6b7280', fontSize:12 }}>/</span>
-            <span style={{ fontWeight:700, color:'#1a1a2e', fontSize:13 }}>{subRef} — {subName}</span>
+            <span style={{ fontWeight:700, color:'#1a1a2e', fontSize:13 }}>{subName}</span>
           </div>
 
           {/* ── Summary cards ───────────────────────────────────────────── */}

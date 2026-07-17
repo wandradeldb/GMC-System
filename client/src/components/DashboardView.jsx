@@ -180,7 +180,7 @@ export default function DashboardView({ projectId, onNavigate }) {
                 return (
                   <div key={s.id}>
                     <div className="ed-catrow-head">
-                      <span className="ed-cat-name">{s.ref} — {s.sub_name}</span>
+                      <span className="ed-cat-name">{s.sub_name}</span>
                       <span className="ed-cat-amt">{fmtE(s.certified, 0)} / {fmtE(s.contract_value, 0)}</span>
                     </div>
                     <div className="ed-track"><div className="ed-fill" style={{ width: `${certPct}%`, background: 'var(--ed-good)' }} /></div>

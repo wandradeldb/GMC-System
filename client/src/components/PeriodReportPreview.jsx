@@ -128,7 +128,7 @@ export default function PeriodReportPreview({ projectId, from, to, onClose }) {
                     <tbody>
                       {data.subs.map((s, i) => (
                         <tr key={s.name} className={i % 2 === 0 ? 'report-row-alt' : ''}>
-                          <td>{s.ref} — {s.name}</td>
+                          <td>{s.name}</td>
                           <td>{eur(s.cost_payment)}</td>
                           <td>{eur(s.cost_material)}</td>
                           <td>{eur(s.revenue_generated)}</td>
