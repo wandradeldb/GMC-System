@@ -679,19 +679,58 @@ router.patch('/projects/:pid/subcontracts/:id/ces/:ceId', (req, res) => {
 
 // â”€â”€ SUB INVOICES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// invoice_date defaults to today when not sent — the "Tracker Invoices" quick-entry form
+// (client/src/components/PaymentCalendar.jsx) doesn't ask for it separately, unlike the older
+// per-application "Record Invoice" modal (AssessmentForm.jsx) which still sends its own.
 router.post('/projects/:pid/subcontracts/:id/applications/:appId/invoices', (req, res) => {
   const con = db();
   const app = con.prepare('SELECT * FROM sub_application WHERE id=? AND subcontract_id=?').get(req.params.appId, req.params.id);
   if (!app) throw notFound('Application not found');
   if (!['approved'].includes(app.status)) throw badReq('Application must be approved before invoicing');
-  const { invoice_number, invoice_date, gross_amount, retention_amount, notes } = req.body;
-  if (!invoice_number || !invoice_date || gross_amount == null) throw badReq('invoice_number, invoice_date, gross_amount required');
-  const r = con.prepare('INSERT INTO sub_invoice (sub_application_id,invoice_number,invoice_date,gross_amount,retention_amount,notes) VALUES (?,?,?,?,?,?)')
-               .run(app.id, invoice_number, invoice_date, gross_amount, retention_amount||0, notes||null);
+  const { invoice_number, invoice_date, gross_amount, retention_amount, notes, sent_finance_date } = req.body;
+  if (!invoice_number || gross_amount == null) throw badReq('invoice_number and gross_amount required');
+  const r = con.prepare(`
+    INSERT INTO sub_invoice (sub_application_id,invoice_number,invoice_date,gross_amount,retention_amount,notes,sent_finance_date)
+    VALUES (?,?,?,?,?,?,?)
+  `).run(app.id, invoice_number, invoice_date || new Date().toISOString().slice(0, 10),
+         gross_amount, retention_amount || 0, notes || null, sent_finance_date || null);
   // Update application status
   con.prepare("UPDATE sub_application SET status='invoiced', invoice_requested=1 WHERE id=?").run(app.id);
   res.status(201).json(con.prepare('SELECT * FROM sub_invoice WHERE id=?').get(r.lastInsertRowid));
   con.close();
+});
+
+// All invoices for one subcontract (across every application) -- feeds the "Tracker Invoices" tab.
+router.get('/projects/:pid/subcontracts/:id/invoices', (req, res) => {
+  const con = db();
+  const rows = con.prepare(`
+    SELECT i.*, a.application_number, a.week_ending
+    FROM sub_invoice i
+    JOIN sub_application a ON a.id = i.sub_application_id
+    WHERE a.subcontract_id = ?
+    ORDER BY i.created_at DESC
+  `).all(req.params.id);
+  con.close();
+  res.json(rows);
+});
+
+// All invoices across every subcontractor in the project -- feeds the global Invoice Tracker page,
+// so nobody has to open each subcontract's card just to check whether an invoice was submitted.
+router.get('/projects/:pid/invoices', (req, res) => {
+  const con = db();
+  const rows = con.prepare(`
+    SELECT i.*, a.application_number, a.week_ending,
+      sc.id AS subcontract_id, sc.ref AS subcontract_ref,
+      s.name AS sub_name
+    FROM sub_invoice i
+    JOIN sub_application a ON a.id = i.sub_application_id
+    JOIN subcontract sc ON sc.id = a.subcontract_id
+    JOIN subcontractor s ON s.id = sc.subcontractor_id
+    WHERE sc.project_id = ?
+    ORDER BY i.created_at DESC
+  `).all(req.params.pid);
+  con.close();
+  res.json(rows);
 });
 
 router.patch('/projects/:pid/invoices/:invoiceId', (req, res) => {

@@ -13,6 +13,7 @@ import ProjectSettingsView from './components/ProjectSettingsView.jsx';
 import UsersView from './components/UsersView.jsx';
 import ProjectsView from './components/ProjectsView.jsx';
 import ProgrammeView from './components/ProgrammeView.jsx';
+import InvoiceTrackerView from './components/InvoiceTrackerView.jsx';
 import { apiFetch } from './apiFetch.js';
 import { ZoomContext } from './zoomContext.js';
 
@@ -32,9 +33,10 @@ const NAV_GROUPS = [
   {
     label: 'Costs',
     items: [
-      { id: 'tracker', label: 'Cost Tracker',  icon: 'ti-chart-bar' },
-      { id: 'qscosts', label: 'QS Costs',      icon: 'ti-calculator' },
-      { id: 'sub',     label: 'Subcontracts',  icon: 'ti-users' },
+      { id: 'tracker',  label: 'Cost Tracker',    icon: 'ti-chart-bar' },
+      { id: 'qscosts',  label: 'QS Costs',        icon: 'ti-calculator' },
+      { id: 'sub',      label: 'Subcontracts',    icon: 'ti-users' },
+      { id: 'invoices', label: 'Invoice Tracker', icon: 'ti-file-invoice' },
     ],
   },
   {
@@ -256,6 +258,7 @@ export default function App() {
         {activeNav === 'tracker'   && <TrackerView projectId={projectId} readOnly={readOnly} onSubCellClick={subName => { setSubDeepLink({ subName }); setActiveNav('sub'); }} />}
         {activeNav === 'payapp'    && <PayAppView projectId={projectId} readOnly={readOnly} />}
         {activeNav === 'qscosts'   && <QSCostsView projectId={projectId} readOnly={readOnly} />}
+        {activeNav === 'invoices'  && <InvoiceTrackerView projectId={projectId} />}
         {activeNav === 'programme' && <ProgrammeView projectId={projectId} readOnly={readOnly} />}
         {activeNav === 'settings'  && <ProjectSettingsView project={project} onProjectUpdated={p => setProject(p)} />}
       </>

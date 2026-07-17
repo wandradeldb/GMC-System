@@ -125,7 +125,15 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
         )}
         {tab === 'boq' && <BOQTab boqItems={boq_items} boqCertified={boqCertified} projectId={projectId} subcontractId={subcontractId} onRefresh={load} />}
         {tab === 'ces'  && <CETab ces={compensation_events} subcontractId={sc.id} projectId={projectId} onRefresh={load} />}
-        {tab === 'payments' && <PaymentCalendar projectId={projectId} />}
+        {tab === 'payments' && (
+          <PaymentCalendar
+            projectId={projectId}
+            subcontractId={subcontractId}
+            applications={applications}
+            retentionPct={sc.retention_pct}
+            onRefresh={load}
+          />
+        )}
       </div>
     </div>
   );

@@ -3,3 +3,12 @@
 - **Reference:** [[WORKING_STATE.md]] in project root documents current stable state (never break these baseline functions)
 - [Sub Assessment route shadowing](subassessment_route_shadowing.md) — subcontract.js shadows subassessment.js for GET/PUT; edit the right file
 - [Migration 006 FK corruption](migration_006_fk_corruption.md) — dangling sub_application_old FK broke inserts; fixed by migration 007
+- [Language preference](language_preference.md) — reply in pt-PT in chat; app UI stays in English
+- [User profile](user_profile.md) — solo builder + product owner of GMC System, technical
+- [GMC next steps](project_gmc_next_steps.md) — pending pptx decks, user testing gate, Conquest materials placeholder
+- [GMC strategy docs](reference_gmc_strategy_docs.md) — Google Docs links feeding the pitch decks
+- [Commit review gate](feedback_commit_review_gate.md) — always show plan + local diff before any commit/push, no exceptions
+- [Testar + BOQ bug bash status](project_testar_boq_bug_bash.md) — 2026-07-12: many fixes shipped, one repro-needed bug open (Revenue Generator 90%→100%)
+- [Dashboard/Programme session](project_dashboard_programme_session.md) — 2026-07-15: Programme module, dark-theme Dashboard, sticky-column fix; Programme×Revenue mapping still pending (sub-concentration card rejected)
+- [Week-ending timezone audit](project_timezone_audit_2026_07_16.md) — 2026-07-16: root cause of Thursday-not-Friday WE bug, files fixed, €1.88M data correction, one accepted residual discrepancy
+- [Visual consistency](feedback_visual_consistency.md) — reuse existing CSS classes/layout patterns for new screens, don't invent ad-hoc styling
