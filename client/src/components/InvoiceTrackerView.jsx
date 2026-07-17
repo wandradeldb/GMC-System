@@ -36,8 +36,9 @@ export default function InvoiceTrackerView({ projectId }) {
 
   const totalGross     = visible.reduce((s, i) => s + (i.gross_amount || 0), 0);
   const totalRetention = visible.reduce((s, i) => s + (i.retention_amount || 0), 0);
-  const totalNet        = visible.reduce((s, i) => s + (i.net_amount || 0), 0);
-  const totalSubmitted  = visible.filter(i => i.sent_finance_date).reduce((s, i) => s + (i.net_amount || 0), 0);
+  // "Submitted to account" totals net (post-retention) since that's the actual amount put through,
+  // even though the Net column itself isn't shown per-row anymore.
+  const totalSubmitted = visible.filter(i => i.sent_finance_date).reduce((s, i) => s + (i.net_amount || 0), 0);
 
   return (
     <div style={{ display: 'flex', flexDirection: 'column', height: '100%', minHeight: 0 }}>
@@ -64,12 +65,11 @@ export default function InvoiceTrackerView({ projectId }) {
           <table className="boq-table">
             <thead>
               <tr>
+                <th style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2 }}>Application</th>
                 <th style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2 }}>Subcontractor</th>
                 <th style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2 }}>Invoice #</th>
-                <th style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2 }}>Application</th>
                 <th className="col-num" style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2 }}>Gross (€)</th>
                 <th className="col-num" style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2 }}>Retention (€)</th>
-                <th className="col-num" style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2 }}>Net (€)</th>
                 <th style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2 }}>Submitted to Account</th>
                 <th style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2 }}>Status</th>
               </tr>
@@ -77,12 +77,11 @@ export default function InvoiceTrackerView({ projectId }) {
             <tbody>
               {visible.map((inv, idx) => (
                 <tr key={inv.id} style={{ background: idx % 2 === 0 ? '#f8fafc' : '#fff' }}>
-                  <td style={{ fontSize: 12 }}>{inv.subcontract_ref} — {inv.sub_name}</td>
-                  <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{inv.invoice_number}</td>
                   <td style={{ fontSize: 12 }}>#{inv.application_number} · WE {fmtDate(inv.week_ending)}</td>
+                  <td style={{ fontSize: 12 }}>{inv.sub_name}</td>
+                  <td style={{ fontFamily: 'monospace', fontSize: 12 }}>{inv.invoice_number}</td>
                   <td className="col-num">{fmt(inv.gross_amount)}</td>
                   <td className="col-num" style={{ color: '#7c3aed' }}>{fmt(inv.retention_amount)}</td>
-                  <td className="col-num" style={{ fontWeight: 700 }}>{fmt(inv.net_amount)}</td>
                   <td style={{ fontSize: 12 }}>{inv.sent_finance_date ? fmtDate(inv.sent_finance_date) : '—'}</td>
                   <td><span className="status-badge" style={{ background: INV_STATUS_BG[inv.status], color: INV_STATUS_COLOR[inv.status] }}>{inv.status}</span></td>
                 </tr>
@@ -93,7 +92,6 @@ export default function InvoiceTrackerView({ projectId }) {
                 <td colSpan={3} style={{ textAlign: 'right', padding: '8px 10px' }}>TOTAL ({visible.length})</td>
                 <td className="col-num" style={{ padding: '8px 10px' }}>€{fmt(totalGross)}</td>
                 <td className="col-num" style={{ padding: '8px 10px' }}>€{fmt(totalRetention)}</td>
-                <td className="col-num" style={{ padding: '8px 10px' }}>€{fmt(totalNet)}</td>
                 <td colSpan={2} style={{ padding: '8px 10px', color: '#4ade80' }}>
                   Submitted to account: €{fmt(totalSubmitted)}
                 </td>
