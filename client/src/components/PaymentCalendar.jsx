@@ -126,13 +126,13 @@ export default function PaymentCalendar({ projectId, subcontractId, applications
           <table className="boq-table">
             <thead>
               <tr>
-                <th style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2 }}>Invoice #</th>
-                <th style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2 }}>Application</th>
+                <th style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2, textAlign: 'left' }}>Invoice #</th>
+                <th style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2, textAlign: 'left' }}>Application</th>
                 <th className="col-num" style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2 }}>Gross (€)</th>
                 <th className="col-num" style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2 }}>Retention (€)</th>
                 <th className="col-num" style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2 }}>Net (€)</th>
-                <th style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2 }}>Submitted to Account</th>
-                <th style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2 }}>Status</th>
+                <th style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2, textAlign: 'left' }}>Submitted to Account</th>
+                <th style={{ position: 'sticky', top: 0, background: '#f9fafb', zIndex: 2, textAlign: 'left' }}>Status</th>
               </tr>
             </thead>
             <tbody>
