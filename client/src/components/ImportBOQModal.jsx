@@ -1,16 +1,12 @@
 import { apiFetch } from '../apiFetch.js';
-import { useState, useRef } from 'react';
+import { useState, useRef, useEffect } from 'react';
 
 const fmt2 = (n) => new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n || 0);
 
-// Must match RevenueGenerationView.jsx's SECTIONS exactly — the weekly rollup in
-// server/routes/revenue.js sums revenue by this exact string into fixed Cost Tracker columns,
-// so anything outside this list would silently vanish from the tracker instead of erroring.
-const REVENUE_SECTIONS = ['Prelim Fixed', 'Prelim Time', 'Civil Works', 'MEICA Works', 'Landscape', 'Commission'];
-
 // Best-effort guess from a bill's label text — left blank (forcing a manual pick) whenever the
 // keyword match isn't confident, since a wrong guess here silently miscounts revenue in the Cost
-// Tracker (see server/routes/revenue.js's SECTION_COL comment).
+// Tracker. Categories are free-text (migration 017) so a wrong guess is no longer "invalid", but
+// it would still misattribute revenue to the wrong bucket, hence still best-effort/blank-if-unsure.
 function guessRevenueSection(label) {
   const l = (label || '').toLowerCase();
   if (l.includes('prelim') && l.includes('fixed')) return 'Prelim Fixed';
@@ -34,7 +30,14 @@ export default function ImportBOQModal({ projectId, onClose, onImported }) {
   const [result, setResult]     = useState(null);
   const [revResult, setRevResult] = useState(null);
   const [revError, setRevError] = useState('');
+  const [existingCategories, setExistingCategories] = useState([]); // this project's own categories, for the manual-map datalist
   const fileRef = useRef();
+
+  useEffect(() => {
+    apiFetch(`/api/v1/projects/${projectId}/revenue/activities`).then(r => r.json())
+      .then(acts => setExistingCategories([...new Set((acts || []).map(a => a.section).filter(Boolean))]))
+      .catch(() => {});
+  }, [projectId]);
 
   const parseFull = async () => {
     const file = fileRef.current?.files?.[0];
@@ -51,15 +54,13 @@ export default function ImportBOQModal({ projectId, onClose, onImported }) {
     setWarnings(json.warnings || []);
     setSectioned(!!json.sectioned);
     const seeded = {};
-    // REV1 layout: when the file's own Section value already IS one of the 6 revenue categories,
-    // map identity (no manual choice needed). Otherwise — same as the older layout — pre-fill a
-    // best-guess (left blank if not confident) and require the user to confirm/pick one; the file's
-    // categories aren't guaranteed to match the app's fixed 6 (e.g. an asset-based breakdown like
-    // "Pump Station"/"Wastewater Network" has no direct match and must be mapped manually).
+    // REV1 layout: the file's own Section value IS the category (migration 017 — categories are
+    // free-text per project, no longer limited to a fixed 6), so it's always mapped identity, no
+    // manual choice needed. Older bill-detection layout: pre-fill a best-guess (left blank if not
+    // confident) and require the user to confirm/pick one, since a bill's label text is a weaker
+    // signal than an explicit Section column.
     (json.schedules || []).forEach(s => {
-      seeded[s.schedule] = json.sectioned
-        ? (REVENUE_SECTIONS.includes(s.schedule) ? s.schedule : guessRevenueSection(s.schedule))
-        : guessRevenueSection(s.label);
+      seeded[s.schedule] = json.sectioned ? s.schedule : guessRevenueSection(s.label);
     });
     setSectionByBill(seeded);
     setStep('preview');
@@ -187,7 +188,7 @@ export default function ImportBOQModal({ projectId, onClose, onImported }) {
                     Section
                   </div>
                   <div style={{ fontSize: 10, color: '#6b7280', lineHeight: 1.4 }}>
-                    Prelim Fixed<br/>Prelim Time<br/>Civil Works<br/>MEICA Works<br/>Landscape<br/>Commission
+                    Your own category names — any text, e.g. Prelim Fixed, Pump Station, Landscape…
                   </div>
                 </div>
               </div>
@@ -212,6 +213,10 @@ export default function ImportBOQModal({ projectId, onClose, onImported }) {
                 {rows.length} item{rows.length === 1 ? '' : 's'} ready to import — total € {fmt2(total)}
               </div>
 
+              <datalist id="revenue-section-options">
+                {existingCategories.map(c => <option key={c} value={c} />)}
+              </datalist>
+
               <div className="import-preview-table-wrap">
                 {schedules.map(s => (
                   <div key={s.schedule} style={{ marginBottom: 18 }}>
@@ -227,20 +232,21 @@ export default function ImportBOQModal({ projectId, onClose, onImported }) {
                           {s.itemCount} items · € {fmt2(s.subtotal)}
                         </span>
                       </div>
-                      {sectioned && REVENUE_SECTIONS.includes(s.schedule) ? (
+                      {sectioned ? (
                         <span style={{ fontSize: 11, color: '#6b7280', fontStyle: 'italic' }}>
                           Revenue Section from file
                         </span>
                       ) : (
                         <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
                           <label className="field-label" style={{ margin: 0 }}>Revenue Section</label>
-                          <select
+                          <input
+                            type="text"
+                            list="revenue-section-options"
+                            placeholder="— skip —"
                             value={sectionByBill[s.schedule] || ''}
                             onChange={e => setSectionByBill(m => ({ ...m, [s.schedule]: e.target.value }))}
-                          >
-                            <option value="">— skip —</option>
-                            {REVENUE_SECTIONS.map(sec => <option key={sec} value={sec}>{sec}</option>)}
-                          </select>
+                            style={{ width: 160 }}
+                          />
                         </div>
                       )}
                     </div>

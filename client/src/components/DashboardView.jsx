@@ -1,20 +1,10 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect } from 'react';
-import { SECTIONS } from '../lib/sections.js';
+import { orderSections } from '../lib/sections.js';
 
 const fmtE = (n, d = 0) => n == null ? '—' : `€${new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n)}`;
 const fmtK = n => n == null ? '—' : (Math.abs(n) >= 1000 ? `€${(n / 1000).toFixed(0)}k` : `€${n.toFixed(0)}`);
 const fmtDate = iso => iso ? new Date(iso + 'T12:00:00').toLocaleDateString('en-IE', { day: '2-digit', month: 'short', year: 'numeric' }) : '—';
-
-// Section name -> the weekly tracker_we column it rolls up into (mirrors server/routes/revenue.js's SECTION_COL)
-const SECTION_TO_TRACKER_COL = {
-  'Prelim Fixed': 'rev_prelims_fixed',
-  'Prelim Time':  'rev_prelims_time',
-  'Civil Works':  'rev_civil',
-  'MEICA Works':  'rev_meica',
-  'Landscape':    'rev_landscape',
-  'Commission':   'rev_commissioning',
-};
 
 const PIPELINE = [
   { key: 'draft',    label: 'Planejada', color: '#c9973b', bg: '#3a2c12' },
@@ -65,15 +55,17 @@ export default function DashboardView({ projectId, onNavigate }) {
   const costTotal = Object.values(cost).reduce((a, b) => a + b, 0) || 1;
 
   // Revenue by category: tender value per section (from revenue_activity) vs cumulative
-  // certified per section (summed weekly tracker_we columns) — same pattern as Cost Breakdown above.
+  // certified per section (server's per-week categories map, migration 017) — same pattern as
+  // Cost Breakdown above, but the category list is this project's own BOQ Section values, not a
+  // fixed 6, so a category with tender value but zero revenue yet still shows up (and vice versa).
   const catTender = {};
   activities.forEach(a => { catTender[a.section] = (catTender[a.section] || 0) + (a.contract_value || 0); });
   const catRevenue = {};
-  SECTIONS.forEach(s => {
-    const col = SECTION_TO_TRACKER_COL[s];
-    catRevenue[s] = rows.reduce((sum, r) => sum + (r[col] || 0), 0);
+  rows.forEach(r => {
+    Object.entries(r.categories || {}).forEach(([s, v]) => { catRevenue[s] = (catRevenue[s] || 0) + (v || 0); });
   });
-  const categories = SECTIONS
+  const categoryNames = orderSections([...new Set([...Object.keys(catTender), ...Object.keys(catRevenue)])]);
+  const categories = categoryNames
     .map(s => {
       const tender = catTender[s] || 0;
       const revenue = catRevenue[s] || 0;

@@ -9,7 +9,6 @@ const fmtDate = (iso) => {
   return d.toLocaleDateString('en-IE', { day: 'numeric', month: 'short', year: 'numeric' });
 };
 
-const REV_LABELS = { prelims_fixed: 'Prelims — Fixed', prelims_time: 'Prelims — Time', ae: 'A&E / Design', civil: 'Civil', meica: 'MEICA', landscape: 'Landscape', commissioning: 'Commissioning' };
 const COST_LABELS = { subs: 'Subcontractors', materials: 'Materials', plant: 'Plant', ohp: 'OH&P Allowance' };
 
 export default function PeriodReportPreview({ projectId, from, to, onClose }) {
@@ -115,7 +114,7 @@ export default function PeriodReportPreview({ projectId, from, to, onClose }) {
               <h3 className="report-section-title">Revenue Breakdown (period)</h3>
               <ul className="report-list">
                 {Object.entries(data.revBreakdown).filter(([, v]) => v !== 0).map(([k, v]) => (
-                  <li key={k}>{REV_LABELS[k]}: {eur(v)} ({pct(data.summary.revTotal > 0 ? (v / data.summary.revTotal) * 100 : 0)})</li>
+                  <li key={k}>{k}: {eur(v)} ({pct(data.summary.revTotal > 0 ? (v / data.summary.revTotal) * 100 : 0)})</li>
                 ))}
               </ul>
 

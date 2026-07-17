@@ -20,3 +20,14 @@ export function orderSections(names) {
   const unknown = names.filter(n => !SECTIONS.includes(n)).sort();
   return [...known, ...unknown];
 }
+
+// Returns SEC_COLOR's fixed value for one of the known 6, or a deterministic hash-based color for
+// any project-specific category (its own BOQ Section value) so it still gets a stable, distinct
+// color instead of always falling back to gray.
+export function getSectionColor(name) {
+  if (SEC_COLOR[name]) return SEC_COLOR[name];
+  let hash = 0;
+  for (let i = 0; i < name.length; i++) hash = (hash * 31 + name.charCodeAt(i)) | 0;
+  const hue = Math.abs(hash) % 360;
+  return `hsl(${hue}, 55%, 40%)`;
+}

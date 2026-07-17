@@ -3,7 +3,7 @@ import { useState, useEffect, useCallback, useRef } from 'react';
 import { useZoom } from '../zoomContext.js';
 import ImportBOQModal from './ImportBOQModal.jsx';
 import NewSubcontractModal from './NewSubcontractModal.jsx';
-import { SECTIONS, SEC_COLOR } from '../lib/sections.js';
+import { orderSections, getSectionColor } from '../lib/sections.js';
 
 const fmt  = (n, d = 2) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtE = (n, d = 0) => `€${fmt(n, d)}`;
@@ -71,7 +71,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
   const [subs, setSubs]         = useState([]);
   const [edits, setEdits]       = useState({});    // { actId: { we: pct } }
   const [subEdits, setSubEdits] = useState({});    // { actId: sub_id } para a WE selecionada
-  const [secOn, setSecOn]       = useState(new Set(SECTIONS));
+  const [secOn, setSecOn]       = useState(new Set());
   const [search, setSearch]     = useState('');
   const [loading, setLoading]   = useState(true);
   const [saving, setSaving]     = useState(false);
@@ -142,6 +142,21 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
   }, [projectId, weekEnding, project?.start_date, project?.end_date]);
 
   useEffect(() => { loadData(); }, [loadData]);
+
+  // This project's own categories (its BOQ Section values), not a fixed list -- newly-seen ones
+  // (e.g. right after an import adds a category nobody has toggled yet) are auto-enabled so
+  // imported activities don't silently vanish behind a filter the user doesn't know exists, while
+  // categories the user has explicitly toggled off stay off.
+  const categories = orderSections([...new Set(activities.map(a => a.section))]);
+  useEffect(() => {
+    setSecOn(prev => {
+      const next = new Set(prev);
+      let changed = false;
+      categories.forEach(c => { if (!next.has(c)) { next.add(c); changed = true; } });
+      return changed ? next : prev;
+    });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [categories.join('|')]);
 
   const pctOf      = (a, w) => Number(edits[a.id]?.[w]) || 0;
   const revOf      = (a, w) => Math.round(pctOf(a, w) / 100 * (a.contract_value || 0) * 100) / 100;
@@ -272,15 +287,15 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
         </div>
 
         <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap' }}>
-          {SECTIONS.map(s => (
-            <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: SEC_COLOR[s] }}>
+          {categories.map(s => (
+            <label key={s} style={{ display: 'flex', alignItems: 'center', gap: 4, cursor: 'pointer', fontSize: 12, fontWeight: 600, color: getSectionColor(s) }}>
               <input type="checkbox" checked={secOn.has(s)} onChange={() => setSecOn(prev => {
                 const n = new Set(prev); n.has(s) ? n.delete(s) : n.add(s); return n;
-              })} style={{ width: 14, height: 14, cursor: 'pointer', accentColor: SEC_COLOR[s] }} />
+              })} style={{ width: 14, height: 14, cursor: 'pointer', accentColor: getSectionColor(s) }} />
               {s}
             </label>
           ))}
-          <button onClick={() => { setSecOn(new Set(SECTIONS)); setSearch(''); }}
+          <button onClick={() => { setSecOn(new Set(categories)); setSearch(''); }}
             style={{ padding: '3px 10px', borderRadius: 5, border: '1px solid #d1d5db', background: '#f9fafb', cursor: 'pointer', fontSize: 11, color: '#6b7280' }}>
             ✕ Clear
           </button>
@@ -348,7 +363,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
           </thead>
 
           <tbody>
-            {SECTIONS.filter(s => secOn.has(s)).map(section => {
+            {categories.filter(s => secOn.has(s)).map(section => {
               const rows = visible.filter(a => a.section === section);
               if (!rows.length) return null;
               const secCV    = rows.reduce((s, a) => s + (a.contract_value || 0), 0);
@@ -358,7 +373,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
 
               const secStyle = {
                 position: 'sticky', top: SEC_TOP,
-                background: SEC_COLOR[section], color: '#fff',
+                background: getSectionColor(section), color: '#fff',
                 fontWeight: 700, fontSize: 10,
                 borderBottom: '1px solid rgba(0,0,0,.12)',
               };
