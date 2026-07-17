@@ -28,10 +28,12 @@ const STATUS_STYLE = {
   paid:      { bg: '#dbeafe', color: '#1e40af', label: 'Paid' },
 };
 
-export default function SubAssessmentView({ projectId, subcontractId, subRef, subName, contractValue, onBack }) {
+// initialView lets a caller jump straight into the "new assessment" form (e.g. "+ New Application"
+// on the Subcontract detail page) instead of landing on the applications list first.
+export default function SubAssessmentView({ projectId, subcontractId, subRef, subName, contractValue, onBack, initialView = 'list' }) {
   const [boqItems,      setBoqItems]      = useState([]);
   const [apps,          setApps]          = useState([]);
-  const [view,          setView]          = useState('list'); // 'list' | 'new' | 'detail' | 'certificate'
+  const [view,          setView]          = useState(initialView); // 'list' | 'new' | 'detail' | 'certificate'
   const [detailApp,     setDetailApp]     = useState(null);
   const [certData,      setCertData]      = useState(null);
   const [loading,       setLoading]       = useState(true);

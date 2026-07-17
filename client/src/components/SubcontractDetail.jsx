@@ -17,7 +17,7 @@ function fmtDate(d) {
   return new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { day:'numeric', month:'short', year:'numeric' });
 }
 
-export default function SubcontractDetail({ projectId, subcontractId, onBack }) {
+export default function SubcontractDetail({ projectId, subcontractId, onBack, onOpenAssessment }) {
   const [data,       setData]       = useState(null);
   const [tab,        setTab]        = useState('overview');
   const [selectedAppId, setSelectedAppId] = useState(null);
@@ -118,9 +118,7 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
             applications={applications}
             onOpen={openApp}
             retention_pct={sc.retention_pct}
-            projectId={projectId}
-            subcontractId={subcontractId}
-            onRefresh={load}
+            onNewAssessment={() => onOpenAssessment(sc)}
           />
         )}
         {tab === 'boq' && <BOQTab boqItems={boq_items} boqCertified={boqCertified} projectId={projectId} subcontractId={subcontractId} onRefresh={load} />}
@@ -141,78 +139,21 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack }) 
 
 // Week endings on this project are always the Friday closing a week (matches Cost Tracker,
 // Revenue Generator, etc.) — offering a free date picker here let an off-cycle date (e.g. Thursday)
-// get saved, which then silently never matches any tracker_we row and vanishes from Cost Tracker.
-function todayFriday() {
-  const now = new Date();
-  // Anchor on today's *local* calendar date at noon before doing any date math — building
-  // straight off `new Date()` and reading it back via toISOString() (UTC) lets the local-time
-  // getDay()/setDate() arithmetic land on one calendar day while the UTC serialization rolls to
-  // the previous one (whenever local time-of-day is within the UTC offset of midnight), so the
-  // picked WE could silently be a day early and never match any real tracker_we row.
-  const localISO = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
-  const d = new Date(localISO + 'T12:00:00');
-  const diff = (d.getDay() - 5 + 7) % 7;
-  d.setDate(d.getDate() - diff);
-  return d.toISOString().slice(0, 10);
-}
-function fridayOptions(before = 12, after = 4) {
-  const ref = todayFriday();
-  const out = [];
-  for (let i = -before; i <= after; i++) {
-    const d = new Date(ref + 'T12:00:00');
-    d.setDate(d.getDate() + i * 7);
-    out.push(d.toISOString().slice(0, 10));
-  }
-  return out;
-}
-
 /* ── Applications Tab ───────────────────────────────────────────────────── */
-function ApplicationsTab({ applications, onOpen, retention_pct, projectId, subcontractId, onRefresh }) {
+// "+ New Application" opens the real Manual Assessment screen (SubAssessmentView, via
+// onNewAssessment -- wired up in SubcontractView.jsx) instead of a lightweight local form. That
+// local form used to create a bare draft sub_application with no item-level % data attached, which
+// this tab's own "Ver detalhe" view (AppDetailView, below) has no way to fill in -- only
+// SubAssessmentView's item table actually captures Sub %/GMC % per BOQ line.
+function ApplicationsTab({ applications, onOpen, retention_pct, onNewAssessment }) {
   const zoom = useZoom();
-  const [showForm, setShowForm] = useState(false);
-  const [weekEnding, setWeekEnding] = useState('');
-  const [notes, setNotes] = useState('');
-  const [saving, setSaving] = useState(false);
-  const weOptions = fridayOptions();
-
-  const submit = async () => {
-    if (!weekEnding) return;
-    setSaving(true);
-    await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/applications`, {
-      method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ week_ending: weekEnding, notes: notes || null }),
-    });
-    setSaving(false);
-    setShowForm(false);
-    setWeekEnding('');
-    setNotes('');
-    onRefresh();
-  };
 
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div className="section-toolbar">
         <span className="section-stat">{applications.length} assessments</span>
-        <button className="btn-primary" onClick={() => setShowForm(s => !s)}>+ New Application</button>
+        <button className="btn-primary" onClick={onNewAssessment}>+ New Assessment</button>
       </div>
-
-      {showForm && (
-        <div className="inline-form">
-          <div className="section-grid">
-            <div className="field"><label className="field-label">Week Ending *</label>
-              <select value={weekEnding} onChange={e => setWeekEnding(e.target.value)}>
-                <option value="">Select…</option>
-                {weOptions.map(w => <option key={w} value={w}>{fmtDate(w)}</option>)}
-              </select></div>
-            <div className="field span2"><label className="field-label">Notes</label>
-              <input value={notes} onChange={e => setNotes(e.target.value)} placeholder="Optional…" /></div>
-          </div>
-          <div style={{ display:'flex', gap:8, marginTop:12 }}>
-            <button className="btn-primary" onClick={submit} disabled={saving || !weekEnding}>{saving ? 'Saving…' : 'Save'}</button>
-            <button className="btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
-          </div>
-        </div>
-      )}
 
       {applications.length === 0 ? (
         <div className="empty-hint">No assessments yet.</div>

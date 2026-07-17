@@ -49,6 +49,7 @@ export default function SubcontractView({ projectId, readOnly, deepLinkSubName, 
       subRef={assessment.ref}
       subName={assessment.name}
       contractValue={assessment.contract_value}
+      initialView={assessment.initialView}
       onBack={() => { setAssessment(null); load(); }}
     />
   );
@@ -58,6 +59,7 @@ export default function SubcontractView({ projectId, readOnly, deepLinkSubName, 
       projectId={projectId}
       subcontractId={selected}
       onBack={() => { setSelected(null); load(); }}
+      onOpenAssessment={sc => setAssessment({ id: sc.id, ref: sc.ref, name: sc.subcontractor_name, contract_value: sc.contract_value, initialView: 'new' })}
     />
   );
 
