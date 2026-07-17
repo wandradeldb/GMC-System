@@ -47,21 +47,36 @@ function ensureCategoryTable(con) {
 }
 
 // â”€â”€ Revenue category classifier â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Maps a boq_item row â†’ one of the 7 revenue buckets
+// Maps a boq_item row to a category NAME (stored as tracker_we_category.category, migration 017).
+// Merlin Park's legacy schedule codes ('1'/'1A'/'2') need keyword bucketing since schedule '2'
+// alone spans several real categories with no per-row signal beyond the description text. Any
+// other project's schedule string IS the category verbatim -- a sectioned BOQ import already
+// writes the file's own Section value into boq_item.schedule (see boq-import.js), so no bucketing
+// is needed or wanted there.
 function revenueCategory(item) {
   const desc = (item.description || '').toLowerCase();
-  const sch  = item.schedule;
-  if (sch === '1')  return 'prelims_fixed';
-  if (sch === '1A') return 'prelims_time';
+  const sch  = (item.schedule || '').trim();
+  if (sch === '1')  return 'Prelim Fixed';
+  if (sch === '1A') return 'Prelim Time';
   if (sch === '2') {
-    if (/commission|training|testing|performance test/.test(desc)) return 'commissioning';
-    if (/landscape|landscaping/.test(desc))                         return 'landscape';
-    if (/mechanical|electrical|control|instrumentation|meica/.test(desc)) return 'meica';
-    if (/civil|excavat|tank|pipeline|manhole|sewer|water main/.test(desc)) return 'civil';
+    if (/commission|training|testing|performance test/.test(desc)) return 'Commission';
+    if (/landscape|landscaping/.test(desc))                         return 'Landscape';
+    if (/mechanical|electrical|control|instrumentation|meica/.test(desc)) return 'MEICA Works';
+    if (/civil|excavat|tank|pipeline|manhole|sewer|water main/.test(desc)) return 'Civil Works';
+    // Design/AE items within schedule 2 (Merlin Park's Design Principles rows, etc.)
+    if (/design|ae |a&e|engineering|architect/.test(desc)) return 'A&E / Design';
+    return 'Civil Works'; // fallback for schedule 2 uncategorised
   }
-  // Design/AE items (from Sch1 prelims â€” Design Principles etc.)
-  if (/design|ae |a&e|engineering|architect/.test(desc)) return 'ae';
-  return 'civil'; // fallback for schedule 2 uncategorised
+  return sch || 'Uncategorized';
+}
+
+// Default display order for the 7 categories every legacy Merlin-Park-style project produces;
+// any project-specific category (from a Section column) is appended alphabetically after them.
+const KNOWN_CATEGORY_ORDER = ['Prelim Fixed', 'Prelim Time', 'Civil Works', 'MEICA Works', 'Landscape', 'Commission', 'A&E / Design'];
+function orderCategories(cats) {
+  const known = KNOWN_CATEGORY_ORDER.filter(c => cats.includes(c));
+  const rest  = cats.filter(c => !KNOWN_CATEGORY_ORDER.includes(c)).sort();
+  return [...known, ...rest];
 }
 
 // â”€â”€ Recalculate a tracker_we row from source data â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
@@ -76,11 +91,11 @@ function recalcWeek(con, projectId, weekEnding) {
     WHERE bp.project_id = ? AND bp.week_ending = ?
   `).all(projectId, weekEnding);
 
-  const rev = { prelims_fixed:0, prelims_time:0, civil:0, meica:0, landscape:0, commissioning:0, ae:0 };
+  const rev = {};
   for (const row of progressRows) {
     const cat   = revenueCategory(row);
     const delta = Math.max(0, (row.pct_complete_this - row.pct_complete_prev) / 100) * row.contract_sum;
-    rev[cat] += delta;
+    rev[cat] = (rev[cat] || 0) + delta;
   }
   const revTotal = Object.values(rev).reduce((s, v) => s + v, 0);
 
@@ -136,14 +151,13 @@ function recalcWeek(con, projectId, weekEnding) {
   // 7. Week number (sequential position)
   const wkNum = (con.prepare('SELECT COUNT(*)+1 AS n FROM tracker_we WHERE project_id=? AND week_ending < ?').get(projectId, weekEnding)).n;
 
+  const categories = {};
+  for (const [cat, val] of Object.entries(rev)) {
+    categories[cat] = Math.round(val * 100) / 100;
+  }
+
   return {
-    rev_prelims_fixed:  Math.round(rev.prelims_fixed  * 100) / 100,
-    rev_prelims_time:   Math.round(rev.prelims_time   * 100) / 100,
-    rev_civil:          Math.round(rev.civil           * 100) / 100,
-    rev_meica:          Math.round(rev.meica           * 100) / 100,
-    rev_landscape:      Math.round(rev.landscape       * 100) / 100,
-    rev_commissioning:  Math.round(rev.commissioning   * 100) / 100,
-    rev_ae:             Math.round(rev.ae              * 100) / 100,
+    categories,
     rev_total_week:     Math.round(revTotal            * 100) / 100,
     rev_cumulative:     Math.round(revCumulative       * 100) / 100,
     cost_subs:          Math.round(costSubs            * 100) / 100,
@@ -190,6 +204,17 @@ function buildTrackerReport(con, pid) {
   const subCostMap = {};
   subCostRows.forEach(r => { subCostMap[r.week_ending] = r.live_subs; });
 
+  // Category revenue (migration 017) -- joined per week, project-level distinct list attached below
+  const catRows = con.prepare('SELECT week_ending, category, revenue FROM tracker_we_category WHERE project_id=?').all(pid);
+  const catMap = {};
+  const catSet = new Set();
+  catRows.forEach(r => {
+    if (!catMap[r.week_ending]) catMap[r.week_ending] = {};
+    catMap[r.week_ending][r.category] = r.revenue;
+    catSet.add(r.category);
+  });
+  const categoryList = orderCategories([...catSet]);
+
   // Overlay QS + live sub costs and recompute totals/margin/cumulative
   let cumRev = 0, cumCost = 0;
   const enriched = rows.map(r => {
@@ -206,6 +231,7 @@ function buildTrackerReport(con, pid) {
     const marginPct  = cumRev > 0 ? Math.round((marginCum / cumRev) * 10000) / 100 : 0;
     return {
       ...r,
+      categories:       catMap[r.week_ending] || {},
       cost_subs:        Math.round(liveSubs * 100) / 100,
       cost_materials:   Math.round(mat   * 100) / 100,
       cost_plant:       Math.round(plant * 100) / 100,
@@ -367,7 +393,7 @@ function buildTrackerReport(con, pid) {
                                  misc_subbies_revenue: misc.misc_subbies_revenue || 0 };
   });
 
-  return { rows: enriched, summary: { latest, previous, contractValue, totalBOQ }, sub_lines: subLines, subs };
+  return { rows: enriched, summary: { latest, previous, contractValue, totalBOQ }, sub_lines: subLines, subs, categoryList };
 }
 
 router.get('/projects/:pid/tracker', (req, res) => {
@@ -448,22 +474,18 @@ router.put('/projects/:pid/tracker/:we', (req, res) => {
     calc.efa_margin        = Math.round((calc.efa_revenue - calc.efa_cost) * 100) / 100;
     calc.efa_margin_pct    = calc.efa_revenue > 0 ? Math.round((calc.efa_margin / calc.efa_revenue) * 10000) / 100 : 0;
 
-    // 3. Upsert tracker_we
+    // 3. Upsert tracker_we (category revenue moved to tracker_we_category, migration 017 -- see 3b)
     con.prepare(`
       INSERT INTO tracker_we (
         project_id, week_ending, week_number,
-        rev_prelims_fixed, rev_prelims_time, rev_civil, rev_meica, rev_landscape, rev_commissioning, rev_ae,
         rev_total_week, rev_cumulative,
         cost_subs, cost_materials, cost_plant, ohp_allowance, cost_total_week, cost_cumulative,
         margin_week, margin_cumulative, margin_pct,
         efa_revenue, efa_cost, efa_margin, efa_margin_pct, target_margin_pct,
         entered_by, notes
-      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
+      ) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)
       ON CONFLICT(project_id, week_ending) DO UPDATE SET
         week_number=excluded.week_number,
-        rev_prelims_fixed=excluded.rev_prelims_fixed, rev_prelims_time=excluded.rev_prelims_time,
-        rev_civil=excluded.rev_civil, rev_meica=excluded.rev_meica,
-        rev_landscape=excluded.rev_landscape, rev_commissioning=excluded.rev_commissioning, rev_ae=excluded.rev_ae,
         rev_total_week=excluded.rev_total_week, rev_cumulative=excluded.rev_cumulative,
         cost_subs=excluded.cost_subs, cost_materials=excluded.cost_materials,
         cost_plant=excluded.cost_plant, ohp_allowance=excluded.ohp_allowance,
@@ -475,8 +497,6 @@ router.put('/projects/:pid/tracker/:we', (req, res) => {
         entered_by=excluded.entered_by, notes=excluded.notes
     `).run(
       pid, weekEnding, calc.week_number,
-      calc.rev_prelims_fixed, calc.rev_prelims_time, calc.rev_civil, calc.rev_meica,
-      calc.rev_landscape, calc.rev_commissioning, calc.rev_ae,
       calc.rev_total_week, calc.rev_cumulative,
       calc.cost_subs, calc.cost_materials, calc.cost_plant, calc.ohp_allowance,
       calc.cost_total_week, calc.cost_cumulative,
@@ -484,6 +504,18 @@ router.put('/projects/:pid/tracker/:we', (req, res) => {
       calc.efa_revenue, calc.efa_cost, calc.efa_margin, calc.efa_margin_pct, calc.target_margin_pct,
       entered_by || null, notes || null
     );
+
+    // 3b. Replace this week's category revenue rows (delete-then-insert so a category that drops
+    // to zero -- e.g. all its BOQ items reset to 0% -- doesn't linger with a stale value)
+    con.prepare('DELETE FROM tracker_we_category WHERE project_id=? AND week_ending=?').run(pid, weekEnding);
+    const insCat = con.prepare(`
+      INSERT INTO tracker_we_category (project_id, week_ending, category, revenue, updated_at)
+      VALUES (?,?,?,?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+    `);
+    for (const [cat, val] of Object.entries(calc.categories)) {
+      if (!val) continue;
+      insCat.run(pid, weekEnding, cat, val);
+    }
 
     con.exec('COMMIT');
     const saved = con.prepare('SELECT * FROM tracker_we WHERE project_id=? AND week_ending=?').get(pid, weekEnding);
@@ -569,6 +601,7 @@ router.put('/projects/:pid/tracker/:we/sub-revenue', (req, res) => {
 router.delete('/projects/:pid/tracker/:we', (req, res) => {
   const con = db();
   con.prepare('DELETE FROM boq_progress WHERE project_id=? AND week_ending=?').run(req.params.pid, req.params.we);
+  con.prepare('DELETE FROM tracker_we_category WHERE project_id=? AND week_ending=?').run(req.params.pid, req.params.we);
   const r = con.prepare('DELETE FROM tracker_we WHERE project_id=? AND week_ending=?').run(req.params.pid, req.params.we);
   con.close();
   if (r.changes === 0) return res.status(404).json({ error: 'Semana nÃ£o encontrada' });
@@ -583,3 +616,4 @@ router.use((err, _req, res, _next) => {
 module.exports = router;
 module.exports.buildTrackerReport = buildTrackerReport;
 module.exports.db = db;
+module.exports.orderCategories = orderCategories;

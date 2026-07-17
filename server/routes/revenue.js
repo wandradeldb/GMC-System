@@ -43,16 +43,6 @@ function ensureCategoryTable(con) {
   }
 }
 
-// secÃ§Ã£o â†’ coluna de revenue no tracker_we
-const SECTION_COL = {
-  'Prelim Fixed':  'rev_prelims_fixed',
-  'Prelim Time':   'rev_prelims_time',
-  'Civil Works':   'rev_civil',
-  'MEICA Works':   'rev_meica',
-  'Landscape':     'rev_landscape',
-  'Commission':    'rev_commissioning',
-};
-
 // â”€â”€ GET /projects/:pid/revenue/history â”€â”€â”€ todas as WE com dados por atividade â”€â”€
 router.get('/projects/:pid/revenue/history', (req, res) => {
   const con = db();
@@ -87,9 +77,12 @@ router.get('/projects/:pid/revenue/activities', (req, res) => {
 });
 
 // POST /projects/:pid/revenue/activities — bulk-create/update activities (e.g. from BOQ import).
-// section must be one of SECTION_COL's keys — the weekly rollup (PUT /revenue/week/:we below) sums
-// revenue by this exact string into fixed tracker_we columns, so an unrecognized value would silently
-// vanish from the Cost Tracker instead of erroring.
+// section is any non-empty string (migration 017) — the weekly rollup (PUT /revenue/week/:we
+// below) groups revenue by this exact string into tracker_we_category rows, one row per distinct
+// value, rather than a fixed set of tracker_we columns. Different contracts genuinely use
+// different category taxonomies (their own BOQ Section column), so nothing here constrains what
+// that string is beyond "must be present" — an empty/missing section still errors, since a row
+// with no category has nowhere sensible to land.
 router.post('/projects/:pid/revenue/activities', (req, res) => {
   const { rows, section, dedup = true } = req.body || {};
   const projectId = req.params.pid;
@@ -97,12 +90,12 @@ router.post('/projects/:pid/revenue/activities', (req, res) => {
   if (!Array.isArray(rows) || rows.length === 0) {
     return res.status(400).json({ error: 'No rows to import', code: 'EMPTY' });
   }
-  const validSections = Object.keys(SECTION_COL);
   const badRows = [];
   const badSections = [];
   rows.forEach((row, i) => {
     if (!row.description || !String(row.description).trim()) badRows.push(i);
-    if (!validSections.includes(row.section || section)) badSections.push(i);
+    const sec = row.section || section;
+    if (!sec || !String(sec).trim()) badSections.push(i);
   });
   if (badRows.length) {
     return res.status(400).json({
@@ -112,8 +105,8 @@ router.post('/projects/:pid/revenue/activities', (req, res) => {
   }
   if (badSections.length) {
     return res.status(400).json({
-      error: `Rows with no valid section (row or default): ${badSections.map(i => i + 1).join(', ')}`,
-      code: 'INVALID_SECTION',
+      error: `Rows with no section (row or default): ${badSections.map(i => i + 1).join(', ')}`,
+      code: 'MISSING_SECTION',
     });
   }
 
@@ -137,7 +130,7 @@ router.post('/projects/:pid/revenue/activities', (req, res) => {
       const qty = row.qty || 0;
       const rate = row.rate || 0;
       const contractValue = Math.round(qty * rate * 100) / 100;
-      const rowSection = row.section || section;
+      const rowSection = String(row.section || section).trim();
       // dedup=false (full-sheet import): always insert. The source PD Ref repeats by design
       // (e.g. 106 rows share ref "2.1.1"), so deduping by ref would collapse them into one row.
       const existing = (dedup && ref) ? findStmt.get(projectId, ref) : null;
@@ -222,23 +215,37 @@ router.put('/projects/:pid/revenue/week/:we', (req, res) => {
     const bySec = {};
     totals.forEach(t => { bySec[t.section] = t.v || 0; });
 
-    const revFixed = bySec['Prelim Fixed'] || 0, revTime = bySec['Prelim Time'] || 0,
-          revCivil = bySec['Civil Works'] || 0, revMeica = bySec['MEICA Works'] || 0,
-          revLand  = bySec['Landscape'] || 0,    revComm  = bySec['Commission'] || 0;
-    const existing = con.prepare('SELECT rev_ae FROM tracker_we WHERE project_id=? AND week_ending=?').get(pid, we);
-    const revAe = existing ? (existing.rev_ae || 0) : 0;
-    const revTotal = Math.round((revFixed + revTime + revCivil + revMeica + revLand + revComm + revAe) * 100) / 100;
+    // Replace this week's Path-B category rows (migration 017) -- one row per distinct
+    // revenue_activity.section value currently defined for this project, not a fixed set of
+    // columns. Delete-then-insert per category so one whose activities all dropped to 0% (or got
+    // recategorised) doesn't linger with a stale value.
+    const pathBCategories = new Set(acts.map(a => a.section));
+    const delCat = con.prepare('DELETE FROM tracker_we_category WHERE project_id=? AND week_ending=? AND category=?');
+    const upsertCat = con.prepare(`
+      INSERT INTO tracker_we_category (project_id, week_ending, category, revenue, updated_at)
+      VALUES (?,?,?,?, strftime('%Y-%m-%dT%H:%M:%SZ','now'))
+      ON CONFLICT(project_id, week_ending, category) DO UPDATE SET
+        revenue=excluded.revenue, updated_at=excluded.updated_at
+    `);
+    for (const cat of pathBCategories) {
+      const v = bySec[cat] || 0;
+      if (v) upsertCat.run(pid, we, cat, v);
+      else delCat.run(pid, we, cat);
+    }
+
+    // rev_total_week = sum of ALL categories now on file for this week -- merges in whatever
+    // Path A (tracker.js, boq_progress-driven) already wrote there too, e.g. Merlin Park's
+    // 'A&E / Design'. Replaces the old special-cased read of tracker_we.rev_ae, since A&E is now
+    // just another category row instead of a field only the other route path could touch.
+    const revTotal = (con.prepare('SELECT COALESCE(ROUND(SUM(revenue),2),0) AS t FROM tracker_we_category WHERE project_id=? AND week_ending=?').get(pid, we)).t;
     const wkNum = (con.prepare('SELECT COUNT(*) c FROM tracker_we WHERE project_id=? AND week_ending<?').get(pid, we).c) + 1;
 
     con.prepare(`
-      INSERT INTO tracker_we
-        (project_id, week_ending, week_number, rev_prelims_fixed, rev_prelims_time, rev_civil, rev_meica, rev_landscape, rev_commissioning, rev_total_week, updated_at)
-      VALUES (?,?,?,?,?,?,?,?,?,?,datetime('now'))
+      INSERT INTO tracker_we (project_id, week_ending, week_number, rev_total_week, updated_at)
+      VALUES (?,?,?,?,datetime('now'))
       ON CONFLICT(project_id, week_ending) DO UPDATE SET
-        rev_prelims_fixed=excluded.rev_prelims_fixed, rev_prelims_time=excluded.rev_prelims_time,
-        rev_civil=excluded.rev_civil, rev_meica=excluded.rev_meica, rev_landscape=excluded.rev_landscape,
-        rev_commissioning=excluded.rev_commissioning, rev_total_week=excluded.rev_total_week, updated_at=datetime('now')
-    `).run(pid, we, wkNum, revFixed, revTime, revCivil, revMeica, revLand, revComm, revTotal);
+        rev_total_week=excluded.rev_total_week, updated_at=datetime('now')
+    `).run(pid, we, wkNum, revTotal);
 
     con.exec('COMMIT');
     con.close();

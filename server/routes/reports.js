@@ -1,6 +1,6 @@
 const express   = require('express');
 const PDFDocument = require('pdfkit');
-const { buildTrackerReport, db } = require('./tracker');
+const { buildTrackerReport, db, orderCategories } = require('./tracker');
 
 const router = express.Router();
 
@@ -37,15 +37,15 @@ function computeReportData(pid, from, to) {
     plant:     weeks.reduce((s, r) => s + (r.cost_plant     || 0), 0),
     ohp:       weeks.reduce((s, r) => s + (r.ohp_allowance  || 0), 0),
   };
-  const revBreakdown = {
-    prelims_fixed: weeks.reduce((s, r) => s + (r.rev_prelims_fixed || 0), 0),
-    prelims_time:  weeks.reduce((s, r) => s + (r.rev_prelims_time  || 0), 0),
-    ae:            weeks.reduce((s, r) => s + (r.rev_ae            || 0), 0),
-    civil:         weeks.reduce((s, r) => s + (r.rev_civil         || 0), 0),
-    meica:         weeks.reduce((s, r) => s + (r.rev_meica         || 0), 0),
-    landscape:     weeks.reduce((s, r) => s + (r.rev_landscape     || 0), 0),
-    commissioning: weeks.reduce((s, r) => s + (r.rev_commissioning || 0), 0),
-  };
+  // Dynamic per-category revenue (migration 017) -- category names come straight from each week's
+  // tracker_we_category rows (attached by buildTrackerReport), not a fixed set of keys, so a
+  // project's own BOQ Section values show up here automatically.
+  const revBreakdown = {};
+  weeks.forEach(r => {
+    Object.entries(r.categories || {}).forEach(([cat, v]) => {
+      revBreakdown[cat] = Math.round(((revBreakdown[cat] || 0) + (v || 0)) * 100) / 100;
+    });
+  });
 
   // Per-sub totals within the period
   const subTotals = {};
@@ -172,11 +172,11 @@ router.get('/projects/:pid/reports/period-pdf', (req, res) => {
   doc.fontSize(13).fillColor('#1a1a2e').text('Revenue Breakdown (period)', { underline: true });
   doc.moveDown(0.3);
   doc.fontSize(10).fillColor('#111827');
-  const revLabels = { prelims_fixed: 'Prelims — Fixed', prelims_time: 'Prelims — Time', ae: 'A&E / Design', civil: 'Civil', meica: 'MEICA', landscape: 'Landscape', commissioning: 'Commissioning' };
-  Object.entries(revBreakdown).forEach(([k, v]) => {
-    if (v === 0) return;
+  orderCategories(Object.keys(revBreakdown)).forEach(cat => {
+    const v = revBreakdown[cat];
+    if (!v) return;
     const sharePct = revTotal > 0 ? (v / revTotal) * 100 : 0;
-    doc.text(`${revLabels[k]}:  ${eur(v)}  (${pct(sharePct)})`);
+    doc.text(`${cat}:  ${eur(v)}  (${pct(sharePct)})`);
   });
   doc.moveDown(1);
 
