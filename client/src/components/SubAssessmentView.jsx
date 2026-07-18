@@ -494,7 +494,14 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       {/* Sticky top bar */}
-      <div style={{ position:'sticky', top:56, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb',
+      {/* top:0, not 56 -- this header's own scroll container (main.app-content) already sits below
+          the app's fixed topbar, so its natural in-flow position is already less than 56px from the
+          container top. With top:56 the browser treats it as permanently "stuck" from the very first
+          render (even at scrollTop 0), but the space RESERVED for it in the document flow is based on
+          its natural (unstuck) position -- so the next sibling starts before the header's painted
+          (stuck) position ends, visually overlapping it. top:0 keeps reserved and painted position in
+          sync since the header's natural position is never less than 0. */}
+      <div style={{ position:'sticky', top:0, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb',
         padding:'4px 0 6px', marginBottom:4 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
           <button onClick={onCancel}
@@ -762,7 +769,14 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       {/* Sticky header */}
-      <div style={{ position:'sticky', top:56, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb',
+      {/* top:0, not 56 -- this header's own scroll container (main.app-content) already sits below
+          the app's fixed topbar, so its natural in-flow position is already less than 56px from the
+          container top. With top:56 the browser treats it as permanently "stuck" from the very first
+          render (even at scrollTop 0), but the space RESERVED for it in the document flow is based on
+          its natural (unstuck) position -- so the next sibling starts before the header's painted
+          (stuck) position ends, visually overlapping it. top:0 keeps reserved and painted position in
+          sync since the header's natural position is never less than 0. */}
+      <div style={{ position:'sticky', top:0, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb',
         padding:'4px 0 6px', marginBottom:4 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
           <button onClick={onBack}
