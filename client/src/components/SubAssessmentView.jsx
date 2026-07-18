@@ -718,11 +718,13 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
   const cutTotal   = folanTotal - gmcTotal;
   const cutPctLive = folanTotal > 0 ? (1 - gmcTotal / folanTotal) * 100 : 0;
 
-  // Linked Variations/Daywork: only 'agreed' ones sum into the application's GMC total
-  // (matches server-side recalcApplicationGmc), so the header/summary must add the same sum
-  // here to show what will actually be saved/is already saved.
+  // Linked Variations/Daywork/Contra Charge: only 'agreed' ones affect the application's GMC
+  // total (matches server-side recalcApplicationGmc) -- Daywork/Variation ADD, Contra Charge
+  // SUBTRACTS (a deduction charged back to the sub) -- so the header/summary must net the same
+  // way here to show what will actually be saved/is already saved.
   const linkedCEs   = detail.compensation_events || [];
-  const ceSumAgreed = linkedCEs.filter(c => c.status === 'agreed').reduce((s, c) => s + (c.gmc_value || 0), 0);
+  const agreedCEs   = linkedCEs.filter(c => c.status === 'agreed');
+  const ceSumAgreed = agreedCEs.reduce((s, c) => s + (c.type === 'contra_charge' ? -(c.gmc_value || 0) : (c.gmc_value || 0)), 0);
 
   // Cap: cumulative (pct_prev + this) cannot exceed 100%
   const setItemGmcPct = (id, v) => {
@@ -825,15 +827,19 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
       {linkedCEs.length > 0 && (
         <div style={{ background:'#faf5ff', border:'1px solid #ddd6fe', borderRadius:8, padding:'6px 10px', marginBottom:6 }}>
           <div style={{ fontSize:10, fontWeight:600, color:'#6d28d9', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4 }}>
-            Linked Variations & Daywork
+            Linked Variations, Daywork & Contra Charges
           </div>
-          {linkedCEs.map(ce => (
-            <div key={ce.id} style={{ display:'flex', justifyContent:'space-between', gap:12, fontSize:12, padding:'2px 0',
-              color: ce.status === 'agreed' ? '#1a1a2e' : '#9ca3af' }}>
-              <span>{ce.type === 'daywork' ? 'Daywork' : ce.ce_ref} — {ce.description}{ce.status !== 'agreed' ? ` (${ce.status})` : ''}</span>
-              <span style={{ fontWeight:600 }}>{fmtE(ce.gmc_value, 2)}</span>
-            </div>
-          ))}
+          {linkedCEs.map(ce => {
+            const isContra = ce.type === 'contra_charge';
+            const kind = ce.type === 'daywork' ? 'Daywork' : isContra ? 'Contra Charge' : 'Variation';
+            return (
+              <div key={ce.id} style={{ display:'flex', justifyContent:'space-between', gap:12, fontSize:12, padding:'2px 0',
+                color: ce.status !== 'agreed' ? '#9ca3af' : isContra ? '#dc2626' : '#1a1a2e' }}>
+                <span>{kind} — {ce.description}{ce.status !== 'agreed' ? ` (${ce.status})` : ''}</span>
+                <span style={{ fontWeight:600 }}>{isContra ? '−' : ''}{fmtE(ce.gmc_value, 2)}</span>
+              </div>
+            );
+          })}
         </div>
       )}
 
@@ -1026,11 +1032,15 @@ function CertificateView({ data, onBack }) {
           <tbody>
             <CRow label="Contract Value" value={fmtE(s.contractValue,2)} />
             <CRow label="This Application Value" value={fmtE(s.thisApp,2)} />
-            {ces.map(ce => (
-              <CRow key={ce.id}
-                label={`  ↳ ${ce.type === 'daywork' ? 'Daywork' : ce.ce_ref}: ${ce.description}`}
-                value={fmtE(ce.gmc_value,2)} color="#7c3aed" />
-            ))}
+            {ces.map(ce => {
+              const isContra = ce.type === 'contra_charge';
+              const kind = ce.type === 'daywork' ? 'Daywork' : isContra ? 'Contra Charge' : 'Variation';
+              return (
+                <CRow key={ce.id}
+                  label={`  ↳ ${kind}: ${ce.description}`}
+                  value={`${isContra ? '− ' : ''}${fmtE(ce.gmc_value,2)}`} color={isContra ? '#dc2626' : '#7c3aed'} />
+              );
+            })}
             <CRow label="Previously Certified" value={fmtE(s.previously,2)} />
             <CRow label="Cumulative Certified" value={fmtE(s.cumulative,2)} bold />
             <CRow label="% of Works Completed" value={`${s.pctComplete}%`} />

@@ -1,6 +1,7 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import PaymentCalendar from './PaymentCalendar.jsx';
+import SubcontractStatement from './SubcontractStatement.jsx';
 import { useZoom } from '../zoomContext.js';
 
 const STATUS_COLOR = { draft:'#92400e', assessed:'#1e40af', approved:'#166534', invoiced:'#7c3aed', paid:'#065f46' };
@@ -19,6 +20,7 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
   const [data,       setData]       = useState(null);
   const [tab,        setTab]        = useState('overview');
   const [boqCertified, setBoqCertified] = useState([]);
+  const [statementData, setStatementData] = useState(null);
 
   const load = useCallback(() => {
     apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}`)
@@ -29,11 +31,23 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
 
   useEffect(() => { load(); }, [load]);
 
+  // Full-history statement across every application on this subcontract, for reviewing
+  // accumulated cuts/Daywork/Variation/Contra Charge divergences with the sub in a meeting.
+  const openStatement = async () => {
+    const res = await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/statement`);
+    setStatementData(await res.json());
+  };
+
+  if (statementData) {
+    return <SubcontractStatement data={statementData} onBack={() => setStatementData(null)} />;
+  }
+
   if (!data) return <div className="state-box"><div className="icon">⏳</div><p>Loading…</p></div>;
 
   const { subcontract: sc, boq_items, applications, compensation_events } = data;
-  const variations = compensation_events.filter(c => c.type !== 'daywork');
-  const dayworks    = compensation_events.filter(c => c.type === 'daywork');
+  const dayworks      = compensation_events.filter(c => c.type === 'daywork');
+  const variations    = compensation_events.filter(c => c.type === 'variation');
+  const contraCharges = compensation_events.filter(c => c.type === 'contra_charge');
 
   const totalCertified = applications.filter(a => a.status !== 'draft')
                                      .reduce((s, a) => s + (a.value_gmc || 0), 0);
@@ -84,6 +98,7 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
           { id:'overview',    label:`Applications (${applications.length})` },
           { id:'daywork',     label:`Daywork (${dayworks.length})` },
           { id:'ces',         label:`Variation (${variations.length})` },
+          { id:'contra',      label:`Contra Charge (${contraCharges.length})` },
           { id:'payments',    label:'Tracker Invoices' },
           { id:'boq',         label:`Sub BOQ (${boq_items.length})` },
         ].map(t => (
@@ -97,9 +112,13 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
         {tab === 'overview' && (
           <ApplicationsTab
             applications={applications}
+            dayworks={dayworks}
+            variations={variations}
+            contraCharges={contraCharges}
             onView={appId => onOpenAssessment(sc, appId)}
             retention_pct={sc.retention_pct}
             onNewAssessment={() => onOpenAssessment(sc)}
+            onStatement={openStatement}
             projectId={projectId}
             subcontractId={subcontractId}
             onRefresh={load}
@@ -108,11 +127,15 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
         {tab === 'boq' && <BOQTab boqItems={boq_items} boqCertified={boqCertified} projectId={projectId} subcontractId={subcontractId} onRefresh={load} />}
         {tab === 'daywork' && (
           <CELikeTab ces={dayworks} applications={applications} subcontractId={sc.id} projectId={projectId}
-            onRefresh={load} type="daywork" showRef={false} onViewApp={appId => onOpenAssessment(sc, appId)} />
+            onRefresh={load} type="daywork" onViewApp={appId => onOpenAssessment(sc, appId)} />
         )}
         {tab === 'ces'  && (
           <CELikeTab ces={variations} applications={applications} subcontractId={sc.id} projectId={projectId}
-            onRefresh={load} type="variation" showRef={true} onViewApp={appId => onOpenAssessment(sc, appId)} />
+            onRefresh={load} type="variation" onViewApp={appId => onOpenAssessment(sc, appId)} />
+        )}
+        {tab === 'contra' && (
+          <CELikeTab ces={contraCharges} applications={applications} subcontractId={sc.id} projectId={projectId}
+            onRefresh={load} type="contra_charge" onViewApp={appId => onOpenAssessment(sc, appId)} />
         )}
         {tab === 'payments' && (
           <PaymentCalendar
@@ -136,7 +159,7 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
 // AppDetailView. Those used to be a separate, more limited path: the create form had no way to
 // enter item-level % data, and AppDetailView could advance status but had no Approve-with-cut,
 // no Payment Certificate, and no invoice recording -- all of which only exist on SubAssessmentView.
-function ApplicationsTab({ applications, onView, retention_pct, onNewAssessment, projectId, subcontractId, onRefresh }) {
+function ApplicationsTab({ applications, dayworks, variations, contraCharges, onView, retention_pct, onNewAssessment, onStatement, projectId, subcontractId, onRefresh }) {
   const zoom = useZoom();
 
   const deleteApp = async (a) => {
@@ -145,11 +168,23 @@ function ApplicationsTab({ applications, onView, retention_pct, onNewAssessment,
     onRefresh();
   };
 
+  // Only 'agreed' CEs actually count toward the application's GMC total (see recalcApplicationGmc
+  // server-side), so these per-app breakdowns must filter the same way to stay consistent with GMC Assessed.
+  const sumFor = (list, appId) => list.filter(c => c.sub_application_id === appId && c.status === 'agreed')
+                                       .reduce((s, c) => s + (c.gmc_value || 0), 0);
+
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div className="section-toolbar">
         <span className="section-stat">{applications.length} assessments</span>
-        <button className="btn-primary" onClick={onNewAssessment}>+ New Assessment</button>
+        <div style={{ display:'flex', gap:8 }}>
+          <button onClick={onStatement}
+            style={{ padding:'4px 12px', borderRadius:6, border:'1px solid #3b82f6', background:'#eff6ff',
+              color:'#1e40af', cursor:'pointer', fontSize:12, fontWeight:600 }}>
+            📊 Statement
+          </button>
+          <button className="btn-primary" onClick={onNewAssessment}>+ New Assessment</button>
+        </div>
       </div>
 
       {applications.length === 0 ? (
@@ -162,6 +197,9 @@ function ApplicationsTab({ applications, onView, retention_pct, onNewAssessment,
               <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>No.</th>
               <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Week Ending</th>
               <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Sub Claim (€)</th>
+              <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Daywork (€)</th>
+              <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Variation (€)</th>
+              <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Contra Charge (€)</th>
               <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>GMC Assessed (€)</th>
               <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Cumulative (€)</th>
               <th style={{textAlign:'right', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Retention (€)</th>
@@ -172,12 +210,18 @@ function ApplicationsTab({ applications, onView, retention_pct, onNewAssessment,
           </thead>
           <tbody>
             {applications.map(a => {
-              const retHeld = Math.round((a.cumulative_gmc || 0) * (retention_pct / 100) * 100) / 100;
+              const retHeld  = Math.round((a.cumulative_gmc || 0) * (retention_pct / 100) * 100) / 100;
+              const daySum   = sumFor(dayworks, a.id);
+              const varSum   = sumFor(variations, a.id);
+              const ccSum    = sumFor(contraCharges, a.id);
               return (
                 <tr key={a.id}>
                   <td style={{ fontWeight: 700 }}>#{a.application_number}</td>
                   <td>{fmtDate(a.week_ending)}</td>
                   <td style={{textAlign:'right'}}>{fmt(a.value_sub)}</td>
+                  <td style={{textAlign:'right', color: daySum > 0 ? '#7c3aed' : '#d1d5db'}}>{daySum > 0 ? fmt(daySum) : '—'}</td>
+                  <td style={{textAlign:'right', color: varSum > 0 ? '#7c3aed' : '#d1d5db'}}>{varSum > 0 ? fmt(varSum) : '—'}</td>
+                  <td style={{textAlign:'right', color: ccSum > 0 ? '#dc2626' : '#d1d5db'}}>{ccSum > 0 ? `−${fmt(ccSum)}` : '—'}</td>
                   <td style={{textAlign:'right', fontWeight: 600, color:'#166534'}}>{fmt(a.value_gmc)}</td>
                   <td style={{textAlign:'right', color:'#1e40af'}}>{fmt(a.cumulative_gmc)}</td>
                   <td style={{textAlign:'right', color: '#7c3aed' }}>{fmt(retHeld)}</td>
@@ -316,35 +360,64 @@ function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh })
   );
 }
 
-/* ── Variation / Daywork Tab ───────────────────────────────────────────────
-   Both are compensation_event rows distinguished only by `type`; Daywork has no
-   Ref field (a running charge doesn't need one the way a numbered variation does).
-   Either kind can optionally link to an Application, which sums its agreed GMC
-   value into that application's total (server-side, see recalcApplicationGmc). */
-function CELikeTab({ ces, applications, subcontractId, projectId, onRefresh, type, showRef, onViewApp }) {
+/* ── Variation / Daywork / Contra Charge Tab ───────────────────────────────
+   All three are compensation_event rows distinguished only by `type`; none has a Ref field in
+   the UI -- the server auto-generates one (DW-N / CE-N / CC-N, see POST /ces) just to satisfy the
+   DB's NOT NULL + UNIQUE(subcontract_id, ce_ref). Any of the three can optionally link to an
+   Application: Daywork/Variation ADD their agreed GMC value to that application's total,
+   Contra Charge SUBTRACTS it (a deduction charged back to the sub) -- server-side in
+   recalcApplicationGmc. Contra Charge has no "Sub Claim" (the sub isn't claiming anything, GMC is
+   charging them), so that field/column and the Delta column are hidden for it. */
+function CELikeTab({ ces, applications, subcontractId, projectId, onRefresh, type, onViewApp }) {
   const zoom = useZoom();
-  const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ ce_ref:'', description:'', sub_value:'', gmc_value:'', status:'submitted', notes:'', sub_application_id:'' });
+  const emptyForm = { description:'', sub_value:'', gmc_value:'', status:'submitted', notes:'', sub_application_id:'' };
+  const [showForm,  setShowForm]  = useState(false);
+  const [editingId, setEditingId] = useState(null);
+  const [form, setForm] = useState(emptyForm);
   const [saving, setSaving] = useState(false);
 
-  const label = type === 'daywork' ? 'Daywork' : 'CE';
-  const noun  = type === 'daywork' ? 'daywork charges' : 'compensation events';
+  const isContra = type === 'contra_charge';
+  const label = type === 'daywork' ? 'Daywork' : isContra ? 'Contra Charge' : 'CE';
+  const noun  = type === 'daywork' ? 'daywork charges' : isContra ? 'contra charges' : 'compensation events';
+  const valueLabel = isContra ? 'Deduction (€)' : 'GMC Assessed (€)';
+
+  const openNew = () => { setEditingId(null); setForm(emptyForm); setShowForm(true); };
+  const openEdit = (ce) => {
+    setEditingId(ce.id);
+    setForm({
+      description: ce.description || '',
+      sub_value: ce.sub_value ?? '',
+      gmc_value: ce.gmc_value ?? '',
+      status: ce.status || 'submitted',
+      notes: ce.notes || '',
+      sub_application_id: ce.sub_application_id ? String(ce.sub_application_id) : '',
+    });
+    setShowForm(true);
+  };
+  const cancelForm = () => { setShowForm(false); setEditingId(null); setForm(emptyForm); };
 
   const submit = async () => {
     setSaving(true);
-    await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/ces`, {
-      method: 'POST',
+    const payload = {
+      ...form, type,
+      sub_value: parseFloat(form.sub_value)||0,
+      gmc_value: parseFloat(form.gmc_value)||0,
+      sub_application_id: form.sub_application_id ? Number(form.sub_application_id) : null,
+    };
+    const url = `/api/v1/projects/${projectId}/subcontracts/${subcontractId}/ces` + (editingId ? `/${editingId}` : '');
+    await apiFetch(url, {
+      method: editingId ? 'PATCH' : 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        ...form, type,
-        sub_value: parseFloat(form.sub_value)||0,
-        gmc_value: parseFloat(form.gmc_value)||0,
-        sub_application_id: form.sub_application_id ? Number(form.sub_application_id) : null,
-      }),
+      body: JSON.stringify(payload),
     });
     setSaving(false);
-    setShowForm(false);
-    setForm({ ce_ref:'', description:'', sub_value:'', gmc_value:'', status:'submitted', notes:'', sub_application_id:'' });
+    cancelForm();
+    onRefresh();
+  };
+
+  const deleteCE = async (ce) => {
+    if (!window.confirm(`Delete "${ce.description}"?`)) return;
+    await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/ces/${ce.id}`, { method: 'DELETE' });
     onRefresh();
   };
 
@@ -366,17 +439,13 @@ function CELikeTab({ ces, applications, subcontractId, projectId, onRefresh, typ
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div className="section-toolbar">
-        <span className="section-stat">{ces.length} {noun} · GMC agreed: €{fmt(ces.filter(c=>c.status==='agreed').reduce((s,c)=>s+c.gmc_value,0))}</span>
-        <button className="btn-primary" onClick={() => setShowForm(s => !s)}>+ New {label}</button>
+        <span className="section-stat">{ces.length} {noun} · {isContra ? 'Deducted' : 'GMC'} agreed: €{fmt(ces.filter(c=>c.status==='agreed').reduce((s,c)=>s+c.gmc_value,0))}</span>
+        <button className="btn-primary" onClick={openNew}>+ New {label}</button>
       </div>
 
       {showForm && (
         <div className="inline-form">
           <div className="section-grid">
-            {showRef && (
-              <div className="field"><label className="field-label">CE Ref *</label>
-                <input value={form.ce_ref} onChange={e => setForm(f=>({...f,ce_ref:e.target.value}))} placeholder="CE-001" /></div>
-            )}
             <div className="field"><label className="field-label">Status</label>
               <select value={form.status} onChange={e => setForm(f=>({...f,status:e.target.value}))}>
                 {['submitted','assessed','agreed','rejected'].map(s=><option key={s}>{s}</option>)}
@@ -388,15 +457,17 @@ function CELikeTab({ ces, applications, subcontractId, projectId, onRefresh, typ
               </select></div>
             <div className="field span2"><label className="field-label">Description *</label>
               <input value={form.description} onChange={e => setForm(f=>({...f,description:e.target.value}))}
-                placeholder={type === 'daywork' ? 'Describe the daywork charge…' : 'Describe the variation / extra work…'} /></div>
-            <div className="field"><label className="field-label">Sub Claim (€)</label>
-              <input type="number" step="0.01" value={form.sub_value} onChange={e => setForm(f=>({...f,sub_value:e.target.value}))} /></div>
-            <div className="field"><label className="field-label">GMC Assessed (€)</label>
+                placeholder={type === 'daywork' ? 'Describe the daywork charge…' : isContra ? 'Describe the reason for the deduction…' : 'Describe the variation / extra work…'} /></div>
+            {!isContra && (
+              <div className="field"><label className="field-label">Sub Claim (€)</label>
+                <input type="number" step="0.01" value={form.sub_value} onChange={e => setForm(f=>({...f,sub_value:e.target.value}))} /></div>
+            )}
+            <div className="field"><label className="field-label">{valueLabel}</label>
               <input type="number" step="0.01" value={form.gmc_value} onChange={e => setForm(f=>({...f,gmc_value:e.target.value}))} /></div>
           </div>
           <div style={{ display:'flex', gap:8, marginTop:12 }}>
-            <button className="btn-primary" onClick={submit} disabled={saving}>{saving?'Saving…':`Save ${label}`}</button>
-            <button className="btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
+            <button className="btn-primary" onClick={submit} disabled={saving}>{saving?'Saving…':(editingId?`Update ${label}`:`Save ${label}`)}</button>
+            <button className="btn-ghost" onClick={cancelForm}>Cancel</button>
           </div>
         </div>
       )}
@@ -408,26 +479,29 @@ function CELikeTab({ ces, applications, subcontractId, projectId, onRefresh, typ
         <table className="boq-table" style={{ marginTop: 12, zoom: `${zoom}%` }}>
           <thead>
             <tr>
-              {showRef && <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Ref</th>}
               <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Description</th>
-              <th className="col-num" style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Sub Claim (€)</th>
-              <th className="col-num" style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>GMC Value (€)</th>
-              <th className="col-num" style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Delta (€)</th>
+              {!isContra && <th className="col-num" style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Sub Claim (€)</th>}
+              <th className="col-num" style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>{valueLabel}</th>
+              {!isContra && <th className="col-num" style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Delta (€)</th>}
               <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Status</th>
               <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Application</th>
               <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Approved</th>
+              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}></th>
             </tr>
           </thead>
           <tbody>
             {ces.map(ce => (
               <tr key={ce.id}>
-                {showRef && <td style={{ fontFamily:'monospace', fontSize:12 }}>{ce.ce_ref}</td>}
                 <td>{ce.description}</td>
-                <td className="col-num">{fmt(ce.sub_value)}</td>
-                <td className="col-num" style={{ fontWeight: 600 }}>{fmt(ce.gmc_value)}</td>
-                <td className="col-num" style={{ color: ce.gmc_value >= ce.sub_value ? '#166534' : '#dc2626' }}>
-                  {ce.gmc_value - ce.sub_value >= 0 ? '+' : ''}{fmt(ce.gmc_value - ce.sub_value)}
+                {!isContra && <td className="col-num">{fmt(ce.sub_value)}</td>}
+                <td className="col-num" style={{ fontWeight: 600, color: isContra ? '#dc2626' : 'inherit' }}>
+                  {isContra ? '−' : ''}{fmt(ce.gmc_value)}
                 </td>
+                {!isContra && (
+                  <td className="col-num" style={{ color: ce.gmc_value >= ce.sub_value ? '#166534' : '#dc2626' }}>
+                    {ce.gmc_value - ce.sub_value >= 0 ? '+' : ''}{fmt(ce.gmc_value - ce.sub_value)}
+                  </td>
+                )}
                 <td>
                   <select value={ce.status} onChange={e => changeCEStatus(ce.id, e.target.value)}
                     style={{ background: CE_STATUS_BG[ce.status], color: CE_STATUS_COLOR[ce.status], border:'none', borderRadius:12,
@@ -441,6 +515,16 @@ function CELikeTab({ ces, applications, subcontractId, projectId, onRefresh, typ
                     : <span style={{ color:'#9ca3af' }}>—</span>}
                 </td>
                 <td style={{ fontSize:12 }}>{ce.approved_date ? new Date(ce.approved_date+'T12:00:00').toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric'}) : '—'}</td>
+                <td style={{ display:'flex', gap:4, alignItems:'center' }}>
+                  <button onClick={() => openEdit(ce)} title="Edit"
+                    style={{ background:'none', border:'1px solid #c7d2fe', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12, color:'#4338ca' }}>
+                    ✎
+                  </button>
+                  <button onClick={() => deleteCE(ce)} title="Delete"
+                    style={{ background:'none', border:'1px solid #fca5a5', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12, color:'#dc2626' }}>
+                    ✕
+                  </button>
+                </td>
               </tr>
             ))}
           </tbody>

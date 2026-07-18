@@ -51,11 +51,17 @@ function recalcApplicationGmc(con, appId) {
   const app = con.prepare('SELECT id, subcontract_id, application_number, value_gmc_boq FROM sub_application WHERE id=?').get(appId);
   if (!app) return;
   const sc = con.prepare('SELECT retention_pct FROM subcontract WHERE id=?').get(app.subcontract_id);
-  const ceSum = (con.prepare(`
+  // Daywork/Variation ADD to the application's value (extra work); Contra Charge SUBTRACTS
+  // (a deduction charged back to the sub, e.g. for cleanup/damage/materials GMC covered).
+  const addSum = (con.prepare(`
     SELECT COALESCE(SUM(gmc_value),0) AS s FROM compensation_event
-    WHERE sub_application_id=? AND status='agreed'
+    WHERE sub_application_id=? AND status='agreed' AND type IN ('daywork','variation')
   `).get(appId)).s;
-  const valueGmc = Math.round(((app.value_gmc_boq || 0) + ceSum) * 100) / 100;
+  const deductSum = (con.prepare(`
+    SELECT COALESCE(SUM(gmc_value),0) AS s FROM compensation_event
+    WHERE sub_application_id=? AND status='agreed' AND type='contra_charge'
+  `).get(appId)).s;
+  const valueGmc = Math.round(((app.value_gmc_boq || 0) + addSum - deductSum) * 100) / 100;
   // application_number < this one, not "id != this one" -- a CE can be linked/unlinked on an
   // EARLIER application after a LATER one already exists, and summing every other application
   // regardless of order would pull that later application's value into "previous", corrupting
@@ -303,9 +309,10 @@ router.get('/projects/:pid/subcontracts/:id/applications/:appId/certificate', (r
     WHERE ai.sub_application_id=? ORDER BY sbi.sort_order
   `).all(app.id);
 
-  // Linked, agreed Variations/Dayworks -- these are already folded into app.value_gmc (see
-  // recalcApplicationGmc), so the summary numbers below need no extra math; this list is purely
-  // for the certificate to show each one's own description/value as a line item.
+  // Linked, agreed Variations/Dayworks/Contra Charges -- these are already folded into
+  // app.value_gmc (added or subtracted as appropriate, see recalcApplicationGmc), so the summary
+  // numbers below need no extra math; this list is purely for the certificate to show each one's
+  // own description/value as a line item.
   const compensationEvents = con.prepare(`
     SELECT * FROM compensation_event WHERE sub_application_id=? AND status='agreed' ORDER BY type, ce_ref
   `).all(app.id);
@@ -338,6 +345,47 @@ router.get('/projects/:pid/subcontracts/:id/applications/:appId/certificate', (r
     items,
     compensation_events: compensationEvents,
   });
+});
+
+// Full statement across EVERY application on this subcontract -- some subs run to 30+
+// applications over a long contract, and divergences (cuts, linked CEs) accumulate across all of
+// them, so a QS needs one document covering the whole history (not just one application, like the
+// certificate above) to walk through with the sub in a meeting. Precomputes each application's
+// Daywork/Variation/Contra Charge sums and its cut (Sub Claimed - GMC Assessed) server-side so the
+// client only has to render, matching the same math already used per-application elsewhere.
+router.get('/projects/:pid/subcontracts/:id/statement', (req, res) => {
+  const con = db();
+  const sc = con.prepare('SELECT sc.*, s.name AS sub_name FROM subcontract sc JOIN subcontractor s ON s.id=sc.subcontractor_id WHERE sc.id=? AND sc.project_id=?').get(req.params.id, req.params.pid);
+  if (!sc) { con.close(); return res.status(404).json({ error: 'Not found' }); }
+  const project = con.prepare('SELECT name, ref, client FROM project WHERE id=?').get(req.params.pid) || {};
+  const contractValue = con.prepare('SELECT COALESCE(ROUND(SUM(qty*rate),2),0) AS v FROM sub_boq_item WHERE subcontract_id=?').get(req.params.id).v;
+
+  const apps = con.prepare('SELECT * FROM sub_application WHERE subcontract_id=? ORDER BY application_number').all(sc.id);
+  const itemsStmt = con.prepare(`
+    SELECT ai.*, sbi.item_ref, sbi.description, sbi.unit, ROUND(sbi.qty*sbi.rate,2) AS contract_value
+    FROM sub_application_item ai JOIN sub_boq_item sbi ON sbi.id=ai.sub_boq_item_id
+    WHERE ai.sub_application_id=? ORDER BY sbi.sort_order
+  `);
+  const cesStmt = con.prepare(`SELECT * FROM compensation_event WHERE sub_application_id=? AND status='agreed' ORDER BY type, ce_ref`);
+
+  const applications = apps.map(a => {
+    const items = itemsStmt.all(a.id);
+    const ces   = cesStmt.all(a.id);
+    const sumType = t => ces.filter(c => c.type === t).reduce((s, c) => s + (c.gmc_value || 0), 0);
+    return {
+      ...a,
+      items,
+      compensation_events: ces,
+      daySum: sumType('daywork'),
+      varSum: sumType('variation'),
+      ccSum:  sumType('contra_charge'),
+      cutValue: Math.round(((a.value_sub || 0) - (a.value_gmc || 0)) * 100) / 100,
+      cutPct: (a.value_sub || 0) > 0 ? Math.round((1 - (a.value_gmc || 0) / a.value_sub) * 1000) / 10 : 0,
+    };
+  });
+
+  con.close();
+  res.json({ subcontract: sc, project, contractValue, applications });
 });
 
 // Get single application with items
@@ -716,22 +764,23 @@ router.post('/projects/:pid/subcontracts/:id/applications/:appId/approve', (req,
 
 // â”€â”€ COMPENSATION EVENTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
-// type='variation' (default) requires ce_ref, matching the existing convention. type='daywork'
-// has no Ref field in the UI (the user explicitly asked for it to be dropped -- a plain running
-// charge doesn't need one the way a numbered contract variation does), so one is auto-generated
-// server-side just to satisfy compensation_event's NOT NULL + UNIQUE(subcontract_id, ce_ref).
+// None of the three types has a Ref field in the UI (a running charge, a variation, or a
+// contra-charge deduction all read fine without a manually entered number), so one is always
+// auto-generated server-side just to satisfy compensation_event's NOT NULL + UNIQUE(subcontract_id,
+// ce_ref): DW-N daywork, CE-N variation, CC-N contra_charge, sequential per subcontract per type.
+// A caller can still pass ce_ref explicitly (e.g. importing pre-numbered historical data).
 router.post('/projects/:pid/subcontracts/:id/ces', (req, res) => {
   const con = db();
   const sc = con.prepare('SELECT id FROM subcontract WHERE id=? AND project_id=?').get(req.params.id, req.params.pid);
   if (!sc) throw notFound('Subcontract not found');
   const { ce_ref, description, sub_value, gmc_value, status, sub_application_id, notes, type } = req.body;
-  const ceType = type === 'daywork' ? 'daywork' : 'variation';
+  const ceType = type === 'daywork' ? 'daywork' : type === 'contra_charge' ? 'contra_charge' : 'variation';
   if (!description) throw badReq('description required');
   let ref = ce_ref;
   if (!ref) {
-    if (ceType !== 'daywork') throw badReq('ce_ref required for variations');
-    const n = (con.prepare(`SELECT COUNT(*)+1 AS n FROM compensation_event WHERE subcontract_id=? AND type='daywork'`).get(sc.id)).n;
-    ref = `DW-${n}`;
+    const prefix = ceType === 'daywork' ? 'DW-' : ceType === 'contra_charge' ? 'CC-' : 'CE-';
+    const n = (con.prepare(`SELECT COUNT(*)+1 AS n FROM compensation_event WHERE subcontract_id=? AND type=?`).get(sc.id, ceType)).n;
+    ref = `${prefix}${n}`;
   }
   const r = con.prepare('INSERT INTO compensation_event (subcontract_id,sub_application_id,ce_ref,description,sub_value,gmc_value,status,type,notes) VALUES (?,?,?,?,?,?,?,?,?)')
                .run(sc.id, sub_application_id||null, ref, description, sub_value||0, gmc_value||0, status||'submitted', ceType, notes||null);
@@ -740,18 +789,39 @@ router.post('/projects/:pid/subcontracts/:id/ces', (req, res) => {
   con.close();
 });
 
+// Used both for the quick inline status-only change (from the table's status dropdown) and for
+// the full edit form (description/values/ref/application link). sub_application_id is handled
+// outside the COALESCE group, since COALESCE can't distinguish "not sent" from "explicitly
+// cleared to unlink" -- the edit form always sends the field (number or null), the quick
+// status-only caller never does, so `undefined` (unlink field absent from body) means "leave as is".
 router.patch('/projects/:pid/subcontracts/:id/ces/:ceId', (req, res) => {
   const con = db();
-  const ce = con.prepare('SELECT id, sub_application_id FROM compensation_event WHERE id=? AND subcontract_id=?').get(req.params.ceId, req.params.id);
+  const ce = con.prepare('SELECT * FROM compensation_event WHERE id=? AND subcontract_id=?').get(req.params.ceId, req.params.id);
   if (!ce) throw notFound('CE not found');
-  const { gmc_value, status, approved_date, notes } = req.body;
-  con.prepare(`UPDATE compensation_event SET gmc_value=COALESCE(?,gmc_value), status=COALESCE(?,status),
-    approved_date=COALESCE(?,approved_date), notes=COALESCE(?,notes) WHERE id=?`)
-   .run(gmc_value??null, status||null, approved_date||null, notes||null, ce.id);
-  // gmc_value/status changes affect the linked application's total (only counts once status='agreed').
+  const { ce_ref, description, sub_value, gmc_value, status, sub_application_id, approved_date, notes } = req.body;
+  const newAppId = sub_application_id === undefined ? ce.sub_application_id : (sub_application_id || null);
+  con.prepare(`UPDATE compensation_event SET
+      ce_ref=COALESCE(?,ce_ref), description=COALESCE(?,description),
+      sub_value=COALESCE(?,sub_value), gmc_value=COALESCE(?,gmc_value), status=COALESCE(?,status),
+      sub_application_id=?, approved_date=COALESCE(?,approved_date), notes=COALESCE(?,notes)
+    WHERE id=?`)
+   .run(ce_ref||null, description||null, sub_value??null, gmc_value??null, status||null,
+        newAppId, approved_date||null, notes||null, ce.id);
+  // Recalc whichever application(s) this CE's contribution moved between (old link, new link, or both).
   if (ce.sub_application_id) recalcApplicationGmc(con, ce.sub_application_id);
+  if (newAppId && newAppId !== ce.sub_application_id) recalcApplicationGmc(con, newAppId);
   res.json(con.prepare('SELECT * FROM compensation_event WHERE id=?').get(ce.id));
   con.close();
+});
+
+router.delete('/projects/:pid/subcontracts/:id/ces/:ceId', (req, res) => {
+  const con = db();
+  const ce = con.prepare('SELECT id, sub_application_id FROM compensation_event WHERE id=? AND subcontract_id=?').get(req.params.ceId, req.params.id);
+  if (!ce) { con.close(); return res.status(404).json({ error: 'Not found' }); }
+  con.prepare('DELETE FROM compensation_event WHERE id=?').run(ce.id);
+  if (ce.sub_application_id) recalcApplicationGmc(con, ce.sub_application_id);
+  con.close();
+  res.json({ ok: true });
 });
 
 // â”€â”€ SUB INVOICES â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
