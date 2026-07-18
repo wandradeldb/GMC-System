@@ -37,11 +37,11 @@ function deriveCategory(transType, costCode, costType) {
   if (tt === 'PLANT' || tt === 'PLINV')               return 'Plant';
   if (cc === 'lab')                                   return 'Labour';
   if (cc === 'sal')                                   return 'Salary';
-  if (cc === 'oheads gen' || cc.includes('overhead')) return 'Overhead';
-  if (cc === 's04')                                   return 'Sub';
+  if (cc.startsWith('oheads') || cc === 's05' || cc === 's06' || cc === 's07' || cc === 'scn' || cc.includes('overhead')) return 'Overhead';
+  if (cc === 's04' || cc === 'tm')                    return 'Sub';
   if (cc === 'sun')                                   return 'Sundry';
-  if (cc === 'pla' || cc === 'pl3')                   return 'Plant';
-  if (cc === 'mat' || cc === 'm03')                   return 'Material';
+  if (cc === 'pla' || cc === 'pl1' || cc === 'pl2' || cc === 'pl3' || cc === 's02') return 'Plant';
+  if (cc === 'mat' || cc === 'm02' || cc === 'm03' || cc === 'm05') return 'Material';
   if (tt === 'POP')                                   return 'Material';
   return 'Other';
 }
@@ -56,10 +56,16 @@ function nextFriday(isoDate) {
   return d.toISOString().slice(0, 10);
 }
 
-// Excel serial â†’ YYYY-MM-DD
-function serialToISO(serial) {
+// Excel serial â†’ YYYY-MM-DD. date1904 must be passed for files that use Excel's 1904 date
+// system (common in exports originating from older Mac Excel or some ERP/accounting systems) --
+// XLSX.SSF.parse_date_code defaults to the 1900 system, and without this flag a 1904-system
+// serial parses ~4 years off (day/month land close to correct, since the two epochs are ~1462
+// days apart, but the year is wrong) -- which silently breaks every week_ending join against
+// tracker_we downstream (buildTrackerReport in tracker.js matches on the full date string), even
+// though the transaction list itself still looks right since day/month display fine.
+function serialToISO(serial, date1904) {
   if (!serial || isNaN(serial)) return null;
-  const d = XLSX.SSF.parse_date_code(Number(serial));
+  const d = XLSX.SSF.parse_date_code(Number(serial), date1904 ? { date1904: true } : undefined);
   if (!d) return null;
   return `${d.y}-${String(d.m).padStart(2,'0')}-${String(d.d).padStart(2,'0')}`;
 }
@@ -69,6 +75,7 @@ router.post('/projects/:pid/qs-costs/import', upload.single('file'), (req, res) 
   if (!req.file) return res.status(400).json({ error: 'No file uploaded', code: 'NO_FILE' });
 
   const wb = XLSX.read(req.file.buffer, { type: 'buffer' });
+  const date1904 = !!(wb.Workbook && wb.Workbook.WBProps && wb.Workbook.WBProps.date1904);
 
   // Auto-detect the right sheet: check requested name first, then scan all sheets
   // for one containing the characteristic QS Cost headers
@@ -174,10 +181,10 @@ router.post('/projects/:pid/qs-costs/import', upload.single('file'), (req, res) 
     const costType  = getStr(COL.cost_type);
     const weSerial  = getNum(COL.week_ending);
     const tdSerial  = getNum(COL.trans_date);
-    const transDate = serialToISO(tdSerial);
+    const transDate = serialToISO(tdSerial, date1904);
     // Some real exports have no WE/month/year columns at all — fall back to the Friday on/after
     // trans_date, matching the "week ending" convention used everywhere else in the app.
-    const weekEnding = serialToISO(weSerial) || nextFriday(transDate);
+    const weekEnding = serialToISO(weSerial, date1904) || nextFriday(transDate);
 
     rows.push({
       transaction_id:   getStr(COL.transaction_id),
