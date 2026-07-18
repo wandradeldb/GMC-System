@@ -718,6 +718,12 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
   const cutTotal   = folanTotal - gmcTotal;
   const cutPctLive = folanTotal > 0 ? (1 - gmcTotal / folanTotal) * 100 : 0;
 
+  // Linked Variations/Daywork: only 'agreed' ones sum into the application's GMC total
+  // (matches server-side recalcApplicationGmc), so the header/summary must add the same sum
+  // here to show what will actually be saved/is already saved.
+  const linkedCEs   = detail.compensation_events || [];
+  const ceSumAgreed = linkedCEs.filter(c => c.status === 'agreed').reduce((s, c) => s + (c.gmc_value || 0), 0);
+
   // Cap: cumulative (pct_prev + this) cannot exceed 100%
   const setItemGmcPct = (id, v) => {
     const n    = parseFloat(v);
@@ -792,7 +798,7 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
           <div style={{ marginLeft:'auto', display:'flex', gap:10, alignItems:'center' }}>
             <div style={{ textAlign:'right' }}>
               <div style={{ fontSize:8, color:'#6b7280' }}>GMC ASSESSMENT</div>
-              <div style={{ fontSize:13, fontWeight:700, color:'#166534' }}>{fmtE(editable ? gmcTotal : app.value_gmc, 2)}</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#166534' }}>{fmtE(editable ? gmcTotal + ceSumAgreed : app.value_gmc, 2)}</div>
             </div>
             <div style={{ textAlign:'right' }}>
               <div style={{ fontSize:8, color:'#6b7280' }}>CUMULATIVE</div>
@@ -815,6 +821,21 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
         </div>
         {error && <div style={{ background:'#fee2e2', color:'#991b1b', padding:'4px 10px', borderRadius:6, marginTop:4, fontSize:11 }}>{error}</div>}
       </div>
+
+      {linkedCEs.length > 0 && (
+        <div style={{ background:'#faf5ff', border:'1px solid #ddd6fe', borderRadius:8, padding:'6px 10px', marginBottom:6 }}>
+          <div style={{ fontSize:10, fontWeight:600, color:'#6d28d9', textTransform:'uppercase', letterSpacing:'0.05em', marginBottom:4 }}>
+            Linked Variations & Daywork
+          </div>
+          {linkedCEs.map(ce => (
+            <div key={ce.id} style={{ display:'flex', justifyContent:'space-between', gap:12, fontSize:12, padding:'2px 0',
+              color: ce.status === 'agreed' ? '#1a1a2e' : '#9ca3af' }}>
+              <span>{ce.type === 'daywork' ? 'Daywork' : ce.ce_ref} — {ce.description}{ce.status !== 'agreed' ? ` (${ce.status})` : ''}</span>
+              <span style={{ fontWeight:600 }}>{fmtE(ce.gmc_value, 2)}</span>
+            </div>
+          ))}
+        </div>
+      )}
 
       {app.notes && (
         <div style={{ background:'#f8fafc', border:'1px solid #e5e7eb', borderRadius:8, padding:'6px 10px', marginBottom:6, fontSize:12, color:'#374151' }}>
@@ -859,7 +880,7 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
           <div style={{ fontSize:11, fontWeight:600, color:'#166534', marginBottom:4 }}>✓ {ss.label.toUpperCase()}</div>
           <div style={{ display:'flex', gap:20, flexWrap:'wrap' }}>
             <Stat label="Sub Claimed"  value={fmtE(totalSubC,2)} color="#1a1a2e" small />
-            <Stat label="GMC Approved" value={fmtE(totalGmcC,2)} color="#166534" small />
+            <Stat label="GMC Approved" value={fmtE(totalGmcC + ceSumAgreed,2)} color="#166534" small />
             <Stat label="Cut Applied"  value={`${cutPctApproved}%`} color="#dc2626" small />
             {app.qs_approved_date && (
               <Stat label="Date" value={fmtDate(app.qs_approved_date)} color="#374151" small />
@@ -951,7 +972,7 @@ function Stat({ label, value, color, small }) {
 
 // ── Payment Certificate ───────────────────────────────────────────────────────
 function CertificateView({ data, onBack }) {
-  const { app, project = {}, subcontract = {}, summary: s = {}, history = [], items = [] } = data;
+  const { app, project = {}, subcontract = {}, summary: s = {}, history = [], items = [], compensation_events: ces = [] } = data;
   const checklist = [
     'Contract Alignment — application within contract scope',
     'Documentation — invoices, timesheets, certificates received',
@@ -1005,6 +1026,11 @@ function CertificateView({ data, onBack }) {
           <tbody>
             <CRow label="Contract Value" value={fmtE(s.contractValue,2)} />
             <CRow label="This Application Value" value={fmtE(s.thisApp,2)} />
+            {ces.map(ce => (
+              <CRow key={ce.id}
+                label={`  ↳ ${ce.type === 'daywork' ? 'Daywork' : ce.ce_ref}: ${ce.description}`}
+                value={fmtE(ce.gmc_value,2)} color="#7c3aed" />
+            ))}
             <CRow label="Previously Certified" value={fmtE(s.previously,2)} />
             <CRow label="Cumulative Certified" value={fmtE(s.cumulative,2)} bold />
             <CRow label="% of Works Completed" value={`${s.pctComplete}%`} />

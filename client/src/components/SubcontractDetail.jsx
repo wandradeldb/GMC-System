@@ -32,6 +32,8 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
   if (!data) return <div className="state-box"><div className="icon">⏳</div><p>Loading…</p></div>;
 
   const { subcontract: sc, boq_items, applications, compensation_events } = data;
+  const variations = compensation_events.filter(c => c.type !== 'daywork');
+  const dayworks    = compensation_events.filter(c => c.type === 'daywork');
 
   const totalCertified = applications.filter(a => a.status !== 'draft')
                                      .reduce((s, a) => s + (a.value_gmc || 0), 0);
@@ -80,9 +82,10 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
       <div className="das-tabs" style={{ marginTop: 4 }}>
         {[
           { id:'overview',    label:`Applications (${applications.length})` },
-          { id:'boq',         label:`Sub BOQ (${boq_items.length})` },
-          { id:'ces',         label:`Variations (${compensation_events.length})` },
+          { id:'daywork',     label:`Daywork (${dayworks.length})` },
+          { id:'ces',         label:`Variation (${variations.length})` },
           { id:'payments',    label:'Tracker Invoices' },
+          { id:'boq',         label:`Sub BOQ (${boq_items.length})` },
         ].map(t => (
           <button key={t.id} className={`das-tab ${tab === t.id ? 'active' : ''}`} onClick={() => setTab(t.id)}>
             {t.label}
@@ -103,7 +106,14 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
           />
         )}
         {tab === 'boq' && <BOQTab boqItems={boq_items} boqCertified={boqCertified} projectId={projectId} subcontractId={subcontractId} onRefresh={load} />}
-        {tab === 'ces'  && <CETab ces={compensation_events} subcontractId={sc.id} projectId={projectId} onRefresh={load} />}
+        {tab === 'daywork' && (
+          <CELikeTab ces={dayworks} applications={applications} subcontractId={sc.id} projectId={projectId}
+            onRefresh={load} type="daywork" showRef={false} onViewApp={appId => onOpenAssessment(sc, appId)} />
+        )}
+        {tab === 'ces'  && (
+          <CELikeTab ces={variations} applications={applications} subcontractId={sc.id} projectId={projectId}
+            onRefresh={load} type="variation" showRef={true} onViewApp={appId => onOpenAssessment(sc, appId)} />
+        )}
         {tab === 'payments' && (
           <PaymentCalendar
             projectId={projectId}
@@ -306,24 +316,35 @@ function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh })
   );
 }
 
-/* ── Compensation Events Tab ─────────────────────────────────────────────── */
-function CETab({ ces, subcontractId, projectId, onRefresh }) {
+/* ── Variation / Daywork Tab ───────────────────────────────────────────────
+   Both are compensation_event rows distinguished only by `type`; Daywork has no
+   Ref field (a running charge doesn't need one the way a numbered variation does).
+   Either kind can optionally link to an Application, which sums its agreed GMC
+   value into that application's total (server-side, see recalcApplicationGmc). */
+function CELikeTab({ ces, applications, subcontractId, projectId, onRefresh, type, showRef, onViewApp }) {
   const zoom = useZoom();
   const [showForm, setShowForm] = useState(false);
-  const [form, setForm] = useState({ ce_ref:'', description:'', sub_value:'', gmc_value:'', status:'submitted', notes:'' });
+  const [form, setForm] = useState({ ce_ref:'', description:'', sub_value:'', gmc_value:'', status:'submitted', notes:'', sub_application_id:'' });
   const [saving, setSaving] = useState(false);
+
+  const label = type === 'daywork' ? 'Daywork' : 'CE';
+  const noun  = type === 'daywork' ? 'daywork charges' : 'compensation events';
 
   const submit = async () => {
     setSaving(true);
-    // extract pid from URL — passed in as prop
     await apiFetch(`/api/v1/projects/${projectId}/subcontracts/${subcontractId}/ces`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ ...form, sub_value: parseFloat(form.sub_value)||0, gmc_value: parseFloat(form.gmc_value)||0 }),
+      body: JSON.stringify({
+        ...form, type,
+        sub_value: parseFloat(form.sub_value)||0,
+        gmc_value: parseFloat(form.gmc_value)||0,
+        sub_application_id: form.sub_application_id ? Number(form.sub_application_id) : null,
+      }),
     });
     setSaving(false);
     setShowForm(false);
-    setForm({ ce_ref:'', description:'', sub_value:'', gmc_value:'', status:'submitted', notes:'' });
+    setForm({ ce_ref:'', description:'', sub_value:'', gmc_value:'', status:'submitted', notes:'', sub_application_id:'' });
     onRefresh();
   };
 
@@ -337,56 +358,70 @@ function CETab({ ces, subcontractId, projectId, onRefresh }) {
     onRefresh();
   };
 
+  const appLabel = id => {
+    const a = applications.find(x => x.id === id);
+    return a ? `App #${a.application_number}` : `App #${id}`;
+  };
+
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div className="section-toolbar">
-        <span className="section-stat">{ces.length} compensation events · GMC agreed: €{fmt(ces.filter(c=>c.status==='agreed').reduce((s,c)=>s+c.gmc_value,0))}</span>
-        <button className="btn-primary" onClick={() => setShowForm(s => !s)}>+ New CE</button>
+        <span className="section-stat">{ces.length} {noun} · GMC agreed: €{fmt(ces.filter(c=>c.status==='agreed').reduce((s,c)=>s+c.gmc_value,0))}</span>
+        <button className="btn-primary" onClick={() => setShowForm(s => !s)}>+ New {label}</button>
       </div>
 
       {showForm && (
         <div className="inline-form">
           <div className="section-grid">
-            <div className="field"><label className="field-label">CE Ref *</label>
-              <input value={form.ce_ref} onChange={e => setForm(f=>({...f,ce_ref:e.target.value}))} placeholder="CE-001" /></div>
+            {showRef && (
+              <div className="field"><label className="field-label">CE Ref *</label>
+                <input value={form.ce_ref} onChange={e => setForm(f=>({...f,ce_ref:e.target.value}))} placeholder="CE-001" /></div>
+            )}
             <div className="field"><label className="field-label">Status</label>
               <select value={form.status} onChange={e => setForm(f=>({...f,status:e.target.value}))}>
                 {['submitted','assessed','agreed','rejected'].map(s=><option key={s}>{s}</option>)}
               </select></div>
+            <div className="field"><label className="field-label">Application</label>
+              <select value={form.sub_application_id} onChange={e => setForm(f=>({...f,sub_application_id:e.target.value}))}>
+                <option value="">— Not linked —</option>
+                {applications.map(a => <option key={a.id} value={a.id}>App #{a.application_number} ({fmtDate(a.week_ending)})</option>)}
+              </select></div>
             <div className="field span2"><label className="field-label">Description *</label>
-              <input value={form.description} onChange={e => setForm(f=>({...f,description:e.target.value}))} placeholder="Describe the variation / extra work…" /></div>
+              <input value={form.description} onChange={e => setForm(f=>({...f,description:e.target.value}))}
+                placeholder={type === 'daywork' ? 'Describe the daywork charge…' : 'Describe the variation / extra work…'} /></div>
             <div className="field"><label className="field-label">Sub Claim (€)</label>
               <input type="number" step="0.01" value={form.sub_value} onChange={e => setForm(f=>({...f,sub_value:e.target.value}))} /></div>
             <div className="field"><label className="field-label">GMC Assessed (€)</label>
               <input type="number" step="0.01" value={form.gmc_value} onChange={e => setForm(f=>({...f,gmc_value:e.target.value}))} /></div>
           </div>
           <div style={{ display:'flex', gap:8, marginTop:12 }}>
-            <button className="btn-primary" onClick={submit} disabled={saving}>{saving?'Saving…':'Save CE'}</button>
+            <button className="btn-primary" onClick={submit} disabled={saving}>{saving?'Saving…':`Save ${label}`}</button>
             <button className="btn-ghost" onClick={() => setShowForm(false)}>Cancel</button>
           </div>
         </div>
       )}
 
       {ces.length === 0 && !showForm ? (
-        <div className="empty-hint">No compensation events raised.</div>
+        <div className="empty-hint">No {noun} raised.</div>
       ) : (
         <div style={{ flex:1, minHeight:0, overflow:'auto' }}>
         <table className="boq-table" style={{ marginTop: 12, zoom: `${zoom}%` }}>
           <thead>
             <tr>
-              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Ref</th>
+              {showRef && <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Ref</th>}
               <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Description</th>
               <th className="col-num" style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Sub Claim (€)</th>
               <th className="col-num" style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>GMC Value (€)</th>
               <th className="col-num" style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Delta (€)</th>
               <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Status</th>
+              <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Application</th>
               <th style={{position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Approved</th>
             </tr>
           </thead>
           <tbody>
             {ces.map(ce => (
               <tr key={ce.id}>
-                <td style={{ fontFamily:'monospace', fontSize:12 }}>{ce.ce_ref}</td>
+                {showRef && <td style={{ fontFamily:'monospace', fontSize:12 }}>{ce.ce_ref}</td>}
                 <td>{ce.description}</td>
                 <td className="col-num">{fmt(ce.sub_value)}</td>
                 <td className="col-num" style={{ fontWeight: 600 }}>{fmt(ce.gmc_value)}</td>
@@ -399,6 +434,11 @@ function CETab({ ces, subcontractId, projectId, onRefresh }) {
                       padding:'2px 8px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
                     {Object.keys(CE_STATUS_BG).map(s => <option key={s} value={s}>{s}</option>)}
                   </select>
+                </td>
+                <td style={{ fontSize:12 }}>
+                  {ce.sub_application_id
+                    ? <button className="btn-link" onClick={() => onViewApp(ce.sub_application_id)}>{appLabel(ce.sub_application_id)} →</button>
+                    : <span style={{ color:'#9ca3af' }}>—</span>}
                 </td>
                 <td style={{ fontSize:12 }}>{ce.approved_date ? new Date(ce.approved_date+'T12:00:00').toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric'}) : '—'}</td>
               </tr>

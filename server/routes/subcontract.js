@@ -9,13 +9,68 @@ const DB_PATH = require('../db-path');
 function db() {
   const con = new DatabaseSync(DB_PATH, { open: true });
   con.exec('PRAGMA foreign_keys = ON');
+  ensureSchema(con);
   return con;
+}
+
+// Migration (self-applying, no manual migration-runner reaches the persistent Railway volume --
+// see server/routes/tracker.js's ensureCategoryTable for the full pattern writeup):
+// - compensation_event.type distinguishes 'variation' from 'daywork' (same table, same linking to
+//   an application, just a different label/no-ref-field in the UI).
+// - sub_application.value_gmc_boq freezes the pure BOQ-percentage-based GMC value, separately from
+//   value_gmc (the total actually paid out, which now also includes agreed Variations/Dayworks
+//   linked to this application). Keeping them separate means recalcApplicationGmc can always safely
+//   recompute value_gmc = value_gmc_boq + linked-CE-sum from scratch, with no risk of double-adding
+//   a CE that was already folded in on a previous save.
+function ensureSchema(con) {
+  const ceCols = con.prepare("PRAGMA table_info(compensation_event)").all().map(c => c.name);
+  if (!ceCols.includes('type')) {
+    con.exec("ALTER TABLE compensation_event ADD COLUMN type TEXT NOT NULL DEFAULT 'variation'");
+  }
+  const appCols = con.prepare("PRAGMA table_info(sub_application)").all().map(c => c.name);
+  if (!appCols.includes('value_gmc_boq')) {
+    con.exec("ALTER TABLE sub_application ADD COLUMN value_gmc_boq REAL NOT NULL DEFAULT 0");
+    // One-time backfill: before this feature, value_gmc was always purely BOQ-based (no
+    // compensation_event was ever linked to an application), so copying it verbatim is exact.
+    con.exec("UPDATE sub_application SET value_gmc_boq = value_gmc");
+  }
 }
 
 const STATUS_FLOW = ['draft','assessed','approved','invoiced','paid'];
 
 function notFound(msg) { return Object.assign(new Error(msg), { status: 404, code: 'NOT_FOUND' }); }
 function badReq(msg)   { return Object.assign(new Error(msg), { status: 400, code: 'BAD_REQUEST' }); }
+
+// Recompute one application's value_gmc (= value_gmc_boq + sum of its linked, agreed
+// Variations/Dayworks), then its cumulative/retention/net_payable against prior non-draft
+// applications -- called after saving the BOQ-based assessment, or after a compensation_event
+// linked to this application is created/updated. Only recalculates this one application, matching
+// the existing (pre-this-feature) behavior where editing one application's assessment doesn't
+// itself ripple into already-saved later applications' stored cumulative figures either.
+function recalcApplicationGmc(con, appId) {
+  const app = con.prepare('SELECT id, subcontract_id, application_number, value_gmc_boq FROM sub_application WHERE id=?').get(appId);
+  if (!app) return;
+  const sc = con.prepare('SELECT retention_pct FROM subcontract WHERE id=?').get(app.subcontract_id);
+  const ceSum = (con.prepare(`
+    SELECT COALESCE(SUM(gmc_value),0) AS s FROM compensation_event
+    WHERE sub_application_id=? AND status='agreed'
+  `).get(appId)).s;
+  const valueGmc = Math.round(((app.value_gmc_boq || 0) + ceSum) * 100) / 100;
+  // application_number < this one, not "id != this one" -- a CE can be linked/unlinked on an
+  // EARLIER application after a LATER one already exists, and summing every other application
+  // regardless of order would pull that later application's value into "previous", corrupting
+  // this one's cumulative/retention/net_payable.
+  const prevCum = (con.prepare(`
+    SELECT COALESCE(SUM(value_gmc),0) AS cum FROM sub_application
+    WHERE subcontract_id=? AND status != 'draft' AND application_number < ?
+  `).get(app.subcontract_id, app.application_number)).cum;
+  const cumGmc  = Math.round((prevCum + valueGmc) * 100) / 100;
+  const retHeld = Math.round(cumGmc * (sc.retention_pct / 100) * 100) / 100;
+  const prevRet = Math.round(prevCum * (sc.retention_pct / 100) * 100) / 100;
+  const netPay  = Math.round((valueGmc - (retHeld - prevRet)) * 100) / 100;
+  con.prepare('UPDATE sub_application SET value_gmc=?, cumulative_gmc=?, net_payable=? WHERE id=?')
+     .run(valueGmc, cumGmc, netPay, appId);
+}
 
 // â”€â”€ SUBCONTRACTORS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
@@ -248,6 +303,13 @@ router.get('/projects/:pid/subcontracts/:id/applications/:appId/certificate', (r
     WHERE ai.sub_application_id=? ORDER BY sbi.sort_order
   `).all(app.id);
 
+  // Linked, agreed Variations/Dayworks -- these are already folded into app.value_gmc (see
+  // recalcApplicationGmc), so the summary numbers below need no extra math; this list is purely
+  // for the certificate to show each one's own description/value as a line item.
+  const compensationEvents = con.prepare(`
+    SELECT * FROM compensation_event WHERE sub_application_id=? AND status='agreed' ORDER BY type, ce_ref
+  `).all(app.id);
+
   const contractValue = con.prepare('SELECT COALESCE(ROUND(SUM(qty*rate),2),0) AS v FROM sub_boq_item WHERE subcontract_id=?').get(req.params.id).v;
   const prevCertified = history.filter(h => h.application_number < app.application_number && h.status !== 'draft')
                                 .reduce((s, h) => s + (h.value_gmc || 0), 0);
@@ -274,6 +336,7 @@ router.get('/projects/:pid/subcontracts/:id/applications/:appId/certificate', (r
     },
     history,
     items,
+    compensation_events: compensationEvents,
   });
 });
 
@@ -346,15 +409,17 @@ router.post('/projects/:pid/subcontracts/:id/applications', (req, res) => {
       valueGmc += Math.max(0, thisGmc);
     }
 
-    // Cumulative from previous non-draft apps
-    const prevCum = con.prepare(`SELECT COALESCE(SUM(value_gmc),0) AS cum FROM sub_application WHERE subcontract_id=? AND status != 'draft' AND id != ?`).get(sc.id, appId).cum;
+    // Cumulative from previous non-draft apps (application_number < this one, matching recalcApplicationGmc)
+    const prevCum = con.prepare(`SELECT COALESCE(SUM(value_gmc),0) AS cum FROM sub_application WHERE subcontract_id=? AND status != 'draft' AND application_number < ?`).get(sc.id, nextNum).cum;
     const cumGmc  = Math.round((prevCum + valueGmc) * 100) / 100;
     const retHeld = Math.round(cumGmc * (sc.retention_pct / 100) * 100) / 100;
     const prevRet = Math.round(prevCum * (sc.retention_pct / 100) * 100) / 100;
     const netPay  = Math.round((valueGmc - (retHeld - prevRet)) * 100) / 100;
 
-    con.prepare(`UPDATE sub_application SET value_sub=?, value_gmc=?, cumulative_sub=?, cumulative_gmc=?, net_payable=? WHERE id=?`)
-       .run(Math.round(valueSub * 100) / 100, Math.round(valueGmc * 100) / 100,
+    // value_gmc_boq = value_gmc here: a brand-new application can't have any compensation_event
+    // linked to it yet (nothing could reference an id that didn't exist until this insert).
+    con.prepare(`UPDATE sub_application SET value_sub=?, value_gmc=?, value_gmc_boq=?, cumulative_sub=?, cumulative_gmc=?, net_payable=? WHERE id=?`)
+       .run(Math.round(valueSub * 100) / 100, Math.round(valueGmc * 100) / 100, Math.round(valueGmc * 100) / 100,
             Math.round((prevCum + valueSub) * 100) / 100, cumGmc, netPay, appId);
 
     con.exec('COMMIT');
@@ -495,7 +560,6 @@ router.put('/projects/:pid/subcontracts/:id/applications/:appId/assessment', (re
   try {
     const app = con.prepare('SELECT * FROM sub_application WHERE id=? AND subcontract_id=?').get(req.params.appId, req.params.id);
     if (!app) throw notFound('Application not found');
-    const sc = con.prepare('SELECT * FROM subcontract WHERE id=?').get(req.params.id);
 
     const { items = [] } = req.body;
     let valueGmc = 0;
@@ -511,13 +575,12 @@ router.put('/projects/:pid/subcontracts/:id/applications/:appId/assessment', (re
       valueGmc += gmcVal;
     }
 
-    const prevCum = con.prepare(`SELECT COALESCE(SUM(value_gmc),0) AS cum FROM sub_application WHERE subcontract_id=? AND status != 'draft' AND id != ?`).get(req.params.id, app.id).cum;
-    const cumGmc  = Math.round((prevCum + valueGmc) * 100) / 100;
-    const retHeld = Math.round(cumGmc * (sc.retention_pct / 100) * 100) / 100;
-    const prevRet = Math.round(prevCum * (sc.retention_pct / 100) * 100) / 100;
-    const netPay  = Math.round((valueGmc - (retHeld - prevRet)) * 100) / 100;
-    con.prepare('UPDATE sub_application SET value_gmc=?, cumulative_gmc=?, net_payable=? WHERE id=?')
-       .run(Math.round(valueGmc * 100) / 100, cumGmc, netPay, app.id);
+    // Store the pure-BOQ contribution, then let recalcApplicationGmc fold in any linked, agreed
+    // Variations/Dayworks on top of it -- so re-saving the QS assessment never loses or
+    // double-counts a compensation_event linked to this same application.
+    con.prepare('UPDATE sub_application SET value_gmc_boq=? WHERE id=?')
+       .run(Math.round(valueGmc * 100) / 100, app.id);
+    recalcApplicationGmc(con, app.id);
 
     con.exec('COMMIT');
     con.close();
@@ -653,26 +716,40 @@ router.post('/projects/:pid/subcontracts/:id/applications/:appId/approve', (req,
 
 // â”€â”€ COMPENSATION EVENTS â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 
+// type='variation' (default) requires ce_ref, matching the existing convention. type='daywork'
+// has no Ref field in the UI (the user explicitly asked for it to be dropped -- a plain running
+// charge doesn't need one the way a numbered contract variation does), so one is auto-generated
+// server-side just to satisfy compensation_event's NOT NULL + UNIQUE(subcontract_id, ce_ref).
 router.post('/projects/:pid/subcontracts/:id/ces', (req, res) => {
   const con = db();
   const sc = con.prepare('SELECT id FROM subcontract WHERE id=? AND project_id=?').get(req.params.id, req.params.pid);
   if (!sc) throw notFound('Subcontract not found');
-  const { ce_ref, description, sub_value, gmc_value, status, sub_application_id, notes } = req.body;
-  if (!ce_ref || !description) throw badReq('ce_ref and description required');
-  const r = con.prepare('INSERT INTO compensation_event (subcontract_id,sub_application_id,ce_ref,description,sub_value,gmc_value,status,notes) VALUES (?,?,?,?,?,?,?,?)')
-               .run(sc.id, sub_application_id||null, ce_ref, description, sub_value||0, gmc_value||0, status||'submitted', notes||null);
+  const { ce_ref, description, sub_value, gmc_value, status, sub_application_id, notes, type } = req.body;
+  const ceType = type === 'daywork' ? 'daywork' : 'variation';
+  if (!description) throw badReq('description required');
+  let ref = ce_ref;
+  if (!ref) {
+    if (ceType !== 'daywork') throw badReq('ce_ref required for variations');
+    const n = (con.prepare(`SELECT COUNT(*)+1 AS n FROM compensation_event WHERE subcontract_id=? AND type='daywork'`).get(sc.id)).n;
+    ref = `DW-${n}`;
+  }
+  const r = con.prepare('INSERT INTO compensation_event (subcontract_id,sub_application_id,ce_ref,description,sub_value,gmc_value,status,type,notes) VALUES (?,?,?,?,?,?,?,?,?)')
+               .run(sc.id, sub_application_id||null, ref, description, sub_value||0, gmc_value||0, status||'submitted', ceType, notes||null);
+  if (sub_application_id) recalcApplicationGmc(con, sub_application_id);
   res.status(201).json(con.prepare('SELECT * FROM compensation_event WHERE id=?').get(r.lastInsertRowid));
   con.close();
 });
 
 router.patch('/projects/:pid/subcontracts/:id/ces/:ceId', (req, res) => {
   const con = db();
-  const ce = con.prepare('SELECT id FROM compensation_event WHERE id=? AND subcontract_id=?').get(req.params.ceId, req.params.id);
+  const ce = con.prepare('SELECT id, sub_application_id FROM compensation_event WHERE id=? AND subcontract_id=?').get(req.params.ceId, req.params.id);
   if (!ce) throw notFound('CE not found');
   const { gmc_value, status, approved_date, notes } = req.body;
   con.prepare(`UPDATE compensation_event SET gmc_value=COALESCE(?,gmc_value), status=COALESCE(?,status),
     approved_date=COALESCE(?,approved_date), notes=COALESCE(?,notes) WHERE id=?`)
    .run(gmc_value??null, status||null, approved_date||null, notes||null, ce.id);
+  // gmc_value/status changes affect the linked application's total (only counts once status='agreed').
+  if (ce.sub_application_id) recalcApplicationGmc(con, ce.sub_application_id);
   res.json(con.prepare('SELECT * FROM compensation_event WHERE id=?').get(ce.id));
   con.close();
 });
