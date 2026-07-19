@@ -1,6 +1,7 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import NextWeekForm from './NextWeekForm.jsx';
+import { gridKeyNav } from '../gridKeyNav.js';
 
 const ACTIVITY_CODES = ['A','B','C','D','E','F','G'];
 const CODE_LABELS    = { A:'Civil', B:'Mechanical', C:'Electrical', D:'Instrumentation', E:'Commissioning', F:'Preliminaries', G:'Other' };
@@ -566,8 +567,8 @@ function SubSection({ rows, setRows, disabled, subcontracts, entry, setEntry, on
                     <option>Contract</option><option>Daywork</option>
                   </select>
                 </td>
-                <td><input value={row.description || ''} onChange={e => set(i,'description',e.target.value)} disabled={disabled} placeholder="Work done today…" /></td>
-                <td><input value={row.notes || ''} onChange={e => set(i,'notes',e.target.value)} disabled={disabled} placeholder="Notes" /></td>
+                <td><input value={row.description || ''} onChange={e => set(i,'description',e.target.value)} onKeyDown={gridKeyNav} data-grid-row={i} data-grid-col="description" disabled={disabled} placeholder="Work done today…" /></td>
+                <td><input value={row.notes || ''} onChange={e => set(i,'notes',e.target.value)} onKeyDown={gridKeyNav} data-grid-row={i} data-grid-col="notes" disabled={disabled} placeholder="Notes" /></td>
                 {!disabled && <td><button className="btn-remove" onClick={() => remove(i)}>✕</button></td>}
               </tr>
             ))}
@@ -702,15 +703,16 @@ function ActivitiesSection({ rows, setRows, disabled, suggestions, entry, setEnt
                         {SERVICE_CATS.map(c => <option key={c}>{c}</option>)}
                       </select>
                     </td>
+                    {/* description/unit keep native combobox arrow-key behaviour for their datalist suggestions, so they don't get grid nav */}
                     <td><input value={row.description} onChange={e => setDescription(row._idx, e.target.value)} disabled={disabled} placeholder="Describe work done today…" style={{minWidth:220}} list="dl-activities" /></td>
-                    <td><input type="number" step="any" min="0" value={row.qty_today || ''} onChange={e => set(row._idx,'qty_today',e.target.value)} disabled={disabled} style={{width:70}} placeholder="—" /></td>
+                    <td><input type="number" step="any" min="0" value={row.qty_today || ''} onChange={e => set(row._idx,'qty_today',e.target.value)} onKeyDown={gridKeyNav} data-grid-row={row._idx} data-grid-col="qty" disabled={disabled} style={{width:70}} placeholder="—" /></td>
                     <td><input value={row.unit || ''} onChange={e => set(row._idx,'unit',e.target.value)} disabled={disabled} style={{width:55}} placeholder="m, m², nr…" list="dl-units" /></td>
                     <td>
                       <select value={row.work_type} onChange={e => set(row._idx,'work_type',e.target.value)} disabled={disabled} style={{width:100}}>
                         <option>Contract</option><option>Daywork</option>
                       </select>
                     </td>
-                    <td><input value={row.notes || ''} onChange={e => set(row._idx,'notes',e.target.value)} disabled={disabled} placeholder="Notes" /></td>
+                    <td><input value={row.notes || ''} onChange={e => set(row._idx,'notes',e.target.value)} onKeyDown={gridKeyNav} data-grid-row={row._idx} data-grid-col="notes" disabled={disabled} placeholder="Notes" /></td>
                     {!disabled && <td><button className="btn-remove" onClick={() => remove(row._idx)}>✕</button></td>}
                   </tr>
                 ))}

@@ -8,7 +8,38 @@ function db() {
   const con = new DatabaseSync(DB_PATH, { open: true });
   con.exec('PRAGMA foreign_keys = ON');
   ensureCategoryTable(con);
+  ensureMultiSubSplits(con);
   return con;
+}
+
+// Migration: an activity used to allow only one (activity_id, week_ending) row in revenue_week,
+// i.e. one subcontractor per item per week. Real jobs often have 2-3 subs sharing the same BOQ
+// item (e.g. excavation split across gangs) with no way to record that. Widens the UNIQUE key to
+// (activity_id, week_ending, sub_id) so each sub gets their own row/percentage; the sum across
+// those rows is still "the item's % this week" everywhere that only needs the aggregate.
+// Checked against the live table definition (not a version flag) so it only runs the actual
+// rebuild once, but stays correct even if this file's db() isn't the first one hit after a deploy.
+function ensureMultiSubSplits(con) {
+  const tbl = con.prepare("SELECT sql FROM sqlite_master WHERE type='table' AND name='revenue_week'").get();
+  if (!tbl || /UNIQUE\s*\(\s*activity_id\s*,\s*week_ending\s*,\s*sub_id\s*\)/i.test(tbl.sql)) return;
+  con.exec(`
+    ALTER TABLE revenue_week RENAME TO revenue_week_pre_split;
+    CREATE TABLE revenue_week (
+      id              INTEGER PRIMARY KEY AUTOINCREMENT,
+      project_id      INTEGER NOT NULL REFERENCES project(id) ON DELETE CASCADE,
+      activity_id     INTEGER NOT NULL REFERENCES revenue_activity(id) ON DELETE CASCADE,
+      week_ending     TEXT    NOT NULL,
+      pct_complete    REAL    NOT NULL DEFAULT 0,
+      sub_id          INTEGER REFERENCES subcontract(id) ON DELETE SET NULL,
+      revenue         REAL    NOT NULL DEFAULT 0,
+      created_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+      updated_at      TEXT    NOT NULL DEFAULT (strftime('%Y-%m-%dT%H:%M:%SZ','now')),
+      UNIQUE (activity_id, week_ending, sub_id)
+    );
+    INSERT INTO revenue_week SELECT * FROM revenue_week_pre_split;
+    DROP TABLE revenue_week_pre_split;
+    CREATE INDEX IF NOT EXISTS idx_revweek_week ON revenue_week(project_id, week_ending);
+  `);
 }
 
 // Flexible per-project revenue categories (migration 017) — see server/routes/tracker.js's copy
@@ -50,9 +81,12 @@ router.get('/projects/:pid/revenue/history', (req, res) => {
   const weeks = con.prepare(
     'SELECT DISTINCT week_ending FROM revenue_week WHERE project_id=? ORDER BY week_ending ASC'
   ).all(pid).map(r => r.week_ending);
-  const rows = con.prepare(
-    'SELECT activity_id, week_ending, pct_complete, revenue FROM revenue_week WHERE project_id=? ORDER BY week_ending ASC'
-  ).all(pid);
+  // An item can now have several sub-split rows per (activity, week) -- sum them into the
+  // aggregate the rest of the app (cumulative %, cost tracker rollups) has always expected.
+  const rows = con.prepare(`
+    SELECT activity_id, week_ending, ROUND(SUM(pct_complete),4) AS pct_complete, ROUND(SUM(revenue),2) AS revenue
+    FROM revenue_week WHERE project_id=? GROUP BY activity_id, week_ending ORDER BY week_ending ASC
+  `).all(pid);
   con.close();
   const data = {};
   rows.forEach(r => {
@@ -161,20 +195,28 @@ router.get('/projects/:pid/revenue/week/:we', (req, res) => {
     SELECT ra.id, ra.ref, ra.description, ra.unit, ra.qty, ra.rate, ra.contract_value, ra.section, ra.default_sub_id
     FROM revenue_activity ra WHERE ra.project_id=? ORDER BY ra.sort_order
   `).all(pid);
-  const wk = con.prepare('SELECT activity_id, pct_complete, sub_id, revenue FROM revenue_week WHERE project_id=? AND week_ending=?').all(pid, we);
-  const wkMap = {};
-  wk.forEach(w => { wkMap[w.activity_id] = w; });
+  const wk = con.prepare('SELECT activity_id, pct_complete, sub_id, revenue FROM revenue_week WHERE project_id=? AND week_ending=? ORDER BY id ASC').all(pid, we);
+  const wkMap = {}; // activity_id -> array of split rows (usually just one)
+  wk.forEach(w => { (wkMap[w.activity_id] ??= []).push(w); });
   con.close();
   res.json({
     week_ending: we,
     activities: acts.map(a => {
-      const w = wkMap[a.id];
+      const rows = wkMap[a.id];
+      // No saved rows yet: default to a single split on the activity's default sub, same as
+      // the single-sub behaviour before this feature existed.
+      const splits = rows && rows.length
+        ? rows.map(w => ({ sub_id: w.sub_id, pct_complete: w.pct_complete, revenue: w.revenue }))
+        : [{ sub_id: a.default_sub_id, pct_complete: 0, revenue: 0 }];
+      const totalPct = Math.round(splits.reduce((s, x) => s + (x.pct_complete || 0), 0) * 10000) / 10000;
+      const totalRev = Math.round(splits.reduce((s, x) => s + (x.revenue || 0), 0) * 100) / 100;
       return {
         id: a.id, ref: a.ref, description: a.description, unit: a.unit, qty: a.qty, rate: a.rate,
         contract_value: a.contract_value, section: a.section,
-        pct_complete: w ? w.pct_complete : 0,
-        sub_id: w ? w.sub_id : a.default_sub_id,
-        revenue: w ? w.revenue : 0,
+        pct_complete: totalPct,
+        sub_id: splits[0].sub_id, // back-compat single-sub consumers: first split
+        revenue: totalRev,
+        splits,
       };
     }),
   });
@@ -192,18 +234,28 @@ router.put('/projects/:pid/revenue/week/:we', (req, res) => {
 
   con.exec('BEGIN');
   try {
-    const up = con.prepare(`
+    // Each item now carries `splits` (one row per subcontractor sharing that item this week,
+    // usually just one) instead of a single pct/sub pair. Simplest correct way to persist an
+    // edited list — including rows the user removed — is to replace the whole set for that
+    // (activity, week) rather than trying to diff it against what's already saved.
+    const del = con.prepare('DELETE FROM revenue_week WHERE project_id=? AND activity_id=? AND week_ending=?');
+    const ins = con.prepare(`
       INSERT INTO revenue_week (project_id, activity_id, week_ending, pct_complete, sub_id, revenue, updated_at)
       VALUES (?,?,?,?,?,?,datetime('now'))
-      ON CONFLICT(activity_id, week_ending) DO UPDATE SET
-        pct_complete=excluded.pct_complete, sub_id=excluded.sub_id, revenue=excluded.revenue, updated_at=datetime('now')
     `);
     for (const it of items) {
       const a = actMap[it.activity_id];
       if (!a) continue;
-      const pct = Math.min(100, Math.max(0, Number(it.pct_complete) || 0));
-      const rev = Math.round(pct / 100 * (a.contract_value || 0) * 100) / 100;
-      up.run(pid, it.activity_id, we, pct, it.sub_id || null, rev);
+      const splits = Array.isArray(it.splits) && it.splits.length
+        ? it.splits
+        : [{ sub_id: it.sub_id ?? null, pct_complete: it.pct_complete }];
+      del.run(pid, it.activity_id, we);
+      for (const sp of splits) {
+        const pct = Math.min(100, Math.max(0, Number(sp.pct_complete) || 0));
+        if (pct === 0 && !sp.sub_id) continue; // drop empty unassigned rows rather than persist noise
+        const rev = Math.round(pct / 100 * (a.contract_value || 0) * 100) / 100;
+        ins.run(pid, it.activity_id, we, pct, sp.sub_id || null, rev);
+      }
     }
 
     // Somar revenue por secÃ§Ã£o (toda a semana, do DB)

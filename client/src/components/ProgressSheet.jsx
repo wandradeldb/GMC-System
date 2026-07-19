@@ -3,6 +3,7 @@ import { useState, useEffect } from 'react';
 import { useZoom } from '../zoomContext.js';
 import BackButton from './BackButton.jsx';
 import { useBackHandler } from '../useBackHandler.js';
+import { gridKeyNav } from '../gridKeyNav.js';
 
 const fmt = (n, d = 2) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtWE = we => we ? new Date(we + 'T12:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
@@ -182,6 +183,8 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
                                   type="number" min="0" max="100" step="1"
                                   value={row.pct_complete_this}
                                   onChange={e => setItem(row._idx, 'pct_complete_this', e.target.value)}
+                                  onKeyDown={gridKeyNav}
+                                  data-grid-row={row._idx} data-grid-col="pct"
                                   className="assess-input assess-input-gmc"
                                   style={{ width: 64 }}
                                 />
@@ -193,6 +196,8 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
                             </td>
                             <td>
                               <input value={row.progress_notes || ''} onChange={e => setItem(row._idx, 'progress_notes', e.target.value)}
+                                onKeyDown={gridKeyNav}
+                                data-grid-row={row._idx} data-grid-col="notes"
                                 style={{ width: '100%', fontSize: 12, border: '1px solid #e5e7eb', borderRadius: 4, padding: '3px 6px' }}
                                 placeholder="Notes…" />
                             </td>

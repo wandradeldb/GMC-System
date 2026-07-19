@@ -45,7 +45,7 @@ function fridaysBetween(startISO, endISO) {
 }
 
 // Column widths (px)
-const CW = { ref: 52, desc: 238, cv: 86, cumul: 86, rem: 86, sub: 136, we: 58 };
+const CW = { ref: 52, desc: 238, cv: 86, cumul: 86, rem: 86, sub: 136, we: 92 };
 const SL = {
   ref:   0,
   desc:  CW.ref,
@@ -69,8 +69,10 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
   const [history, setHistory]   = useState({ weeks: [], data: {} });
   const [allWeeks, setAllWeeks] = useState([]);
   const [subs, setSubs]         = useState([]);
-  const [edits, setEdits]       = useState({});    // { actId: { we: pct } }
-  const [subEdits, setSubEdits] = useState({});    // { actId: sub_id } para a WE selecionada
+  const [edits, setEdits]       = useState({});    // { actId: { we: pct } } -- aggregate % per week, all subs summed
+  const [subEdits, setSubEdits] = useState({});    // { actId: sub_id } fallback when an activity has no split rows yet
+  const [splits, setSplits]     = useState({});    // { actId: [{ sub_id, pct }] } -- editable breakdown for weekEnding only
+  const [splitEditorFor, setSplitEditorFor] = useState(null); // activity id whose split modal is open
   const [secOn, setSecOn]       = useState(new Set());
   const [search, setSearch]     = useState('');
   const [loading, setLoading]   = useState(true);
@@ -81,7 +83,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
   useEffect(() => {
     curWeekThRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
   }, [weekEnding, allWeeks]);
-  const [addingSubFor, setAddingSubFor] = useState(null); // activity id awaiting a new subcontract, or null
+  const [addingSubFor, setAddingSubFor] = useState(null); // { actId, splitIdx } awaiting a new subcontract — splitIdx null means the plain dropdown, a number means that split row
 
   const loadSubs = useCallback(() => {
     apiFetch(`/api/v1/projects/${projectId}/subcontracts`).then(r => r.json()).then(setSubs).catch(() => {});
@@ -127,15 +129,24 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
       // Inicializar edits com TODOS os valores de histórico para TODAS as semanas
       const m = {};
       const sm = {};
+      const sp = {};
       acts.forEach(a => {
         m[a.id] = {};
         weeks.forEach(w => {
           m[a.id][w] = histData?.data?.[a.id]?.[w]?.pct ?? 0;
         });
+        // weekEnding's own aggregate comes from the live splits below, not history (history is
+        // last-saved state; splits is what's about to be edited) -- overwrite just that one week.
+        m[a.id][weekEnding] = a.pct_complete ?? 0;
         sm[a.id] = a.sub_id ?? '';
+        // sub_id is always kept as a string here (selects only ever emit strings) so later
+        // "already used by another split row" checks don't have to compare across two types.
+        sp[a.id] = (a.splits && a.splits.length ? a.splits : [{ sub_id: a.sub_id ?? null, pct_complete: 0 }])
+          .map(s => ({ sub_id: s.sub_id != null ? String(s.sub_id) : '', pct: s.pct_complete ?? 0 }));
       });
       setEdits(m);
       setSubEdits(sm);
+      setSplits(sp);
       setHistory(histData || { weeks: [], data: {} });
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -168,16 +179,66 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
   };
   const remainOf = a => Math.max(0, Math.round(((a.contract_value || 0) - cumulOf(a)) * 100) / 100);
 
+  // Only ever called for weekEnding (other weeks' inputs are disabled) -- keeps the single-split
+  // case editable inline, same as before this feature existed. Multi-split activities disable
+  // this input instead; their %s are edited per-row in the split modal (setSplitPct below).
   const setPct = (id, w, v) => {
     const cur = Number(edits[id]?.[w]) || 0;
     const total = allWeeks.reduce((s, wk) => s + (Number(edits[id]?.[wk]) || 0), 0);
     const available = 100 - (total - cur);
     const n = Math.min(available, Math.max(0, parseFloat(v) || 0));
     setEdits(e => ({ ...e, [id]: { ...e[id], [w]: n } }));
+    setSplits(sp => {
+      const rows = sp[id] || [];
+      if (rows.length > 1) return sp; // shouldn't happen -- input is disabled once split
+      const subId = rows[0]?.sub_id ?? subEdits[id] ?? '';
+      return { ...sp, [id]: [{ sub_id: subId, pct: n }] };
+    });
   };
   const setSub = (id, v) => {
-    if (v === '__new__') { setAddingSubFor(id); return; } // opens NewSubcontractModal instead of assigning
+    if (v === '__new__') { setAddingSubFor({ actId: id, splitIdx: null }); return; } // opens NewSubcontractModal instead of assigning
+    if (v === '__split__') {
+      const a = activities.find(x => x.id === id);
+      setSplits(sp => {
+        const cur = sp[id]?.[0] ?? { sub_id: subEdits[id] ?? '', pct: pctOf(a, weekEnding) };
+        return { ...sp, [id]: [cur, { sub_id: '', pct: 0 }] };
+      });
+      setSplitEditorFor(id);
+      return;
+    }
     setSubEdits(s => ({ ...s, [id]: v }));
+    setSplits(sp => ({ ...sp, [id]: [{ sub_id: v, pct: sp[id]?.[0]?.pct ?? 0 }] }));
+  };
+
+  // Split-row editing (only meaningful for weekEnding — the modal only ever edits that week)
+  const setSplitPct = (actId, idx, v) => {
+    setSplits(sp => {
+      const rows = sp[actId] || [];
+      const otherWeeksTotal = allWeeks.reduce((s, wk) => wk === weekEnding ? s : s + (Number(edits[actId]?.[wk]) || 0), 0);
+      const otherSplitsTotal = rows.reduce((s, r, i) => i === idx ? s : s + (Number(r.pct) || 0), 0);
+      const available = 100 - otherWeeksTotal - otherSplitsTotal;
+      const n = Math.min(Math.max(available, 0), Math.max(0, parseFloat(v) || 0));
+      const next = rows.map((r, i) => i === idx ? { ...r, pct: n } : r);
+      const newTotal = Math.round(next.reduce((s, r) => s + (Number(r.pct) || 0), 0) * 10000) / 10000;
+      setEdits(e => ({ ...e, [actId]: { ...e[actId], [weekEnding]: newTotal } }));
+      return { ...sp, [actId]: next };
+    });
+  };
+  const setSplitSub = (actId, idx, v) => {
+    if (v === '__new__') { setAddingSubFor({ actId, splitIdx: idx }); return; }
+    setSplits(sp => ({ ...sp, [actId]: (sp[actId] || []).map((r, i) => i === idx ? { ...r, sub_id: v } : r) }));
+  };
+  const addSplitRow = (actId) => {
+    setSplits(sp => ({ ...sp, [actId]: [...(sp[actId] || []), { sub_id: '', pct: 0 }] }));
+  };
+  const removeSplitRow = (actId, idx) => {
+    setSplits(sp => {
+      const rows = (sp[actId] || []).filter((_, i) => i !== idx);
+      const kept = rows.length ? rows : [{ sub_id: '', pct: 0 }]; // never leave an item with zero rows
+      const newTotal = Math.round(kept.reduce((s, r) => s + (Number(r.pct) || 0), 0) * 10000) / 10000;
+      setEdits(e => ({ ...e, [actId]: { ...e[actId], [weekEnding]: newTotal } }));
+      return { ...sp, [actId]: kept };
+    });
   };
 
   const onKey = (e, inputs, i) => {
@@ -191,8 +252,8 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
     setSaving(true); setSavedMsg('');
     const items = activities.map(a => ({
       activity_id: a.id,
-      pct_complete: Math.min(100, pctOf(a, weekEnding)),
-      sub_id: subEdits[a.id] || null,
+      splits: (splits[a.id]?.length ? splits[a.id] : [{ sub_id: subEdits[a.id] || null, pct: pctOf(a, weekEnding) }])
+        .map(s => ({ sub_id: s.sub_id || null, pct_complete: Math.min(100, Number(s.pct) || 0) })),
     }));
     const res = await apiFetch(`/api/v1/projects/${projectId}/revenue/week/${weekEnding}`,
       { method: 'PUT', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ items }) });
@@ -412,21 +473,32 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
                       <td style={tdFixed(SL.cumul, rowBg, { width:CW.cumul, textAlign:'right', fontWeight:700, color:'#1e40af' })}>€{fmt(cumul, 0)}</td>
                       <td style={tdFixed(SL.rem,   rowBg, { width:CW.rem,   textAlign:'right', color: remaining === 0 ? '#16a34a' : '#374151', fontWeight: remaining === 0 ? 700 : 400 })}>€{fmt(remaining, 0)}</td>
                       <td style={tdFixed(SL.sub,   rowBg, { width:CW.sub,   padding:'2px 3px', borderRight:'3px solid #60a5fa' })}>
-                        <select value={subEdits[a.id] ?? ''} onChange={e => setSub(a.id, e.target.value)}
-                          style={{ width:'100%', padding:'1px 2px', fontSize:9, borderRadius:3, border:'1px solid #d1d5db', background:'#fff' }}>
-                          <option value="">GMC (none)</option>
-                          {subs.map(s => <option key={s.id} value={s.id}>{s.subcontractor_name}</option>)}
-                          <option value="__new__">+ Add new sub…</option>
-                        </select>
+                        {(splits[a.id]?.length ?? 1) > 1 ? (
+                          <button type="button" onClick={() => setSplitEditorFor(a.id)}
+                            title="Split between multiple subcontractors"
+                            style={{ width:'100%', padding:'2px 4px', fontSize:9, fontWeight:700, borderRadius:3,
+                              border:'1px solid #f59e0b', background:'#fffbeb', color:'#92400e', cursor:'pointer' }}>
+                            {splits[a.id].length} subs ▾
+                          </button>
+                        ) : (
+                          <select value={splits[a.id]?.[0]?.sub_id ?? subEdits[a.id] ?? ''} onChange={e => setSub(a.id, e.target.value)}
+                            style={{ width:'100%', padding:'1px 2px', fontSize:9, borderRadius:3, border:'1px solid #d1d5db', background:'#fff' }}>
+                            <option value="">GMC (none)</option>
+                            {subs.map(s => <option key={s.id} value={s.id}>{s.subcontractor_name}</option>)}
+                            <option value="__new__">+ Add new sub…</option>
+                            <option value="__split__">⋮ Split between subs…</option>
+                          </select>
+                        )}
                       </td>
 
                       {allWeeks.map(w => {
-                          const isCur    = w === weekEnding;
-                          const hasSaved = savedWeeks.has(w) && (history.data?.[a.id]?.[w]?.pct ?? 0) > 0;
+                          const isCur      = w === weekEnding;
+                          const isSplit    = (splits[a.id]?.length ?? 1) > 1;
+                          const isEditable = isCur && !isSplit; // multi-sub items are edited via the split modal instead
+                          const hasSaved   = savedWeeks.has(w) && (history.data?.[a.id]?.[w]?.pct ?? 0) > 0;
                           const pct      = pctOf(a, w);
                           const rev      = revOf(a, w);
                           const savedRev = history.data?.[a.id]?.[w]?.rev ?? 0;
-                          const savedPct = history.data?.[a.id]?.[w]?.pct ?? 0;
                           const totPct   = totalPctOf(a);
                           const at100    = totPct >= 100 && pct === 0;
 
@@ -438,58 +510,61 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
                               background: isCur ? '#f0fdf4' : 'inherit',
                               borderLeft: isCur ? '2px solid #4ade80' : '1px solid #e2e8f0',
                               width: CW.we,
-                            }}>
-                              {/* Valor €: mostra calculado em tempo real se isCur, senão o salvo */}
-                              {isCur ? (
-                                <div style={{ fontSize: 9, fontWeight: 700, color: '#166534', marginBottom: 1 }}>
-                                  {fmtE(rev, 0)}
-                                </div>
-                              ) : hasSaved ? (
-                                <div style={{ fontSize: 9, fontWeight: 700, color: '#111' }}>
-                                  {fmtE(savedRev, 0)}
-                                </div>
-                              ) : null}
-
-                              {/* Input % or 100% lock */}
+                              cursor: isCur && isSplit ? 'pointer' : undefined,
+                            }}
+                            onClick={isCur && isSplit ? () => setSplitEditorFor(a.id) : undefined}
+                            title={isCur && isSplit ? `Split across ${splits[a.id].length} subs — click to edit` : undefined}>
                               {at100 ? (
                                 <div style={{ fontSize: 7, color: '#f59e0b', fontWeight: 700, textAlign: 'center', lineHeight: 1.2, padding: '2px 0' }}>
                                   ⚠ 100%
                                 </div>
                               ) : (
-                                <input
-                                  type="number" min={0} max={100} step={1}
-                                  className={isCur ? 'cell-input rev-pct' : 'cell-input'}
-                                  value={pct}
-                                  disabled={!isCur}
-                                  title={isCur ? undefined : 'Click "edit" on this week\'s column header to enter its %'}
-                                  onChange={e => setPct(a.id, w, e.target.value)}
-                                  ref={isCur ? el => { if (el) currentInputs.push(el); } : null}
-                                  onKeyDown={isCur ? e => {
-                                    if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
-                                    e.preventDefault();
-                                    e.stopPropagation();
-                                    const all = Array.from(document.querySelectorAll('input.rev-pct'));
-                                    const idx = all.findIndex(el => el === e.target);
-                                    const dir = e.key === 'ArrowUp' ? -1 : 1;
-                                    const next = all[idx + dir];
-                                    if (next) { next.focus(); next.select(); }
-                                  } : undefined}
-                                  style={{
-                                    width: 34, textAlign: 'right', padding: '1px 2px',
-                                    border: `1px solid ${isCur ? '#16a34a' : '#e5e7eb'}`,
-                                    borderRadius: 3, fontSize: 9,
-                                    background: isCur ? '#f0fdf4' : '#f9fafb',
-                                    fontWeight: isCur ? 700 : 400,
-                                    color: isCur ? '#111' : '#9ca3af',
-                                    cursor: isCur ? 'text' : 'not-allowed',
-                                  }}
-                                />
-                              )}
-
-                              {/* % salvo em baixo (só para não-atual com dados) */}
-                              {!isCur && !at100 && hasSaved && (
-                                <div style={{ fontSize: 7, color: '#94a3b8', marginTop: 1 }}>
-                                  {savedPct}%
+                                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 3 }}>
+                                  {/* % input on the left, with the % sign overlaid inside its own box */}
+                                  <div style={{ position: 'relative', flexShrink: 0 }}>
+                                    <input
+                                      type="number" min={0} max={100} step={1}
+                                      className={isEditable ? 'cell-input rev-pct' : 'cell-input'}
+                                      value={pct}
+                                      disabled={!isEditable}
+                                      title={isEditable ? undefined : isCur ? 'Split between multiple subs — click the cell to edit' : 'Click "edit" on this week\'s column header to enter its %'}
+                                      onChange={e => setPct(a.id, w, e.target.value)}
+                                      ref={isEditable ? el => { if (el) currentInputs.push(el); } : null}
+                                      onKeyDown={isEditable ? e => {
+                                        if (e.key !== 'Enter' && e.key !== 'ArrowDown' && e.key !== 'ArrowUp') return;
+                                        e.preventDefault();
+                                        e.stopPropagation();
+                                        const all = Array.from(document.querySelectorAll('input.rev-pct'));
+                                        const idx = all.findIndex(el => el === e.target);
+                                        const dir = e.key === 'ArrowUp' ? -1 : 1;
+                                        const next = all[idx + dir];
+                                        if (next) { next.focus(); next.select(); }
+                                      } : undefined}
+                                      style={{
+                                        width: 38, textAlign: 'right', padding: '1px 12px 1px 2px',
+                                        border: `1px solid ${isEditable ? '#16a34a' : '#e5e7eb'}`,
+                                        borderRadius: 3, fontSize: 9,
+                                        background: isEditable ? '#f0fdf4' : '#f9fafb',
+                                        fontWeight: isCur ? 700 : 400,
+                                        color: isEditable ? '#111' : '#9ca3af',
+                                        cursor: isEditable ? 'text' : isCur ? 'pointer' : 'not-allowed',
+                                      }}
+                                    />
+                                    <span style={{
+                                      position: 'absolute', right: 3, top: '50%', transform: 'translateY(-50%)',
+                                      fontSize: 8, color: isCur ? '#166534' : '#9ca3af', pointerEvents: 'none',
+                                    }}>%</span>
+                                  </div>
+                                  {/* €: live calculated value if current week, else the saved one */}
+                                  {(isCur || hasSaved) && (
+                                    <div style={{
+                                      fontSize: 9, fontWeight: 700, flex: 1, minWidth: 0,
+                                      textAlign: 'right', overflow: 'hidden', whiteSpace: 'nowrap',
+                                      color: isCur ? '#166534' : '#111',
+                                    }}>
+                                      {fmtE(isCur ? rev : savedRev, 0)}
+                                    </div>
+                                  )}
                                 </div>
                               )}
                             </td>
@@ -537,13 +612,92 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
           projectId={projectId}
           onClose={() => setAddingSubFor(null)}
           onCreated={(sc) => {
-            const forId = addingSubFor;
+            const { actId, splitIdx } = addingSubFor;
             setAddingSubFor(null);
             loadSubs();
-            setSubEdits(s => ({ ...s, [forId]: sc.id }));
+            if (splitIdx == null) {
+              setSubEdits(s => ({ ...s, [actId]: sc.id }));
+              setSplits(sp => ({ ...sp, [actId]: [{ sub_id: String(sc.id), pct: sp[actId]?.[0]?.pct ?? 0 }] }));
+            } else {
+              setSplits(sp => ({ ...sp, [actId]: (sp[actId] || []).map((r, i) => i === splitIdx ? { ...r, sub_id: String(sc.id) } : r) }));
+            }
           }}
         />
       )}
+
+      {splitEditorFor != null && (
+        <SplitEditorModal
+          activity={activities.find(a => a.id === splitEditorFor)}
+          weekEnding={weekEnding}
+          rows={splits[splitEditorFor] || []}
+          subs={subs}
+          onChangeSub={(idx, v) => setSplitSub(splitEditorFor, idx, v)}
+          onChangePct={(idx, v) => setSplitPct(splitEditorFor, idx, v)}
+          onAdd={() => addSplitRow(splitEditorFor)}
+          onRemove={idx => removeSplitRow(splitEditorFor, idx)}
+          onClose={() => setSplitEditorFor(null)}
+        />
+      )}
+    </div>
+  );
+}
+
+// ── Split editor: divide one activity's measurement for one week across several subs ──────────
+function SplitEditorModal({ activity, weekEnding, rows, subs, onChangeSub, onChangePct, onAdd, onRemove, onClose }) {
+  if (!activity) return null;
+  const total = Math.round(rows.reduce((s, r) => s + (Number(r.pct) || 0), 0) * 100) / 100;
+  const totalRev = Math.round(total / 100 * (activity.contract_value || 0) * 100) / 100;
+
+  return (
+    <div className="modal-backdrop" onClick={onClose}>
+      <div className="modal" style={{ width: 460 }} onClick={e => e.stopPropagation()}>
+        <div className="modal-header">
+          <div>
+            <h3 style={{ fontSize: 14 }}>{activity.ref} — {activity.description}</h3>
+            <div style={{ fontSize: 11, color: '#166534', fontWeight: 600, marginTop: 2 }}>WE {fmtDate(weekEnding)}</div>
+          </div>
+          <button className="modal-close" onClick={onClose}>✕</button>
+        </div>
+        <div className="modal-body" style={{ padding: '10px 0' }}>
+          {rows.map((r, idx) => {
+            const usedElsewhere = new Set(rows.filter((_, i) => i !== idx).map(x => String(x.sub_id)).filter(Boolean));
+            const rowRev = Math.round((Number(r.pct) || 0) / 100 * (activity.contract_value || 0) * 100) / 100;
+            return (
+              <div key={idx} style={{ display: 'grid', gridTemplateColumns: '1fr 70px 90px 28px', gap: 8, alignItems: 'center', padding: '6px 20px' }}>
+                <select value={r.sub_id ?? ''} onChange={e => onChangeSub(idx, e.target.value)}
+                  style={{ padding: '5px 6px', fontSize: 12, borderRadius: 5, border: '1px solid #d1d5db', width: '100%' }}>
+                  <option value="">GMC (none)</option>
+                  {subs.filter(s => !usedElsewhere.has(String(s.id))).map(s =>
+                    <option key={s.id} value={s.id}>{s.subcontractor_name}</option>)}
+                  <option value="__new__">+ Add new sub…</option>
+                </select>
+                <div style={{ position: 'relative' }}>
+                  <input type="number" min={0} max={100} step={1} value={r.pct}
+                    onChange={e => onChangePct(idx, e.target.value)}
+                    style={{ width: '100%', textAlign: 'right', padding: '5px 16px 5px 6px', fontSize: 12, borderRadius: 5, border: '1px solid #16a34a' }} />
+                  <span style={{ position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)', fontSize: 10, color: '#166534' }}>%</span>
+                </div>
+                <div style={{ fontSize: 12, fontWeight: 700, color: '#166534', textAlign: 'right' }}>{fmtE(rowRev, 0)}</div>
+                <button type="button" onClick={() => onRemove(idx)} disabled={rows.length <= 1}
+                  title={rows.length <= 1 ? 'At least one row is required' : 'Remove'}
+                  style={{ width: 24, height: 24, borderRadius: 5, border: '1px solid #fca5a5', background: rows.length <= 1 ? '#f3f4f6' : '#fff5f5',
+                    color: rows.length <= 1 ? '#d1d5db' : '#dc2626', cursor: rows.length <= 1 ? 'not-allowed' : 'pointer', fontSize: 12 }}>✕</button>
+              </div>
+            );
+          })}
+          <button type="button" onClick={onAdd}
+            style={{ margin: '4px 20px 0', padding: '6px 10px', fontSize: 12, fontWeight: 600, color: '#166534',
+              background: 'none', border: '1px dashed #86efac', borderRadius: 6, cursor: 'pointer' }}>
+            + Add subcontractor
+          </button>
+        </div>
+        <div className="modal-footer" style={{ justifyContent: 'space-between' }}>
+          <span style={{ fontSize: 12, fontWeight: 700, color: total > 100 ? '#dc2626' : '#374151' }}>
+            Total: {total}% · {fmtE(totalRev, 0)}{total > 100 ? ' ⚠ over 100%' : ''}
+          </span>
+          <button className="btn-primary" onClick={onClose} style={{ padding: '7px 16px', fontSize: 13 }}>Done</button>
+        </div>
+      </div>
     </div>
   );
 }

@@ -3,6 +3,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useZoom } from '../zoomContext.js';
 import BackButton from './BackButton.jsx';
 import { useBackHandler } from '../useBackHandler.js';
+import { gridKeyNav } from '../gridKeyNav.js';
 
 const fmt  = (n, d = 2) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtE = (n, d = 0) => n == null ? '—' : `€${fmt(n, d)}`;
@@ -12,14 +13,6 @@ const fmtDate = iso => {
   if (!iso) return '—';
   const m = String(iso).slice(0, 10).match(/^(\d{4})-(\d{2})-(\d{2})$/);
   return m ? `${m[3]}/${m[2]}/${m[1]}` : iso;
-};
-// ↑/↓/Enter move o foco para o campo da linha de cima/baixo na mesma coluna
-const cellKeyNav = (e, colClass, idx) => {
-  if (e.key !== 'ArrowDown' && e.key !== 'ArrowUp' && e.key !== 'Enter') return;
-  e.preventDefault();
-  const inputs = Array.from(document.querySelectorAll('input.' + colClass));
-  const next = inputs[idx + (e.key === 'ArrowUp' ? -1 : 1)];
-  if (next) { next.focus(); next.select(); }
 };
 
 const STATUS_STYLE = {
@@ -624,7 +617,8 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
                       disabled={weLocked}
                       title={weLocked ? 'Choose a Week Ending without an existing application first' : ''}
                       onChange={e => setPct(it.id, 'sub', e.target.value)}
-                      onKeyDown={e => cellKeyNav(e, 'sub-col', idx)}
+                      onKeyDown={gridKeyNav}
+                      data-grid-row={idx} data-grid-col="sub"
                       style={{ width:64, textAlign:'center', padding:'3px 4px',
                         border: weLocked ? '1px solid #d1d5db' : '1px solid #d97706',
                         borderRadius:4, fontSize:13,
@@ -640,7 +634,8 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
                       disabled={weLocked}
                       title={weLocked ? 'Choose a Week Ending without an existing application first' : ''}
                       onChange={e => setPct(it.id, 'gmc', e.target.value)}
-                      onKeyDown={e => cellKeyNav(e, 'gmc-col', idx)}
+                      onKeyDown={gridKeyNav}
+                      data-grid-row={idx} data-grid-col="gmc"
                       style={{ width:64, textAlign:'center', padding:'3px 4px',
                         border: weLocked ? '1px solid #d1d5db' : '1px solid #16a34a',
                         borderRadius:4, fontSize:13,
@@ -657,6 +652,8 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
                     <input type="text"
                       value={itemNotes[it.id] || ''}
                       onChange={e => setItemNotes(n => ({ ...n, [it.id]: e.target.value }))}
+                      onKeyDown={gridKeyNav}
+                      data-grid-row={idx} data-grid-col="notes"
                       placeholder="Comment…"
                       style={{ width:140, padding:'3px 6px', border:'1px solid #d1d5db',
                         borderRadius:4, fontSize:12, fontFamily:'inherit' }} />
@@ -936,7 +933,8 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
                         <input type="number" min={0} max={Math.max(0, 100 - prevPctOf(it))} step={1} value={gmcPct[it.id] ?? ''}
                           className="cell-input gmc-col"
                           onChange={e => setItemGmcPct(it.id, e.target.value)}
-                          onKeyDown={e => cellKeyNav(e, 'gmc-col', idx)}
+                          onKeyDown={gridKeyNav}
+                          data-grid-row={idx} data-grid-col="gmc"
                           style={{ width:64, textAlign:'right', padding:'3px 6px', border:'1px solid #16a34a',
                             borderRadius:4, fontSize:12, background:'#f0fdf4', fontWeight:600, fontVariantNumeric:'tabular-nums' }} />
                         <span style={{ fontSize:11, color:'#6b7280' }}>%</span>
