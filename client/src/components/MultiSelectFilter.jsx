@@ -1,14 +1,16 @@
 import { useState, useRef, useEffect } from 'react';
 
 // Excel-style AutoFilter dropdown: an "All" checkbox at the top, then one checkbox per
-// option below it. `selected` is the list of explicitly-included values; an EMPTY array
-// means "All" (no filter applied) — this mirrors how the existing single-value filters
-// treated '' as "no filter", so callers building the API query can keep doing
-// `if (selected.length) …` the same way they used to do `if (value) …`.
+// option below it. `selected` is either `null` (meaning "All" — nothing excluded, no
+// filter applied) or an array of explicitly-checked values, which CAN be empty — clicking
+// "All" to uncheck it unchecks every individual item too, same as Excel, and an empty
+// array means "nothing checked" (the caller should show zero rows), not "no filter".
+// Checking every individual option back on collapses `selected` back to `null`.
 export default function MultiSelectFilter({ options, selected, onChange, allLabel = 'All', formatOption, style }) {
   const [open, setOpen] = useState(false);
   const [query, setQuery] = useState('');
   const ref = useRef(null);
+  const allCheckboxRef = useRef(null);
 
   useEffect(() => {
     if (!open) return;
@@ -19,29 +21,33 @@ export default function MultiSelectFilter({ options, selected, onChange, allLabe
 
   const fmt = formatOption || (x => x);
 
-  const allSelected = selected.length === 0;
-  const buttonLabel = allSelected ? allLabel
-    : selected.length === 1 ? fmt(selected[0])
-    : `${selected.length} selected`;
+  const checkedCount = selected === null ? options.length : selected.length;
+  const allChecked  = checkedCount === options.length && options.length > 0;
+  const noneChecked = checkedCount === 0;
+
+  useEffect(() => {
+    if (allCheckboxRef.current) allCheckboxRef.current.indeterminate = !allChecked && !noneChecked;
+  }, [allChecked, noneChecked]);
+
+  const buttonLabel = selected === null || allChecked ? allLabel
+    : noneChecked ? 'None selected'
+    : checkedCount === 1 ? fmt(selected[0])
+    : `${checkedCount} selected`;
 
   const filteredOptions = query
     ? options.filter(o => fmt(o).toLowerCase().includes(query.toLowerCase()))
     : options;
 
-  const isChecked = opt => allSelected || selected.includes(opt);
+  const isChecked = opt => selected === null || selected.includes(opt);
 
-  const toggleAll = () => onChange([]);
+  // Clicking "All": if everything is currently checked, uncheck everything; otherwise
+  // (partial or none checked) check everything.
+  const toggleAll = () => onChange(allChecked ? [] : null);
 
   const toggleOption = opt => {
-    if (allSelected) {
-      onChange(options.filter(o => o !== opt));
-    } else if (selected.includes(opt)) {
-      const next = selected.filter(o => o !== opt);
-      onChange(next.length === options.length ? [] : next);
-    } else {
-      const next = [...selected, opt];
-      onChange(next.length === options.length ? [] : next);
-    }
+    const current = selected === null ? options : selected;
+    const next = current.includes(opt) ? current.filter(o => o !== opt) : [...current, opt];
+    onChange(next.length === options.length ? null : next);
   };
 
   return (
@@ -63,7 +69,7 @@ export default function MultiSelectFilter({ options, selected, onChange, allLabe
           )}
           <div style={{ maxHeight:280, overflowY:'auto', padding:'4px 0' }}>
             <label style={{ display:'flex', alignItems:'center', gap:8, padding:'6px 12px', fontSize:13, fontWeight:700, cursor:'pointer', borderBottom:'1px solid #f0f0f0' }}>
-              <input type="checkbox" checked={allSelected} onChange={toggleAll} />
+              <input ref={allCheckboxRef} type="checkbox" checked={allChecked} onChange={toggleAll} />
               {allLabel}
             </label>
             {filteredOptions.map(opt => (

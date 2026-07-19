@@ -32,9 +32,9 @@ export default function QSCostsView({ projectId, readOnly }) {
   const zoom = useZoom();
   const [data,       setData]       = useState(null);
   const [search,     setSearch]     = useState('');
-  const [gangs,      setGangs]      = useState([]); // [] = All
+  const [gangs,      setGangs]      = useState(null); // null = All; [] = none checked (show nothing)
   const [category,   setCategory]   = useState('');
-  const [weeks,      setWeeks]      = useState([]); // [] = All
+  const [weeks,      setWeeks]      = useState(null); // null = All; [] = none checked (show nothing)
   const [importing,  setImporting]  = useState(false);
   const [importMsg,  setImportMsg]  = useState(null);
   const [viewMode,   setViewMode]   = useState('list'); // 'list' | 'summary'
@@ -44,8 +44,12 @@ export default function QSCostsView({ projectId, readOnly }) {
 
   const load = useCallback(() => {
     const params = new URLSearchParams({ limit: 500 });
-    gangs.forEach(g => params.append('gang', g));
-    weeks.forEach(w => params.append('week', w));
+    if (gangs === null) { /* All — no filter */ }
+    else if (gangs.length === 0) { params.set('gang_none', '1'); }
+    else { gangs.forEach(g => params.append('gang', g)); }
+    if (weeks === null) { /* All — no filter */ }
+    else if (weeks.length === 0) { params.set('week_none', '1'); }
+    else { weeks.forEach(w => params.append('week', w)); }
     if (category) params.set('category', category);
     if (search)   params.set('search', search);
     apiFetch(`/api/v1/projects/${projectId}/qs-costs?${params}`)
@@ -73,8 +77,8 @@ export default function QSCostsView({ projectId, readOnly }) {
     fileRef.current.value = '';
   };
 
-  const clearFilters = () => { setSearch(''); setGangs([]); setCategory(''); setWeeks([]); };
-  const hasFilters   = search || gangs.length > 0 || category || weeks.length > 0;
+  const clearFilters = () => { setSearch(''); setGangs(null); setCategory(''); setWeeks(null); };
+  const hasFilters   = search || gangs !== null || category || weeks !== null;
 
   const toggleSelect = (id) => {
     const newSelected = new Set(selected);
