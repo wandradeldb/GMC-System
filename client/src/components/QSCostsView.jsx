@@ -1,6 +1,7 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useZoom } from '../zoomContext.js';
+import MultiSelectFilter from './MultiSelectFilter.jsx';
 
 const fmt = n => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: 2, maximumFractionDigits: 2 }).format(n);
 const fmtDate = d => d ? new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { day:'numeric', month:'short', year:'numeric' }) : '—';
@@ -31,9 +32,9 @@ export default function QSCostsView({ projectId, readOnly }) {
   const zoom = useZoom();
   const [data,       setData]       = useState(null);
   const [search,     setSearch]     = useState('');
-  const [gang,       setGang]       = useState('');
+  const [gangs,      setGangs]      = useState([]); // [] = All
   const [category,   setCategory]   = useState('');
-  const [week,       setWeek]       = useState('');
+  const [weeks,      setWeeks]      = useState([]); // [] = All
   const [importing,  setImporting]  = useState(false);
   const [importMsg,  setImportMsg]  = useState(null);
   const [viewMode,   setViewMode]   = useState('list'); // 'list' | 'summary'
@@ -43,13 +44,13 @@ export default function QSCostsView({ projectId, readOnly }) {
 
   const load = useCallback(() => {
     const params = new URLSearchParams({ limit: 500 });
-    if (gang)     params.set('gang', gang);
+    gangs.forEach(g => params.append('gang', g));
+    weeks.forEach(w => params.append('week', w));
     if (category) params.set('category', category);
-    if (week)     params.set('week', week);
     if (search)   params.set('search', search);
     apiFetch(`/api/v1/projects/${projectId}/qs-costs?${params}`)
       .then(r => r.json()).then(setData);
-  }, [projectId, gang, category, week, search]);
+  }, [projectId, gangs, category, weeks, search]);
 
   useEffect(() => { load(); }, [load]);
 
@@ -72,8 +73,8 @@ export default function QSCostsView({ projectId, readOnly }) {
     fileRef.current.value = '';
   };
 
-  const clearFilters = () => { setSearch(''); setGang(''); setCategory(''); setWeek(''); };
-  const hasFilters   = search || gang || category || week;
+  const clearFilters = () => { setSearch(''); setGangs([]); setCategory(''); setWeeks([]); };
+  const hasFilters   = search || gangs.length > 0 || category || weeks.length > 0;
 
   const toggleSelect = (id) => {
     const newSelected = new Set(selected);
@@ -188,13 +189,12 @@ export default function QSCostsView({ projectId, readOnly }) {
         />
 
         {/* Sub/Gang filter */}
-        <select
-          value={gang}
-          onChange={e => setGang(e.target.value)}
-          style={{ padding:'7px 10px', borderRadius:6, border:'1px solid #d1d5db', fontSize:13, background:'#fff' }}>
-          <option value="">All Subs / Gangs</option>
-          {filters.gangs.map(g => <option key={g} value={g}>{g}</option>)}
-        </select>
+        <MultiSelectFilter
+          options={filters.gangs}
+          selected={gangs}
+          onChange={setGangs}
+          allLabel="All Subs / Gangs"
+        />
 
         {/* Category chips */}
         <div className="type-filters" style={{ flexWrap:'wrap' }}>
@@ -216,13 +216,13 @@ export default function QSCostsView({ projectId, readOnly }) {
         </div>
 
         {/* Week filter */}
-        <select
-          value={week}
-          onChange={e => setWeek(e.target.value)}
-          style={{ padding:'7px 10px', borderRadius:6, border:'1px solid #d1d5db', fontSize:13, background:'#fff' }}>
-          <option value="">All Weeks</option>
-          {filters.weeks.map(w => <option key={w} value={w}>WE {fmtWE(w)}</option>)}
-        </select>
+        <MultiSelectFilter
+          options={filters.weeks}
+          selected={weeks}
+          onChange={setWeeks}
+          allLabel="All Weeks"
+          formatOption={w => `WE ${fmtWE(w)}`}
+        />
 
         {hasFilters && (
           <button onClick={clearFilters}

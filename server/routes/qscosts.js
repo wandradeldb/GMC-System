@@ -244,17 +244,21 @@ router.post('/projects/:pid/qs-costs/import', upload.single('file'), (req, res) 
 });
 
 // â”€â”€ GET /projects/:pid/qs-costs â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
-// Supports ?gang=&category=&week=&search=&page=&limit=
+// Supports ?gang=&category=&week=&search=&page=&limit= — gang/week accept multiple
+// values (repeated query params, e.g. ?gang=A&gang=B) for the Excel-style multi-select
+// filters; a single value or an empty selection ("show all") both still work.
 router.get('/projects/:pid/qs-costs', (req, res) => {
   const con = db();
-  const { gang, category, week, search, page = 1, limit = 200 } = req.query;
+  const { category, search, page = 1, limit = 200 } = req.query;
+  const gangFilter = [].concat(req.query.gang || []).filter(Boolean);
+  const weekFilter = [].concat(req.query.week || []).filter(Boolean);
 
   let sql = 'SELECT * FROM qs_cost_transaction WHERE project_id=?';
   const params = [req.params.pid];
 
-  if (gang)     { sql += ' AND gang_name=?';                          params.push(gang); }
-  if (category) { sql += ' AND cost_category=?';                      params.push(category); }
-  if (week)     { sql += ' AND week_ending=?';                        params.push(week); }
+  if (gangFilter.length) { sql += ` AND gang_name IN (${gangFilter.map(() => '?').join(',')})`;   params.push(...gangFilter); }
+  if (category)           { sql += ' AND cost_category=?';                                          params.push(category); }
+  if (weekFilter.length) { sql += ` AND week_ending IN (${weekFilter.map(() => '?').join(',')})`;  params.push(...weekFilter); }
   if (search)   { sql += ' AND (gang_name LIKE ? OR stock_item_text LIKE ? OR plant_description LIKE ? OR supplier_name LIKE ?)';
                   const t = `%${search}%`;
                   params.push(t, t, t, t); }
@@ -273,9 +277,9 @@ router.get('/projects/:pid/qs-costs', (req, res) => {
     FROM qs_cost_transaction WHERE project_id=?
   `;
   const sumParams = [req.params.pid];
-  if (gang)     { sumSql += ' AND gang_name=?';     sumParams.push(gang); }
-  if (category) { sumSql += ' AND cost_category=?'; sumParams.push(category); }
-  if (week)     { sumSql += ' AND week_ending=?';   sumParams.push(week); }
+  if (gangFilter.length) { sumSql += ` AND gang_name IN (${gangFilter.map(() => '?').join(',')})`;  sumParams.push(...gangFilter); }
+  if (category)           { sumSql += ' AND cost_category=?';                                        sumParams.push(category); }
+  if (weekFilter.length) { sumSql += ` AND week_ending IN (${weekFilter.map(() => '?').join(',')})`; sumParams.push(...weekFilter); }
   if (search)   { sumSql += ' AND (gang_name LIKE ? OR stock_item_text LIKE ? OR plant_description LIKE ? OR supplier_name LIKE ?)';
                   const t = `%${search}%`;
                   sumParams.push(t, t, t, t); }
