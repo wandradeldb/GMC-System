@@ -1,3 +1,5 @@
+import BackButton from './BackButton.jsx';
+
 const fmt  = (n, d = 2) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtE = (n, d = 0) => n == null ? '—' : `€${fmt(n, d)}`;
 const fmtDate = iso => {
@@ -39,10 +41,7 @@ export default function SubcontractStatement({ data, onBack }) {
   return (
     <div>
       <div className="no-print" style={{ display:'flex', gap:12, marginBottom:16 }}>
-        <button onClick={onBack}
-          style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'6px 14px', cursor:'pointer', fontSize:13 }}>
-          ← Back
-        </button>
+        <BackButton onClick={onBack} />
         <button onClick={() => window.print()} className="btn-primary" style={{ padding:'6px 18px', fontSize:13 }}>
           🖨 Print / Save PDF
         </button>

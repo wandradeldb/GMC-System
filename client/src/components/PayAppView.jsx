@@ -2,6 +2,8 @@ import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback } from 'react';
 import { useZoom } from '../zoomContext.js';
 import { SEC_COLOR, orderSections } from '../lib/sections.js';
+import BackButton from './BackButton.jsx';
+import { useBackHandler } from '../useBackHandler.js';
 
 const fmt  = (n, d = 0) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtD      = d => { if (!d) return '—'; const [y,m,dy] = String(d).split('-'); return `${dy}/${m}/${y}`; };
@@ -174,6 +176,8 @@ function NewPayAppForm({ projectId, onBack }) {
       });
   }, [projectId]);
 
+  useBackHandler(onBack, true);
+
   if (!sheet) return <div className="state-box"><div className="icon">⏳</div><p>Loading BOQ…</p></div>;
 
   const setItem = (i, val) => {
@@ -217,7 +221,7 @@ function NewPayAppForm({ projectId, onBack }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div className="detail-nav">
-        <button className="btn-back" onClick={onBack}>← PayApps</button>
+        <BackButton label="PayApps" onClick={onBack} />
       </div>
 
       {/* Header — sticky below topbar. Everything on one row: this bar, the tabs, and the filter
@@ -499,6 +503,8 @@ function PayAppDetail({ payapp, projectId, onBack, onStatusChange }) {
   const [erCert,  setErCert]  = useState({ er_works_certified: payapp.er_works_certified || '', er_net_certified: payapp.er_net_certified || '', er_this_cert: payapp.er_this_cert || '', date_certified: payapp.date_certified || '', cert_number: payapp.cert_number || '' });
   const [saving,  setSaving]  = useState(false);
 
+  useBackHandler(onBack, true);
+
   const nextStatus = { draft: 'submitted', submitted: 'certified', certified: 'paid' };
   const prevStatus = { submitted: 'draft', certified: 'submitted', paid: 'certified' };
   const btnLabel   = { draft: 'Submit to Client', submitted: 'Record ER Cert', certified: 'Mark Paid', paid: null };
@@ -522,7 +528,7 @@ function PayAppDetail({ payapp, projectId, onBack, onStatusChange }) {
   return (
     <div>
       <div className="detail-nav">
-        <button className="btn-back" onClick={onBack}>← PayApps</button>
+        <BackButton label="PayApps" onClick={onBack} />
       </div>
 
       <div className="assessment-header">

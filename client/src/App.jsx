@@ -16,6 +16,8 @@ import ProgrammeView from './components/ProgrammeView.jsx';
 import InvoiceTrackerView from './components/InvoiceTrackerView.jsx';
 import { apiFetch } from './apiFetch.js';
 import { ZoomContext } from './zoomContext.js';
+import { useBackHandler } from './useBackHandler.js';
+import { goBack, hasBackHandler } from './backStack.js';
 
 const NAV_GROUPS = [
   {
@@ -68,8 +70,29 @@ export default function App() {
   const [sidebarOpen, setSidebarOpen] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [zoom, setZoom] = useState(() => Number(localStorage.getItem('gmc_zoom')) || 100);
+  const [navResetToken, setNavResetToken] = useState(0);
 
   useEffect(() => { localStorage.setItem('gmc_zoom', String(zoom)); }, [zoom]);
+
+  // Physical browser back button / ArrowLeft key: step back to the projects list from
+  // inside a project, instead of leaving the app entirely (there was nothing pushed to
+  // browser history before, so back had nowhere in-app to go).
+  useBackHandler(handleBackToProjects, !!project);
+
+  useEffect(() => {
+    function onKeyDown(e) {
+      if (e.key !== 'ArrowLeft') return;
+      const el = document.activeElement;
+      const tag = el?.tagName;
+      const isEditable = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || el?.isContentEditable;
+      if (isEditable) return;
+      if (!hasBackHandler()) return;
+      e.preventDefault();
+      goBack();
+    }
+    window.addEventListener('keydown', onKeyDown);
+    return () => window.removeEventListener('keydown', onKeyDown);
+  }, []);
   const zoomOut   = () => setZoom(z => Math.max(70, z - 10));
   const zoomIn    = () => setZoom(z => Math.min(150, z + 10));
   const zoomReset = () => setZoom(100);
@@ -158,7 +181,12 @@ export default function App() {
                   <button
                     key={item.id}
                     className={`sidebar-nav-item${activeNav === item.id && !showAdmin && !showProfile ? ' active' : ''}`}
-                    onClick={() => { setActiveNav(item.id); setShowAdmin(false); setShowProfile(false); setSidebarOpen(false); }}
+                    onClick={() => {
+                      // Re-clicking the section you're already in resets it back to its
+                      // own home page, even if you're several sub-pages deep inside it.
+                      if (activeNav === item.id && !showAdmin && !showProfile) setNavResetToken(t => t + 1);
+                      setActiveNav(item.id); setShowAdmin(false); setShowProfile(false); setSidebarOpen(false);
+                    }}
                   >
                     <i className={`ti ${item.icon}`} aria-hidden="true" />
                     {item.label}
@@ -250,17 +278,17 @@ export default function App() {
     const projectId = project.id;
     content = (
       <>
-        {activeNav === 'dashboard' && <DashboardView projectId={projectId} onNavigate={setActiveNav} />}
-        {activeNav === 'boqlist'   && <BOQView projectId={projectId} readOnly={readOnly} />}
-        {activeNav === 'boq'       && <RevenueGenerationView projectId={projectId} project={project} readOnly={readOnly} />}
-        {activeNav === 'sub'       && <SubcontractView projectId={projectId} readOnly={readOnly} deepLinkSubName={subDeepLink?.subName} onDeepLinkConsumed={() => setSubDeepLink(null)} />}
-        {activeNav === 'das'       && <DASView projectId={projectId} readOnly={readOnly} />}
-        {activeNav === 'tracker'   && <TrackerView projectId={projectId} readOnly={readOnly} onSubCellClick={subName => { setSubDeepLink({ subName }); setActiveNav('sub'); }} />}
-        {activeNav === 'payapp'    && <PayAppView projectId={projectId} readOnly={readOnly} />}
-        {activeNav === 'qscosts'   && <QSCostsView projectId={projectId} readOnly={readOnly} />}
-        {activeNav === 'invoices'  && <InvoiceTrackerView projectId={projectId} />}
-        {activeNav === 'programme' && <ProgrammeView projectId={projectId} readOnly={readOnly} />}
-        {activeNav === 'settings'  && <ProjectSettingsView project={project} onProjectUpdated={p => setProject(p)} />}
+        {activeNav === 'dashboard' && <DashboardView key={navResetToken} projectId={projectId} onNavigate={setActiveNav} />}
+        {activeNav === 'boqlist'   && <BOQView key={navResetToken} projectId={projectId} readOnly={readOnly} />}
+        {activeNav === 'boq'       && <RevenueGenerationView key={navResetToken} projectId={projectId} project={project} readOnly={readOnly} />}
+        {activeNav === 'sub'       && <SubcontractView key={navResetToken} projectId={projectId} readOnly={readOnly} deepLinkSubName={subDeepLink?.subName} onDeepLinkConsumed={() => setSubDeepLink(null)} />}
+        {activeNav === 'das'       && <DASView key={navResetToken} projectId={projectId} readOnly={readOnly} />}
+        {activeNav === 'tracker'   && <TrackerView key={navResetToken} projectId={projectId} readOnly={readOnly} onSubCellClick={subName => { setSubDeepLink({ subName }); setActiveNav('sub'); }} />}
+        {activeNav === 'payapp'    && <PayAppView key={navResetToken} projectId={projectId} readOnly={readOnly} />}
+        {activeNav === 'qscosts'   && <QSCostsView key={navResetToken} projectId={projectId} readOnly={readOnly} />}
+        {activeNav === 'invoices'  && <InvoiceTrackerView key={navResetToken} projectId={projectId} />}
+        {activeNav === 'programme' && <ProgrammeView key={navResetToken} projectId={projectId} readOnly={readOnly} />}
+        {activeNav === 'settings'  && <ProjectSettingsView key={navResetToken} project={project} onProjectUpdated={p => setProject(p)} />}
       </>
     );
   }

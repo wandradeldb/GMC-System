@@ -1,6 +1,8 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect } from 'react';
 import { useZoom } from '../zoomContext.js';
+import BackButton from './BackButton.jsx';
+import { useBackHandler } from '../useBackHandler.js';
 
 const fmt = (n, d = 2) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtWE = we => we ? new Date(we + 'T12:00:00').toLocaleDateString('en-IE', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }) : '';
@@ -40,6 +42,8 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
       });
   }, [projectId, weekEnding]);
 
+  useBackHandler(onBack, true);
+
   const setItem = (i, k, v) => setItems(rows => rows.map((r, j) => j === i ? { ...r, [k]: v } : r));
 
   const save = async () => {
@@ -70,7 +74,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
   return (
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div className="detail-nav" style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:4 }}>
-        <button className="btn-back" onClick={onBack}>← Tracker</button>
+        <BackButton label="Tracker" onClick={onBack} />
         <button onClick={async () => {
           if (!window.confirm(`Delete week WE ${weekEnding} and all progress data for this week?`)) return;
           await apiFetch(`/api/v1/projects/${projectId}/tracker/${weekEnding}`, { method:'DELETE' });

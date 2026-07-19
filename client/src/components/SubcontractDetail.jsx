@@ -2,6 +2,8 @@ import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback, useRef } from 'react';
 import PaymentCalendar from './PaymentCalendar.jsx';
 import SubcontractStatement from './SubcontractStatement.jsx';
+import BackButton from './BackButton.jsx';
+import { useBackHandler } from '../useBackHandler.js';
 import { useZoom } from '../zoomContext.js';
 
 const STATUS_COLOR = { draft:'#92400e', assessed:'#1e40af', approved:'#166534', invoiced:'#7c3aed', paid:'#065f46' };
@@ -31,6 +33,9 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
 
   useEffect(() => { load(); }, [load]);
 
+  useBackHandler(onBack, true);
+  useBackHandler(() => setStatementData(null), !!statementData);
+
   // Full-history statement across every application on this subcontract, for reviewing
   // accumulated cuts/Daywork/Variation/Contra Charge divergences with the sub in a meeting.
   const openStatement = async () => {
@@ -59,7 +64,7 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       {/* Back + Header */}
       <div className="detail-nav" style={{ marginBottom: 2 }}>
-        <button className="btn-back" onClick={onBack}>← Subcontracts</button>
+        <BackButton label="Subcontracts" onClick={onBack} />
       </div>
 
       <div className="sc-detail-header">

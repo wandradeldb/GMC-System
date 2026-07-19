@@ -1,6 +1,8 @@
 import { apiFetch } from '../apiFetch.js';
 import { useState, useEffect, useCallback } from 'react';
 import { useZoom } from '../zoomContext.js';
+import BackButton from './BackButton.jsx';
+import { useBackHandler } from '../useBackHandler.js';
 
 const fmt  = (n, d = 2) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtE = (n, d = 0) => n == null ? '—' : `€${fmt(n, d)}`;
@@ -72,6 +74,15 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
     setView('certificate');
   };
 
+  // Level 1: leaving this assessment entirely, back to the Subcontracts list.
+  useBackHandler(onBack, true);
+  // Level 2: stepping out of whichever sub-page (new application / detail / certificate)
+  // back to this assessment's own applications list.
+  const backToList = view === 'certificate'
+    ? () => { setView('list'); setCertData(null); loadApps(); }
+    : () => setView('list');
+  useBackHandler(backToList, view !== 'list');
+
   const reloadDetail = async () => {
     const cur = detailApp?.app || detailApp?.application;
     if (!cur) return;
@@ -88,7 +99,7 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
   if (loading) return <div className="state-box"><div className="icon">⏳</div><p>Loading…</p></div>;
 
   if (view === 'certificate' && certData) {
-    return <CertificateView data={certData} onBack={() => { setView('list'); setCertData(null); loadApps(); }} />;
+    return <CertificateView data={certData} onBack={backToList} />;
   }
 
   return (
@@ -97,10 +108,7 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
         <>
           {/* ── Breadcrumb ──────────────────────────────────────────────── */}
           <div style={{ display:'flex', alignItems:'center', gap:8, marginBottom:6 }}>
-            <button onClick={onBack}
-              style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12, color:'#374151' }}>
-              ← Subcontracts
-            </button>
+            <BackButton label="Subcontracts" onClick={onBack} />
             <span style={{ color:'#6b7280', fontSize:12 }}>/</span>
             <span style={{ fontWeight:700, color:'#1a1a2e', fontSize:13 }}>{subName}</span>
           </div>
@@ -165,7 +173,7 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
             if (json.ok) { await Promise.all([loadBoq(), loadApps()]); setView('list'); }
             return json;
           }}
-          onCancel={() => setView('list')}
+          onCancel={backToList}
         />
       )}
       {view === 'detail' && detailApp && (
@@ -176,7 +184,7 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
           subcontractId={subcontractId}
           onUpdated={reloadDetail}
           onCertificate={openCertificate}
-          onBack={() => setView('list')}
+          onBack={backToList}
         />
       )}
       </div>
@@ -504,10 +512,7 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
       <div style={{ position:'sticky', top:0, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb',
         padding:'4px 0 6px', marginBottom:4 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-          <button onClick={onCancel}
-            style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12 }}>
-            ← Back
-          </button>
+          <BackButton onClick={onCancel} />
           <h3 style={{ margin:0, fontSize:13, color:'#1a1a2e' }}>App {nextAppNum} — Manual Assessment</h3>
           <label style={{ fontSize:12, fontWeight:600, color:'#374151' }}>
             WE:&nbsp;
@@ -787,10 +792,7 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
       <div style={{ position:'sticky', top:0, zIndex:10, background:'#fff', borderBottom:'1px solid #e5e7eb',
         padding:'4px 0 6px', marginBottom:4 }}>
         <div style={{ display:'flex', alignItems:'center', gap:10, flexWrap:'wrap' }}>
-          <button onClick={onBack}
-            style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12 }}>
-            ← Back
-          </button>
+          <BackButton onClick={onBack} />
           <h3 style={{ margin:0, fontSize:13, color:'#1a1a2e' }}>
             App {app.application_number} — WE {fmtDate(app.week_ending || app.period)}
           </h3>
@@ -994,10 +996,7 @@ function CertificateView({ data, onBack }) {
   return (
     <div>
       <div className="no-print" style={{ display:'flex', gap:12, marginBottom:16 }}>
-        <button onClick={onBack}
-          style={{ background:'none', border:'1px solid #d1d5db', borderRadius:6, padding:'6px 14px', cursor:'pointer', fontSize:13 }}>
-          ← Back
-        </button>
+        <BackButton onClick={onBack} />
         <button onClick={() => window.print()} className="btn-primary" style={{ padding:'6px 18px', fontSize:13 }}>
           🖨 Print / Save PDF
         </button>
