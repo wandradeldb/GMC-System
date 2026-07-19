@@ -178,20 +178,46 @@ function recalcWeek(con, projectId, weekEnding) {
   };
 }
 
+// A week that has QS Costs imported but was never manually "started" (no tracker_we row
+// saved yet) used to be entirely invisible in the tracker until someone opened "Edit WE"
+// and saved it once — the cost data just sat there unseen. This default row lets such a
+// week surface automatically with its real cost figures instead of requiring that manual
+// step; it's never written to the DB, only merged into the report response.
+function emptyTrackerRow(pid, weekEnding) {
+  return {
+    id: null, project_id: pid, week_ending: weekEnding, week_number: null,
+    rev_prelims_fixed: 0, rev_prelims_time: 0, rev_civil: 0, rev_meica: 0,
+    rev_landscape: 0, rev_commissioning: 0, rev_ae: 0, rev_total_week: 0, rev_cumulative: 0,
+    cost_subs: 0, cost_materials: 0, cost_plant: 0, ohp_allowance: 0,
+    cost_total_week: 0, cost_cumulative: 0,
+    margin_week: 0, margin_cumulative: 0, margin_pct: 0,
+    efa_revenue: 0, efa_cost: 0, efa_margin: 0, efa_margin_pct: 0, target_margin_pct: 8,
+    entered_by: null, notes: null, status: 'draft',
+    created_at: null, updated_at: null,
+  };
+}
+
 // â”€â”€ GET /projects/:pid/tracker  â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 // Returns all tracker_we rows ordered by week_ending ASC (columns for the UI)
 function buildTrackerReport(con, pid) {
-  const rows = con.prepare('SELECT * FROM tracker_we WHERE project_id=? ORDER BY week_ending ASC').all(pid);
+  const savedRows = con.prepare('SELECT * FROM tracker_we WHERE project_id=? ORDER BY week_ending ASC').all(pid);
 
   // Pull QS import costs per week (Material + Plant from qs_cost_transaction)
   const qsRows = con.prepare(`
     SELECT week_ending,
       ROUND(SUM(CASE WHEN cost_category='Material' THEN cost ELSE 0 END),2) AS qs_mat,
       ROUND(SUM(CASE WHEN cost_category='Plant'    THEN cost ELSE 0 END),2) AS qs_plant
-    FROM qs_cost_transaction WHERE project_id=? GROUP BY week_ending
+    FROM qs_cost_transaction WHERE project_id=? AND week_ending IS NOT NULL GROUP BY week_ending
   `).all(pid);
   const qsMap = {};
   qsRows.forEach(r => { qsMap[r.week_ending] = r; });
+
+  // Weeks with QS Costs data but no saved tracker_we row yet: surface them too.
+  const savedWeeks = new Set(savedRows.map(r => r.week_ending));
+  const syntheticRows = Object.keys(qsMap)
+    .filter(w => !savedWeeks.has(w))
+    .map(w => emptyTrackerRow(pid, w));
+  const rows = [...savedRows, ...syntheticRows].sort((a, b) => a.week_ending.localeCompare(b.week_ending));
 
   // Live sub costs from approved sub_applications (by exact week_ending)
   const subCostRows = con.prepare(`
