@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import BOQView from './components/BOQView.jsx';
 import DASView from './components/DASView.jsx';
 import SubcontractView from './components/SubcontractView.jsx';
@@ -17,7 +17,7 @@ import InvoiceTrackerView from './components/InvoiceTrackerView.jsx';
 import { apiFetch } from './apiFetch.js';
 import { ZoomContext } from './zoomContext.js';
 import { useBackHandler } from './useBackHandler.js';
-import { goBack, hasBackHandler } from './backStack.js';
+import { goBack, hasBackHandler, pushBackHandler, removeBackHandler } from './backStack.js';
 
 const NAV_GROUPS = [
   {
@@ -78,6 +78,33 @@ export default function App() {
   // inside a project, instead of leaving the app entirely (there was nothing pushed to
   // browser history before, so back had nowhere in-app to go).
   useBackHandler(handleBackToProjects, !!project);
+
+  // Physical back / ArrowLeft while switching sidebar tabs inside a project (Dashboard ->
+  // Revenue Generator -> Subcontracts, etc.) used to skip straight past all of that to
+  // handleBackToProjects above, since no history entry was ever pushed for a plain tab
+  // switch. This tracks one level of "previous tab" per switch: entering a project fresh
+  // (or switching to a different project) resets the baseline with no push, and every real
+  // tab change pushes a step back to whatever tab was active before it. If a second tab
+  // switch happens before that entry is ever consumed by a real back-press, the effect
+  // cleanup removes it as an orphan (see backStack.js) so browser history depth still
+  // matches what's actually reachable.
+  const prevNavRef = useRef(activeNav);
+  const prevProjectIdRef = useRef(null);
+  useEffect(() => {
+    const projectChanged = (project?.id ?? null) !== prevProjectIdRef.current;
+    prevProjectIdRef.current = project?.id ?? null;
+
+    if (!project || projectChanged) {
+      prevNavRef.current = activeNav;
+      return;
+    }
+    if (activeNav === prevNavRef.current) return;
+
+    const fromNav = prevNavRef.current;
+    const id = pushBackHandler(() => setActiveNav(fromNav));
+    prevNavRef.current = activeNav;
+    return () => removeBackHandler(id);
+  }, [activeNav, project]);
 
   useEffect(() => {
     function onKeyDown(e) {
