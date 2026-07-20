@@ -66,6 +66,7 @@ export default function SubcontractView({ projectId, readOnly, deepLinkSubName, 
     <SubcontractDetail
       projectId={projectId}
       subcontractId={selected}
+      readOnly={readOnly}
       onBack={() => { setSelected(null); load(); }}
       onOpenAssessment={(sc, appId) => setAssessment({
         id: sc.id, ref: sc.ref, name: sc.subcontractor_name, contract_value: sc.contract_value,

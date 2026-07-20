@@ -19,7 +19,7 @@ const INV_STATUSES     = ['received', 'sent_to_finance', 'scheduled', 'paid', 'd
 // batching flow. See AssessmentForm.jsx for the original per-application "Record Invoice" modal,
 // which this doesn't replace -- it's a second entry point into the same sub_invoice table, useful
 // when you want to record several subs' invoices without opening each application individually.
-export default function PaymentCalendar({ projectId, subcontractId, applications = [], retentionPct = 5, onRefresh }) {
+export default function PaymentCalendar({ projectId, subcontractId, applications = [], retentionPct = 5, onRefresh, readOnly }) {
   const [invoices, setInvoices] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [showNew,  setShowNew]  = useState(false);
@@ -89,16 +89,18 @@ export default function PaymentCalendar({ projectId, subcontractId, applications
         <span className="section-stat">
           {invoices.length} invoice{invoices.length !== 1 ? 's' : ''} · Gross: €{fmt(totalGross)} · Net: €{fmt(totalNet)}
         </span>
-        <button className="btn-primary" onClick={() => setShowNew(s => !s)} disabled={eligibleApps.length === 0}>
-          + New Invoice
-        </button>
+        {!readOnly && (
+          <button className="btn-primary" onClick={() => setShowNew(s => !s)} disabled={eligibleApps.length === 0}>
+            + New Invoice
+          </button>
+        )}
       </div>
 
       {eligibleApps.length === 0 && !showNew && (
         <div className="empty-hint">No approved applications ready to invoice.</div>
       )}
 
-      {showNew && (
+      {showNew && !readOnly && (
         <div className="inline-form">
           <div className="section-grid">
             <div className="field span2"><label className="field-label">Application *</label>
@@ -157,18 +159,24 @@ export default function PaymentCalendar({ projectId, subcontractId, applications
                   <td className="col-num" style={{ fontWeight: 700 }}>{fmt(inv.net_amount)}</td>
                   <td style={{ fontSize: 12 }}>{inv.sent_finance_date ? fmtDate(inv.sent_finance_date) : '—'}</td>
                   <td>
-                    <select
-                      className="status-badge"
-                      value={inv.status}
-                      onChange={e => updateStatus(inv.id, e.target.value)}
-                      title="Click to change status"
-                      style={{
-                        background: INV_STATUS_BG[inv.status], color: INV_STATUS_COLOR[inv.status],
-                        border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                      }}
-                    >
-                      {INV_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    {readOnly ? (
+                      <span className="status-badge" style={{ background: INV_STATUS_BG[inv.status], color: INV_STATUS_COLOR[inv.status] }}>
+                        {inv.status}
+                      </span>
+                    ) : (
+                      <select
+                        className="status-badge"
+                        value={inv.status}
+                        onChange={e => updateStatus(inv.id, e.target.value)}
+                        title="Click to change status"
+                        style={{
+                          background: INV_STATUS_BG[inv.status], color: INV_STATUS_COLOR[inv.status],
+                          border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                        }}
+                      >
+                        {INV_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                      </select>
+                    )}
                   </td>
                 </tr>
               ))}

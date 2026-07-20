@@ -18,7 +18,7 @@ function fmtDate(d) {
   return new Date(d + 'T12:00:00').toLocaleDateString('en-IE', { day:'numeric', month:'short', year:'numeric' });
 }
 
-export default function SubcontractDetail({ projectId, subcontractId, onBack, onOpenAssessment }) {
+export default function SubcontractDetail({ projectId, subcontractId, readOnly, onBack, onOpenAssessment }) {
   const [data,       setData]       = useState(null);
   const [tab,        setTab]        = useState('overview');
   const [boqCertified, setBoqCertified] = useState([]);
@@ -74,7 +74,7 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
           <span className="sc-detail-desc">{sc.description}</span>
           <span className="sc-detail-meta" style={{ display:'flex', alignItems:'center', gap:6 }}>
             · {fmtDate(sc.start_date)} – {fmtDate(sc.end_date)} ·
-            <RetentionField projectId={projectId} subcontractId={subcontractId} value={sc.retention_pct} onSaved={load} />
+            <RetentionField projectId={projectId} subcontractId={subcontractId} value={sc.retention_pct} onSaved={load} readOnly={readOnly} />
           </span>
         </div>
         <div className="sc-detail-kpis">
@@ -127,20 +127,21 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
             projectId={projectId}
             subcontractId={subcontractId}
             onRefresh={load}
+            readOnly={readOnly}
           />
         )}
-        {tab === 'boq' && <BOQTab boqItems={boq_items} boqCertified={boqCertified} projectId={projectId} subcontractId={subcontractId} onRefresh={load} />}
+        {tab === 'boq' && <BOQTab boqItems={boq_items} boqCertified={boqCertified} projectId={projectId} subcontractId={subcontractId} onRefresh={load} readOnly={readOnly} />}
         {tab === 'daywork' && (
           <CELikeTab ces={dayworks} applications={applications} subcontractId={sc.id} projectId={projectId}
-            onRefresh={load} type="daywork" onViewApp={appId => onOpenAssessment(sc, appId)} />
+            onRefresh={load} type="daywork" onViewApp={appId => onOpenAssessment(sc, appId)} readOnly={readOnly} />
         )}
         {tab === 'ces'  && (
           <CELikeTab ces={variations} applications={applications} subcontractId={sc.id} projectId={projectId}
-            onRefresh={load} type="variation" onViewApp={appId => onOpenAssessment(sc, appId)} />
+            onRefresh={load} type="variation" onViewApp={appId => onOpenAssessment(sc, appId)} readOnly={readOnly} />
         )}
         {tab === 'contra' && (
           <CELikeTab ces={contraCharges} applications={applications} subcontractId={sc.id} projectId={projectId}
-            onRefresh={load} type="contra_charge" onViewApp={appId => onOpenAssessment(sc, appId)} />
+            onRefresh={load} type="contra_charge" onViewApp={appId => onOpenAssessment(sc, appId)} readOnly={readOnly} />
         )}
         {tab === 'payments' && (
           <PaymentCalendar
@@ -149,6 +150,7 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
             applications={applications}
             retentionPct={sc.retention_pct}
             onRefresh={load}
+            readOnly={readOnly}
           />
         )}
       </div>
@@ -164,7 +166,7 @@ export default function SubcontractDetail({ projectId, subcontractId, onBack, on
 // AppDetailView. Those used to be a separate, more limited path: the create form had no way to
 // enter item-level % data, and AppDetailView could advance status but had no Approve-with-cut,
 // no Payment Certificate, and no invoice recording -- all of which only exist on SubAssessmentView.
-function ApplicationsTab({ applications, dayworks, variations, contraCharges, onView, retention_pct, onNewAssessment, onStatement, projectId, subcontractId, onRefresh }) {
+function ApplicationsTab({ applications, dayworks, variations, contraCharges, onView, retention_pct, onNewAssessment, onStatement, projectId, subcontractId, onRefresh, readOnly }) {
   const zoom = useZoom();
 
   const deleteApp = async (a) => {
@@ -188,7 +190,7 @@ function ApplicationsTab({ applications, dayworks, variations, contraCharges, on
               color:'#1e40af', cursor:'pointer', fontSize:12, fontWeight:600 }}>
             📊 Statement
           </button>
-          <button className="btn-primary" onClick={onNewAssessment}>+ New Assessment</button>
+          {!readOnly && <button className="btn-primary" onClick={onNewAssessment}>+ New Assessment</button>}
         </div>
       </div>
 
@@ -238,10 +240,10 @@ function ApplicationsTab({ applications, dayworks, variations, contraCharges, on
                   </td>
                   <td style={{ display:'flex', gap:4, alignItems:'center' }}>
                     <button className="btn-link" onClick={() => onView(a.id)}>Ver detalhe →</button>
-                    <button onClick={() => deleteApp(a)} title="Delete application"
+                    {!readOnly && <button onClick={() => deleteApp(a)} title="Delete application"
                       style={{ background:'none', border:'1px solid #fca5a5', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12, color:'#dc2626' }}>
                       ✕
-                    </button>
+                    </button>}
                   </td>
                 </tr>
               );
@@ -257,7 +259,7 @@ function ApplicationsTab({ applications, dayworks, variations, contraCharges, on
 /* ── BOQ Tab ────────────────────────────────────────────────────────────── */
 const stickyTh = { position:'sticky', top:0, zIndex:4, background:'#1a1a2e', color:'#fff' };
 
-function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh }) {
+function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh, readOnly }) {
   const zoom = useZoom();
   const [importing, setImporting] = useState(false);
   const [importMsg, setImportMsg] = useState('');
@@ -300,11 +302,13 @@ function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh })
         </span>
         <div style={{ display:'flex', alignItems:'center', gap:8 }}>
           {importMsg && <span style={{ fontSize:11, color: importMsg.startsWith('✓') ? '#166534' : '#dc2626' }}>{importMsg}</span>}
-          <label style={{ padding:'4px 10px', borderRadius:6, border:'1px solid #bfdbfe', background:'#eff6ff',
-            cursor:'pointer', fontSize:11, color:'#1e40af', fontWeight:600 }}>
-            {importing ? 'Importing…' : '⬆ Import BOQ (Excel)'}
-            <input type="file" accept=".xlsx,.xls,.csv" style={{ display:'none' }} onChange={handleFile} disabled={importing} />
-          </label>
+          {!readOnly && (
+            <label style={{ padding:'4px 10px', borderRadius:6, border:'1px solid #bfdbfe', background:'#eff6ff',
+              cursor:'pointer', fontSize:11, color:'#1e40af', fontWeight:600 }}>
+              {importing ? 'Importing…' : '⬆ Import BOQ (Excel)'}
+              <input type="file" accept=".xlsx,.xls,.csv" style={{ display:'none' }} onChange={handleFile} disabled={importing} />
+            </label>
+          )}
         </div>
       </div>
       {boqItems.length === 0 ? (
@@ -373,7 +377,7 @@ function BOQTab({ boqItems, boqCertified, projectId, subcontractId, onRefresh })
    Contra Charge SUBTRACTS it (a deduction charged back to the sub) -- server-side in
    recalcApplicationGmc. Contra Charge has no "Sub Claim" (the sub isn't claiming anything, GMC is
    charging them), so that field/column and the Delta column are hidden for it. */
-function CELikeTab({ ces, applications, subcontractId, projectId, onRefresh, type, onViewApp }) {
+function CELikeTab({ ces, applications, subcontractId, projectId, onRefresh, type, onViewApp, readOnly }) {
   const zoom = useZoom();
   const emptyForm = { description:'', sub_value:'', gmc_value:'', status:'submitted', notes:'', sub_application_id:'' };
   const [showForm,  setShowForm]  = useState(false);
@@ -445,10 +449,10 @@ function CELikeTab({ ces, applications, subcontractId, projectId, onRefresh, typ
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div className="section-toolbar">
         <span className="section-stat">{ces.length} {noun} · {isContra ? 'Deducted' : 'GMC'} agreed: €{fmt(ces.filter(c=>c.status==='agreed').reduce((s,c)=>s+c.gmc_value,0))}</span>
-        <button className="btn-primary" onClick={openNew}>+ New {label}</button>
+        {!readOnly && <button className="btn-primary" onClick={openNew}>+ New {label}</button>}
       </div>
 
-      {showForm && (
+      {showForm && !readOnly && (
         <div className="inline-form">
           <div className="section-grid">
             <div className="field"><label className="field-label">Status</label>
@@ -508,11 +512,17 @@ function CELikeTab({ ces, applications, subcontractId, projectId, onRefresh, typ
                   </td>
                 )}
                 <td>
-                  <select value={ce.status} onChange={e => changeCEStatus(ce.id, e.target.value)}
-                    style={{ background: CE_STATUS_BG[ce.status], color: CE_STATUS_COLOR[ce.status], border:'none', borderRadius:12,
-                      padding:'2px 8px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
-                    {Object.keys(CE_STATUS_BG).map(s => <option key={s} value={s}>{s}</option>)}
-                  </select>
+                  {readOnly ? (
+                    <span className="status-badge" style={{ background: CE_STATUS_BG[ce.status], color: CE_STATUS_COLOR[ce.status] }}>
+                      {ce.status}
+                    </span>
+                  ) : (
+                    <select value={ce.status} onChange={e => changeCEStatus(ce.id, e.target.value)}
+                      style={{ background: CE_STATUS_BG[ce.status], color: CE_STATUS_COLOR[ce.status], border:'none', borderRadius:12,
+                        padding:'2px 8px', fontSize:12, fontWeight:600, cursor:'pointer' }}>
+                      {Object.keys(CE_STATUS_BG).map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  )}
                 </td>
                 <td style={{ fontSize:12 }}>
                   {ce.sub_application_id
@@ -521,14 +531,14 @@ function CELikeTab({ ces, applications, subcontractId, projectId, onRefresh, typ
                 </td>
                 <td style={{ fontSize:12 }}>{ce.approved_date ? new Date(ce.approved_date+'T12:00:00').toLocaleDateString('en-IE',{day:'numeric',month:'short',year:'numeric'}) : '—'}</td>
                 <td style={{ display:'flex', gap:4, alignItems:'center' }}>
-                  <button onClick={() => openEdit(ce)} title="Edit"
+                  {!readOnly && <button onClick={() => openEdit(ce)} title="Edit"
                     style={{ background:'none', border:'1px solid #c7d2fe', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12, color:'#4338ca' }}>
                     ✎
-                  </button>
-                  <button onClick={() => deleteCE(ce)} title="Delete"
+                  </button>}
+                  {!readOnly && <button onClick={() => deleteCE(ce)} title="Delete"
                     style={{ background:'none', border:'1px solid #fca5a5', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12, color:'#dc2626' }}>
                     ✕
-                  </button>
+                  </button>}
                 </td>
               </tr>
             ))}
@@ -541,7 +551,7 @@ function CELikeTab({ ces, applications, subcontractId, projectId, onRefresh, typ
 }
 
 // ── Inline editable retention % ────────────────────────────────────────────────
-function RetentionField({ projectId, subcontractId, value, onSaved }) {
+function RetentionField({ projectId, subcontractId, value, onSaved, readOnly }) {
   const [editing, setEditing] = useState(false);
   const [val, setVal] = useState(value);
   const save = async () => {
@@ -551,7 +561,7 @@ function RetentionField({ projectId, subcontractId, value, onSaved }) {
     setEditing(false);
     if (onSaved) onSaved();
   };
-  if (editing) {
+  if (editing && !readOnly) {
     return (
       <span style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
         Retention
@@ -567,8 +577,8 @@ function RetentionField({ projectId, subcontractId, value, onSaved }) {
   return (
     <span style={{ display: 'inline-flex', alignItems: 'center', gap: 5 }}>
       Retention {value}%
-      <button onClick={() => { setVal(value); setEditing(true); }} title="Edit retention %"
-        style={{ border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', borderRadius: 4, padding: '0 6px', cursor: 'pointer', fontSize: 11 }}>✎</button>
+      {!readOnly && <button onClick={() => { setVal(value); setEditing(true); }} title="Edit retention %"
+        style={{ border: '1px solid #c7d2fe', background: '#eef2ff', color: '#4338ca', borderRadius: 4, padding: '0 6px', cursor: 'pointer', fontSize: 11 }}>✎</button>}
     </span>
   );
 }
