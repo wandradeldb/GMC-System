@@ -84,9 +84,22 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
   const [saving, setSaving]     = useState(false);
   const [savedMsg, setSavedMsg] = useState('');
   const curWeekThRef = useRef(null);
+  const scrollWrapRef = useRef(null);
 
+  // Center the selected WE column in the space that's actually visible -- native
+  // scrollIntoView({inline:'center'}) centers against the *full* scroll container width,
+  // but the left ~684px (Ref/Description/Contract/Cumul/Remain/Subcontractor) is covered by
+  // sticky-left columns, so a naively "centered" column lands squeezed right at that edge,
+  // barely visible. This centers within the remaining visible width instead.
   useEffect(() => {
-    curWeekThRef.current?.scrollIntoView({ behavior: 'smooth', inline: 'center', block: 'nearest' });
+    const wrap = scrollWrapRef.current;
+    const th = curWeekThRef.current;
+    if (!wrap || !th) return;
+    const wrapRect = wrap.getBoundingClientRect();
+    const thRect   = th.getBoundingClientRect();
+    const colCenterInContent = (thRect.left - wrapRect.left) + wrap.scrollLeft + thRect.width / 2;
+    const target = colCenterInContent - (wrapRect.width + FIXED_W) / 2;
+    wrap.scrollTo({ left: Math.max(0, target), behavior: 'smooth' });
   }, [weekEnding, allWeeks]);
   const [addingSubFor, setAddingSubFor] = useState(null); // { actId, splitIdx } awaiting a new subcontract — splitIdx null means the plain dropdown, a number means that split row
 
@@ -379,7 +392,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
       )}
 
       {/* ── Tabela ─── */}
-      <div style={{ overflowX: 'auto', overflowY: 'auto', flex: 1, minHeight: 0, zoom: `${zoom}%` }}>
+      <div ref={scrollWrapRef} style={{ overflowX: 'auto', overflowY: 'auto', flex: 1, minHeight: 0, zoom: `${zoom}%` }}>
         <table style={{
           borderCollapse: 'collapse',
           minWidth: FIXED_W + allWeeks.length * CW.we,
