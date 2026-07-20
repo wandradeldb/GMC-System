@@ -53,6 +53,9 @@ function flush() {
       if (removedIds.has(op.id)) continue; // pushed and removed within the same batch — never happened, as far as real history is concerned
       stack.push({ id: op.id, handler: op.handler });
       window.history.pushState({ gmcBackId: op.id }, '');
+    } else if (op.type === 'replace') {
+      const idx = stack.findIndex(e => e.id === op.id);
+      if (idx !== -1) stack[idx].handler = op.handler;
     } else {
       if (pushedIds.has(op.id)) continue; // already skipped above, don't also try to remove it
       const idx = stack.findIndex(e => e.id === op.id);
@@ -77,6 +80,20 @@ export function pushBackHandler(handler) {
 
 export function removeBackHandler(id) {
   queue.push({ type: 'remove', id });
+  scheduleFlush();
+}
+
+// Rebinds an already-pushed entry's handler without touching real browser history at all --
+// for callers that want repeated "what does back do now" updates (e.g. switching sidebar tabs
+// several times) without pushing+removing a real history entry per switch. Removing was the
+// original approach, but its orphan-cleanup calls a real history.back() per removal (see flush()
+// below); browsers can coalesce several rapid back() calls into fewer popstate events than
+// expected (already flagged in the comment on selfConsumeCount above) -- under fast repeated
+// clicks that let the browser step back further than the app's own stack accounted for, right
+// past every entry the app pushed, landing on whatever real page was open before the app at all.
+// Replacing the one entry in place instead of repeatedly push/removing it sidesteps that entirely.
+export function replaceBackHandler(id, handler) {
+  queue.push({ type: 'replace', id, handler });
   scheduleFlush();
 }
 

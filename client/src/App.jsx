@@ -17,7 +17,7 @@ import InvoiceTrackerView from './components/InvoiceTrackerView.jsx';
 import { apiFetch } from './apiFetch.js';
 import { ZoomContext } from './zoomContext.js';
 import { useBackHandler } from './useBackHandler.js';
-import { goBack, hasBackHandler, pushBackHandler, removeBackHandler } from './backStack.js';
+import { goBack, hasBackHandler, pushBackHandler, removeBackHandler, replaceBackHandler } from './backStack.js';
 
 const NAV_GROUPS = [
   {
@@ -82,28 +82,40 @@ export default function App() {
   // Physical back / ArrowLeft while switching sidebar tabs inside a project (Dashboard ->
   // Revenue Generator -> Subcontracts, etc.) used to skip straight past all of that to
   // handleBackToProjects above, since no history entry was ever pushed for a plain tab
-  // switch. This tracks one level of "previous tab" per switch: entering a project fresh
-  // (or switching to a different project) resets the baseline with no push, and every real
-  // tab change pushes a step back to whatever tab was active before it. If a second tab
-  // switch happens before that entry is ever consumed by a real back-press, the effect
-  // cleanup removes it as an orphan (see backStack.js) so browser history depth still
-  // matches what's actually reachable.
+  // switch. This tracks one level of "previous tab" per switch, using exactly ONE real
+  // history entry for the whole project session -- pushed once on the first tab change, then
+  // just rebound in place (replaceBackHandler) on every later switch. An earlier version
+  // pushed+removed a real entry per switch, but removing an unvisited one calls a real
+  // history.back() to consume it (see backStack.js); clicking through several tabs quickly
+  // fired several of those in a row, and browsers can coalesce rapid back() calls into fewer
+  // popstate events than expected, occasionally stepping back further than intended -- past
+  // every entry the app ever pushed and off the site entirely. A single entry that's only ever
+  // rebound, never removed-and-repushed, can't trigger that.
   const prevNavRef = useRef(activeNav);
   const prevProjectIdRef = useRef(null);
+  const tabBackIdRef = useRef(null);
   useEffect(() => {
     const projectChanged = (project?.id ?? null) !== prevProjectIdRef.current;
     prevProjectIdRef.current = project?.id ?? null;
 
     if (!project || projectChanged) {
       prevNavRef.current = activeNav;
+      if (tabBackIdRef.current != null) {
+        removeBackHandler(tabBackIdRef.current);
+        tabBackIdRef.current = null;
+      }
       return;
     }
     if (activeNav === prevNavRef.current) return;
 
     const fromNav = prevNavRef.current;
-    const id = pushBackHandler(() => setActiveNav(fromNav));
+    const handler = () => { tabBackIdRef.current = null; setActiveNav(fromNav); };
+    if (tabBackIdRef.current == null) {
+      tabBackIdRef.current = pushBackHandler(handler);
+    } else {
+      replaceBackHandler(tabBackIdRef.current, handler);
+    }
     prevNavRef.current = activeNav;
-    return () => removeBackHandler(id);
   }, [activeNav, project]);
 
   useEffect(() => {
