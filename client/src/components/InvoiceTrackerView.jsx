@@ -20,6 +20,7 @@ export default function InvoiceTrackerView({ projectId }) {
   const [invoices, setInvoices] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [search,   setSearch]   = useState('');
+  const [subFilter, setSubFilter] = useState('');
 
   const load = useCallback(() => {
     setLoading(true);
@@ -38,9 +39,13 @@ export default function InvoiceTrackerView({ projectId }) {
 
   if (loading) return <div className="state-box"><div className="icon">⏳</div><p>Loading invoices…</p></div>;
 
+  const subNames = [...new Set(invoices.map(inv => inv.sub_name))].sort((a, b) => a.localeCompare(b));
+
   const q = search.toLowerCase();
-  const visible = invoices.filter(inv =>
-    !q || inv.sub_name.toLowerCase().includes(q) || (inv.subcontract_ref || '').toLowerCase().includes(q));
+  const visible = invoices.filter(inv => {
+    if (subFilter && inv.sub_name !== subFilter) return false;
+    return !q || inv.sub_name.toLowerCase().includes(q) || (inv.subcontract_ref || '').toLowerCase().includes(q);
+  });
 
   const totalGross     = visible.reduce((s, i) => s + (i.gross_amount || 0), 0);
   const totalRetention = visible.reduce((s, i) => s + (i.retention_amount || 0), 0);
@@ -61,6 +66,14 @@ export default function InvoiceTrackerView({ projectId }) {
           value={search}
           onChange={e => setSearch(e.target.value)}
         />
+        <select
+          value={subFilter}
+          onChange={e => setSubFilter(e.target.value)}
+          style={{ padding: '7px 12px', borderRadius: 6, border: '1px solid #d1d5db', fontSize: 13 }}
+        >
+          <option value="">All subcontractors</option>
+          {subNames.map(name => <option key={name} value={name}>{name}</option>)}
+        </select>
       </div>
 
       {invoices.length === 0 ? (
