@@ -118,7 +118,7 @@ router.post('/subcontractors', (req, res) => {
 router.get('/projects/:pid/subcontracts', (req, res) => {
   const con = db();
   const rows = con.prepare(`
-    SELECT sc.*, s.name AS subcontractor_name,
+    SELECT sc.*, s.name AS subcontractor_name, s.short_name AS subcontractor_short_name,
       (SELECT COUNT(*) FROM sub_application a WHERE a.subcontract_id = sc.id) AS application_count,
       (SELECT COUNT(*) FROM sub_boq_item b WHERE b.subcontract_id = sc.id) AS boq_item_count,
       (SELECT COALESCE(SUM(value_gmc),0) FROM sub_application a WHERE a.subcontract_id = sc.id AND a.status != 'draft') AS total_certified

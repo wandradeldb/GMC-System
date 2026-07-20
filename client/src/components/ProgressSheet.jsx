@@ -46,6 +46,15 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
   useBackHandler(onBack, true);
 
   const setItem = (i, k, v) => setItems(rows => rows.map((r, j) => j === i ? { ...r, [k]: v } : r));
+  // % Complete is cumulative-to-date, not a per-week delta (WE Revenue below is derived from
+  // pct_complete_this - pct_complete_prev) -- the input's HTML min/max attributes only affect the
+  // spinner and browser validation styling, they don't actually stop a typed/pasted value from
+  // exceeding them, so this was the only thing standing between a stray keystroke and a BOQ item
+  // reading "52508%" complete.
+  const setPct = (i, v) => {
+    const n = v === '' ? '' : Math.min(100, Math.max(0, parseFloat(v) || 0));
+    setItems(rows => rows.map((r, j) => j === i ? { ...r, pct_complete_this: n } : r));
+  };
 
   const save = async () => {
     setSaving(true);
@@ -182,7 +191,7 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
                                 <input
                                   type="number" min="0" max="100" step="1"
                                   value={row.pct_complete_this}
-                                  onChange={e => setItem(row._idx, 'pct_complete_this', e.target.value)}
+                                  onChange={e => setPct(row._idx, e.target.value)}
                                   onKeyDown={gridKeyNav}
                                   data-grid-row={row._idx} data-grid-col="pct"
                                   className="assess-input assess-input-gmc"

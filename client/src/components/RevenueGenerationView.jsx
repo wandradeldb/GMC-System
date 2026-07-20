@@ -7,6 +7,10 @@ import { orderSections, getSectionColor } from '../lib/sections.js';
 
 const fmt  = (n, d = 2) => n == null ? '—' : new Intl.NumberFormat('en-IE', { minimumFractionDigits: d, maximumFractionDigits: d }).format(n);
 const fmtE = (n, d = 0) => `€${fmt(n, d)}`;
+// The Subcontractor column is too narrow for full legal names ("Ennell Engineering Ltd t/a
+// ...") -- use the supplier's own short_name where set, falling back to the full name only
+// when no short_name exists for it.
+const subLabel = s => s.subcontractor_short_name || s.subcontractor_name;
 const fmtWE     = iso => { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}` : iso; };
 const fmtDate   = iso => { const m = String(iso).match(/^(\d{4})-(\d{2})-(\d{2})/); return m ? `${m[3]}/${m[2]}/${m[1]}` : iso; };
 const MONTHS    = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
@@ -486,25 +490,16 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
                             {splits[a.id].length} subs ▾
                           </button>
                         ) : (
-                          <div style={{ position: 'relative' }}>
-                            <select value={splits[a.id]?.[0]?.sub_id ?? subEdits[a.id] ?? ''} onChange={e => setSub(a.id, e.target.value)}
-                              title={autoSub[a.id] ? 'Auto-suggested from this sub\'s tagged section — pick a different sub, or Save to confirm' : undefined}
-                              style={{ width:'100%', padding: autoSub[a.id] ? '1px 26px 1px 2px' : '1px 2px', fontSize:9, borderRadius:3,
-                                border: `1px solid ${autoSub[a.id] ? '#16a34a' : '#d1d5db'}`,
-                                background: autoSub[a.id] ? '#f0fdf4' : '#fff' }}>
-                              <option value="">GMC (none)</option>
-                              {subs.map(s => <option key={s.id} value={s.id}>{s.subcontractor_name}</option>)}
-                              <option value="__new__">+ Add new sub…</option>
-                              <option value="__split__">⋮ Split between subs…</option>
-                            </select>
-                            {autoSub[a.id] && (
-                              <span style={{
-                                position: 'absolute', right: 3, top: '50%', transform: 'translateY(-50%)',
-                                fontSize: 7, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em',
-                                background: '#16a34a', color: '#fff', borderRadius: 3, padding: '1px 4px', pointerEvents: 'none',
-                              }}>auto</span>
-                            )}
-                          </div>
+                          <select value={splits[a.id]?.[0]?.sub_id ?? subEdits[a.id] ?? ''} onChange={e => setSub(a.id, e.target.value)}
+                            title={autoSub[a.id] ? 'Auto-suggested from this sub\'s tagged section — pick a different sub, or Save to confirm' : undefined}
+                            style={{ width:'100%', padding:'1px 2px', fontSize:9, borderRadius:3,
+                              border: `1px solid ${autoSub[a.id] ? '#16a34a' : '#d1d5db'}`,
+                              background:'#fff' }}>
+                            <option value="">GMC (none)</option>
+                            {subs.map(s => <option key={s.id} value={s.id}>{subLabel(s)}</option>)}
+                            <option value="__new__">+ Add new sub…</option>
+                            <option value="__split__">⋮ Split between subs…</option>
+                          </select>
                         )}
                       </td>
 
