@@ -202,11 +202,12 @@ function emptyTrackerRow(pid, weekEnding) {
 function buildTrackerReport(con, pid) {
   const savedRows = con.prepare('SELECT * FROM tracker_we WHERE project_id=? ORDER BY week_ending ASC').all(pid);
 
-  // Pull QS import costs per week (Material + Plant from qs_cost_transaction)
+  // Pull QS import costs per week (Material + Plant + Overhead from qs_cost_transaction)
   const qsRows = con.prepare(`
     SELECT week_ending,
       ROUND(SUM(CASE WHEN cost_category='Material' THEN cost ELSE 0 END),2) AS qs_mat,
-      ROUND(SUM(CASE WHEN cost_category='Plant'    THEN cost ELSE 0 END),2) AS qs_plant
+      ROUND(SUM(CASE WHEN cost_category='Plant'    THEN cost ELSE 0 END),2) AS qs_plant,
+      ROUND(SUM(CASE WHEN cost_category='Overhead' THEN cost ELSE 0 END),2) AS qs_ohp
     FROM qs_cost_transaction WHERE project_id=? AND week_ending IS NOT NULL GROUP BY week_ending
   `).all(pid);
   const qsMap = {};
@@ -247,8 +248,9 @@ function buildTrackerReport(con, pid) {
     const qs       = qsMap[r.week_ending] || {};
     const mat      = (r.cost_materials || 0) + (qs.qs_mat   || 0);
     const plant    = (r.cost_plant     || 0) + (qs.qs_plant || 0);
+    const ohp      = (r.ohp_allowance  || 0) + (qs.qs_ohp   || 0);
     const liveSubs = subCostMap[r.week_ending] ?? (r.cost_subs || 0);
-    const costTotal = Math.round((liveSubs + mat + plant + (r.ohp_allowance || 0)) * 100) / 100;
+    const costTotal = Math.round((liveSubs + mat + plant + ohp) * 100) / 100;
     const revTotal  = r.rev_total_week || 0;
     cumRev  += revTotal;
     cumCost += costTotal;
@@ -261,6 +263,7 @@ function buildTrackerReport(con, pid) {
       cost_subs:        Math.round(liveSubs * 100) / 100,
       cost_materials:   Math.round(mat   * 100) / 100,
       cost_plant:       Math.round(plant * 100) / 100,
+      ohp_allowance:    Math.round(ohp   * 100) / 100,
       cost_total_week:  costTotal,
       cost_cumulative:  Math.round(cumCost * 100) / 100,
       rev_cumulative:   Math.round(cumRev  * 100) / 100,
