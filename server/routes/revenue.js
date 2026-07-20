@@ -198,16 +198,37 @@ router.get('/projects/:pid/revenue/week/:we', (req, res) => {
   const wk = con.prepare('SELECT activity_id, pct_complete, sub_id, revenue FROM revenue_week WHERE project_id=? AND week_ending=? ORDER BY id ASC').all(pid, we);
   const wkMap = {}; // activity_id -> array of split rows (usually just one)
   wk.forEach(w => { (wkMap[w.activity_id] ??= []).push(w); });
+
+  // Section -> sub pre-fill: a sub can be tagged (on their Subcontract card) as normally
+  // covering one or more Revenue Generator sections (Pump Station, Line Stops, ...). An
+  // activity that's never been touched and has no explicit default_sub_id suggests that
+  // sub instead of starting at "GMC (none)" -- but only when exactly one sub is tagged for
+  // that section; two subs tagged the same way is ambiguous, so no guess is better than a
+  // wrong one there.
+  const secRows = con.prepare(`
+    SELECT ss.section, ss.subcontract_id FROM subcontract_section ss
+    JOIN subcontract sc ON sc.id = ss.subcontract_id WHERE sc.project_id=?
+  `).all(pid);
+  const bySection = {};
+  secRows.forEach(r => { (bySection[r.section] ??= new Set()).add(r.subcontract_id); });
+  const sectionSuggestion = {};
+  Object.entries(bySection).forEach(([sec, ids]) => { if (ids.size === 1) sectionSuggestion[sec] = [...ids][0]; });
+
   con.close();
   res.json({
     week_ending: we,
     activities: acts.map(a => {
       const rows = wkMap[a.id];
-      // No saved rows yet: default to a single split on the activity's default sub, same as
-      // the single-sub behaviour before this feature existed.
-      const splits = rows && rows.length
-        ? rows.map(w => ({ sub_id: w.sub_id, pct_complete: w.pct_complete, revenue: w.revenue }))
-        : [{ sub_id: a.default_sub_id, pct_complete: 0, revenue: 0 }];
+      let splits, subAuto = false;
+      if (rows && rows.length) {
+        splits = rows.map(w => ({ sub_id: w.sub_id, pct_complete: w.pct_complete, revenue: w.revenue }));
+      } else if (a.default_sub_id) {
+        splits = [{ sub_id: a.default_sub_id, pct_complete: 0, revenue: 0 }];
+      } else {
+        const suggested = sectionSuggestion[a.section] || null;
+        splits = [{ sub_id: suggested, pct_complete: 0, revenue: 0 }];
+        subAuto = !!suggested;
+      }
       const totalPct = Math.round(splits.reduce((s, x) => s + (x.pct_complete || 0), 0) * 10000) / 10000;
       const totalRev = Math.round(splits.reduce((s, x) => s + (x.revenue || 0), 0) * 100) / 100;
       return {
@@ -215,6 +236,7 @@ router.get('/projects/:pid/revenue/week/:we', (req, res) => {
         contract_value: a.contract_value, section: a.section,
         pct_complete: totalPct,
         sub_id: splits[0].sub_id, // back-compat single-sub consumers: first split
+        sub_auto: subAuto, // true only while the sub is a suggestion, not yet a saved choice
         revenue: totalRev,
         splits,
       };

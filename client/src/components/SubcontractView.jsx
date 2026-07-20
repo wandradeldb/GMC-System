@@ -18,6 +18,7 @@ export default function SubcontractView({ projectId, readOnly, deepLinkSubName, 
   const [assessment, setAssessment] = useState(null); // { id, ref, name, contract_value }
   const [showNew,    setShowNew]    = useState(false);
   const [editing,    setEditing]    = useState(null); // sc object being edited
+  const [projSections, setProjSections] = useState([]); // this project's known Revenue Generator sections
   const deepLinkDoneRef = useRef(null); // tracks which deepLinkSubName was already handled
 
   const load = useCallback(() => {
@@ -25,6 +26,12 @@ export default function SubcontractView({ projectId, readOnly, deepLinkSubName, 
   }, [projectId]);
 
   useEffect(() => { load(); }, [load]);
+
+  useEffect(() => {
+    apiFetch(`/api/v1/projects/${projectId}/revenue/activities`).then(r => r.json())
+      .then(acts => setProjSections([...new Set((acts || []).map(a => a.section).filter(Boolean))].sort()))
+      .catch(() => {});
+  }, [projectId]);
 
   // Deep-link from tracker: open assessment for the named sub
   useEffect(() => {
@@ -165,6 +172,7 @@ export default function SubcontractView({ projectId, readOnly, deepLinkSubName, 
         <EditSubcontractModal
           projectId={projectId}
           sc={editing}
+          projSections={projSections}
           onClose={() => setEditing(null)}
           onSaved={() => { setEditing(null); load(); }}
         />
@@ -173,7 +181,7 @@ export default function SubcontractView({ projectId, readOnly, deepLinkSubName, 
   );
 }
 
-function EditSubcontractModal({ projectId, sc, onClose, onSaved }) {
+function EditSubcontractModal({ projectId, sc, projSections, onClose, onSaved }) {
   const [form, setForm] = useState({
     description:      sc.description      || '',
     contract_value:   sc.contract_value   ?? '',
@@ -191,9 +199,11 @@ function EditSubcontractModal({ projectId, sc, onClose, onSaved }) {
     mat_by:           sc.mat_by           || 'sub',
     plant_by:         sc.plant_by         || 'sub',
   });
+  const [sections, setSections] = useState(sc.sections || []); // Revenue Generator sections this sub covers
   const [saving, setSaving] = useState(false);
   const [err,    setErr]    = useState('');
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
+  const toggleSection = (s) => setSections(cur => cur.includes(s) ? cur.filter(x => x !== s) : [...cur, s]);
 
   const save = async () => {
     setSaving(true); setErr('');
@@ -216,6 +226,7 @@ function EditSubcontractModal({ projectId, sc, onClose, onSaved }) {
         pricing_lumpsum:  form.pricing_lumpsum ? 1 : 0,
         mat_by:           form.mat_by   || 'sub',
         plant_by:         form.plant_by || 'sub',
+        sections,
       }),
     });
     setSaving(false);
@@ -317,6 +328,35 @@ function EditSubcontractModal({ projectId, sc, onClose, onSaved }) {
                 </label>
               ))}
             </div>
+          </div>
+
+          <div style={{ fontWeight:700, fontSize:12, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.05em', margin:'14px 0 8px', paddingBottom:4, borderBottom:'1px solid #e5e7eb' }}>
+            Scope
+          </div>
+          <div style={{ marginBottom:12 }}>
+            <label className="field-label" style={{ display:'block', marginBottom:6 }}>
+              Sections this sub normally covers
+            </label>
+            {projSections.length === 0 ? (
+              <p style={{ fontSize:12, color:'#9ca3af', margin:0 }}>
+                No Revenue Generator sections found yet for this project.
+              </p>
+            ) : (
+              <>
+                <div style={{ display:'flex', flexWrap:'wrap', gap:10, padding:'8px 10px', border:'1px solid #d1d5db', borderRadius:6 }}>
+                  {projSections.map(s => (
+                    <label key={s} style={{ display:'flex', alignItems:'center', gap:6, fontSize:13, cursor:'pointer', fontWeight: sections.includes(s) ? 700 : 400, color: sections.includes(s) ? '#166534' : '#374151' }}>
+                      <input type="checkbox" checked={sections.includes(s)} onChange={() => toggleSection(s)}
+                        style={{ width:15, height:15, cursor:'pointer', accentColor:'#16a34a' }} />
+                      {s}
+                    </label>
+                  ))}
+                </div>
+                <p style={{ fontSize:11, color:'#9ca3af', margin:'5px 0 0' }}>
+                  When a Revenue Generator item in one of these sections has no sub assigned yet, this sub is pre-suggested automatically.
+                </p>
+              </>
+            )}
           </div>
 
           <div style={{ fontWeight:700, fontSize:12, color:'#6b7280', textTransform:'uppercase', letterSpacing:'.05em', margin:'14px 0 8px', paddingBottom:4, borderBottom:'1px solid #e5e7eb' }}>

@@ -73,6 +73,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
   const [subEdits, setSubEdits] = useState({});    // { actId: sub_id } fallback when an activity has no split rows yet
   const [splits, setSplits]     = useState({});    // { actId: [{ sub_id, pct }] } -- editable breakdown for weekEnding only
   const [splitEditorFor, setSplitEditorFor] = useState(null); // activity id whose split modal is open
+  const [autoSub, setAutoSub]   = useState({});    // { actId: true } -- sub is a section-based suggestion, not yet a saved choice
   const [secOn, setSecOn]       = useState(new Set());
   const [search, setSearch]     = useState('');
   const [loading, setLoading]   = useState(true);
@@ -130,6 +131,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
       const m = {};
       const sm = {};
       const sp = {};
+      const am = {};
       acts.forEach(a => {
         m[a.id] = {};
         weeks.forEach(w => {
@@ -143,10 +145,12 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
         // "already used by another split row" checks don't have to compare across two types.
         sp[a.id] = (a.splits && a.splits.length ? a.splits : [{ sub_id: a.sub_id ?? null, pct_complete: 0 }])
           .map(s => ({ sub_id: s.sub_id != null ? String(s.sub_id) : '', pct: s.pct_complete ?? 0 }));
+        am[a.id] = !!a.sub_auto;
       });
       setEdits(m);
       setSubEdits(sm);
       setSplits(sp);
+      setAutoSub(am);
       setHistory(histData || { weeks: [], data: {} });
       setLoading(false);
     }).catch(() => setLoading(false));
@@ -208,6 +212,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
     }
     setSubEdits(s => ({ ...s, [id]: v }));
     setSplits(sp => ({ ...sp, [id]: [{ sub_id: v, pct: sp[id]?.[0]?.pct ?? 0 }] }));
+    setAutoSub(am => ({ ...am, [id]: false })); // now a deliberate pick, not just a suggestion
   };
 
   // Split-row editing (only meaningful for weekEnding — the modal only ever edits that week)
@@ -481,13 +486,25 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
                             {splits[a.id].length} subs ▾
                           </button>
                         ) : (
-                          <select value={splits[a.id]?.[0]?.sub_id ?? subEdits[a.id] ?? ''} onChange={e => setSub(a.id, e.target.value)}
-                            style={{ width:'100%', padding:'1px 2px', fontSize:9, borderRadius:3, border:'1px solid #d1d5db', background:'#fff' }}>
-                            <option value="">GMC (none)</option>
-                            {subs.map(s => <option key={s.id} value={s.id}>{s.subcontractor_name}</option>)}
-                            <option value="__new__">+ Add new sub…</option>
-                            <option value="__split__">⋮ Split between subs…</option>
-                          </select>
+                          <div style={{ position: 'relative' }}>
+                            <select value={splits[a.id]?.[0]?.sub_id ?? subEdits[a.id] ?? ''} onChange={e => setSub(a.id, e.target.value)}
+                              title={autoSub[a.id] ? 'Auto-suggested from this sub\'s tagged section — pick a different sub, or Save to confirm' : undefined}
+                              style={{ width:'100%', padding: autoSub[a.id] ? '1px 26px 1px 2px' : '1px 2px', fontSize:9, borderRadius:3,
+                                border: `1px solid ${autoSub[a.id] ? '#16a34a' : '#d1d5db'}`,
+                                background: autoSub[a.id] ? '#f0fdf4' : '#fff' }}>
+                              <option value="">GMC (none)</option>
+                              {subs.map(s => <option key={s.id} value={s.id}>{s.subcontractor_name}</option>)}
+                              <option value="__new__">+ Add new sub…</option>
+                              <option value="__split__">⋮ Split between subs…</option>
+                            </select>
+                            {autoSub[a.id] && (
+                              <span style={{
+                                position: 'absolute', right: 3, top: '50%', transform: 'translateY(-50%)',
+                                fontSize: 7, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '.03em',
+                                background: '#16a34a', color: '#fff', borderRadius: 3, padding: '1px 4px', pointerEvents: 'none',
+                              }}>auto</span>
+                            )}
+                          </div>
                         )}
                       </td>
 

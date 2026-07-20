@@ -34,6 +34,14 @@ function ensureSchema(con) {
     // compensation_event was ever linked to an application), so copying it verbatim is exact.
     con.exec("UPDATE sub_application SET value_gmc_boq = value_gmc");
   }
+  // Which Revenue Generator sections (Pump Station, Line Stops, ...) a sub is normally
+  // responsible for -- lets the Revenue Generator pre-suggest a sub on untouched activities
+  // whose section matches exactly one tagged sub, instead of always starting at "GMC (none)".
+  con.exec(`CREATE TABLE IF NOT EXISTS subcontract_section (
+    subcontract_id INTEGER NOT NULL REFERENCES subcontract(id) ON DELETE CASCADE,
+    section        TEXT    NOT NULL,
+    PRIMARY KEY (subcontract_id, section)
+  )`);
 }
 
 const STATUS_FLOW = ['draft','assessed','approved','invoiced','paid'];
@@ -119,6 +127,13 @@ router.get('/projects/:pid/subcontracts', (req, res) => {
     WHERE sc.project_id = ?
     ORDER BY sc.ref
   `).all(req.params.pid);
+  const secRows = con.prepare(`
+    SELECT ss.subcontract_id, ss.section FROM subcontract_section ss
+    JOIN subcontract sc ON sc.id = ss.subcontract_id WHERE sc.project_id = ?
+  `).all(req.params.pid);
+  const secMap = {};
+  secRows.forEach(r => { (secMap[r.subcontract_id] ??= []).push(r.section); });
+  rows.forEach(r => { r.sections = secMap[r.id] || []; });
   con.close();
   res.json(rows);
 });
@@ -156,7 +171,7 @@ router.patch('/projects/:pid/subcontracts/:id', (req, res) => {
   if (!sc) throw notFound('Subcontract not found');
   const { description, contract_value, retention_pct, start_date, end_date, status, sub_type,
           has_contract, has_insurance, responsible_name, phone, email,
-          pricing_lumpsum, mat_by, plant_by } = req.body;
+          pricing_lumpsum, mat_by, plant_by, sections } = req.body;
   con.prepare(`UPDATE subcontract SET
     description=COALESCE(?,description), contract_value=COALESCE(?,contract_value),
     retention_pct=COALESCE(?,retention_pct), start_date=COALESCE(?,start_date), end_date=COALESCE(?,end_date),
@@ -170,7 +185,16 @@ router.patch('/projects/:pid/subcontracts/:id', (req, res) => {
         has_contract??null, has_insurance??null, responsible_name||null, phone||null, email||null,
         pricing_lumpsum??null, mat_by||null, plant_by||null,
         sc.id);
-  res.json(con.prepare('SELECT * FROM subcontract WHERE id=?').get(sc.id));
+  // sections is optional -- only touch the tag list when the caller actually sent one (an
+  // explicit [] clears all tags; omitting the field entirely leaves existing tags alone).
+  if (Array.isArray(sections)) {
+    con.prepare('DELETE FROM subcontract_section WHERE subcontract_id=?').run(sc.id);
+    const insSec = con.prepare('INSERT OR IGNORE INTO subcontract_section (subcontract_id, section) VALUES (?,?)');
+    sections.forEach(s => { if (s) insSec.run(sc.id, s); });
+  }
+  const updated = con.prepare('SELECT * FROM subcontract WHERE id=?').get(sc.id);
+  updated.sections = con.prepare('SELECT section FROM subcontract_section WHERE subcontract_id=?').all(sc.id).map(r => r.section);
+  res.json(updated);
   con.close();
 });
 
