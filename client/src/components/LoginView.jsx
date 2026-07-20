@@ -6,6 +6,11 @@ export default function LoginView({ onLogin }) {
   const [password, setPassword] = useState('');
   const [error,    setError]    = useState('');
   const [loading,  setLoading]  = useState(false);
+  // Random per-mount field names so the browser's saved-password manager can't match this
+  // form to a previously stored credential and silently pre-fill the last user who logged
+  // in on this device -- this tool is shared across people on the same machine, so that
+  // auto-fill meant everyone had to notice, clear, and retype the username every time.
+  const [fieldSuffix] = useState(() => Math.random().toString(36).slice(2));
 
   async function handleSubmit(e) {
     e.preventDefault();
@@ -35,22 +40,26 @@ export default function LoginView({ onLogin }) {
       <div className="login-box">
         <img src="/gmc-logo.png" alt="GMC" style={{ height: 48, marginBottom: 24 }} />
         <h2 style={{ margin: '0 0 24px', color: '#1a1a2e', fontSize: 20 }}>GMC System</h2>
-        <form onSubmit={handleSubmit} style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+        <form onSubmit={handleSubmit} autoComplete="off" style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
           <input
             type="text"
+            name={`user_${fieldSuffix}`}
             placeholder="Username"
             value={username}
             onChange={e => setUsername(e.target.value)}
             className="login-input"
+            autoComplete="off"
             autoFocus
             required
           />
           <input
             type="password"
+            name={`pass_${fieldSuffix}`}
             placeholder="Password"
             value={password}
             onChange={e => setPassword(e.target.value)}
             className="login-input"
+            autoComplete="new-password"
             required
           />
           {error && <div style={{ color: '#dc2626', fontSize: 13 }}>{error}</div>}
