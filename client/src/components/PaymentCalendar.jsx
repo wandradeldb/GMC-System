@@ -12,6 +12,7 @@ function fmtDate(d) {
 
 const INV_STATUS_BG    = { received: '#fef9c3', sent_to_finance: '#dbeafe', scheduled: '#e0e7ff', paid: '#dcfce7', disputed: '#fee2e2' };
 const INV_STATUS_COLOR = { received: '#92400e', sent_to_finance: '#1e40af', scheduled: '#4338ca', paid: '#166534', disputed: '#991b1b' };
+const INV_STATUSES     = ['received', 'sent_to_finance', 'scheduled', 'paid', 'disputed'];
 
 // "Tracker Invoices" tab -- records an invoice directly against an approved application (Gross
 // Amount pre-filled from that application's certified value), rather than the old "Payment Run"
@@ -61,6 +62,18 @@ export default function PaymentCalendar({ projectId, subcontractId, applications
     setSaving(false);
     setShowNew(false);
     setForm({ application_id: '', invoice_number: '', gross_amount: '', retention_amount: '', submitted_to_account: '', comment: '' });
+    load();
+    onRefresh && onRefresh();
+  };
+
+  // Status was previously a read-only label -- the PATCH endpoint to change it
+  // (server/routes/subcontract.js) already existed and already flips the linked application to
+  // 'paid' too when status becomes 'paid', but nothing in the UI ever called it. Clicking the
+  // badge now opens its own dropdown instead of needing a separate edit step.
+  const updateStatus = async (invoiceId, status) => {
+    await apiFetch(`/api/v1/projects/${projectId}/invoices/${invoiceId}`, {
+      method: 'PATCH', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ status }),
+    });
     load();
     onRefresh && onRefresh();
   };
@@ -143,7 +156,20 @@ export default function PaymentCalendar({ projectId, subcontractId, applications
                   <td className="col-num" style={{ color: '#7c3aed' }}>{fmt(inv.retention_amount)}</td>
                   <td className="col-num" style={{ fontWeight: 700 }}>{fmt(inv.net_amount)}</td>
                   <td style={{ fontSize: 12 }}>{inv.sent_finance_date ? fmtDate(inv.sent_finance_date) : '—'}</td>
-                  <td><span className="status-badge" style={{ background: INV_STATUS_BG[inv.status], color: INV_STATUS_COLOR[inv.status] }}>{inv.status}</span></td>
+                  <td>
+                    <select
+                      className="status-badge"
+                      value={inv.status}
+                      onChange={e => updateStatus(inv.id, e.target.value)}
+                      title="Click to change status"
+                      style={{
+                        background: INV_STATUS_BG[inv.status], color: INV_STATUS_COLOR[inv.status],
+                        border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                      }}
+                    >
+                      {INV_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  </td>
                 </tr>
               ))}
             </tbody>
