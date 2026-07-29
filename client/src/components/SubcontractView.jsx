@@ -59,6 +59,7 @@ export default function SubcontractView({ projectId, readOnly, deepLinkSubName, 
       initialView={assessment.initialView}
       initialAppId={assessment.initialAppId}
       onBack={() => { setAssessment(null); load(); }}
+      readOnly={readOnly}
     />
   );
 

@@ -27,7 +27,7 @@ const STATUS_STYLE = {
 // on the Subcontract detail page) instead of landing on the applications list first. initialAppId
 // pairs with initialView="detail" to jump straight into one specific application's detail (e.g.
 // "Ver detalhe" on that same page, which used to open its own more limited read-only view).
-export default function SubAssessmentView({ projectId, subcontractId, subRef, subName, contractValue, onBack, initialView = 'list', initialAppId }) {
+export default function SubAssessmentView({ projectId, subcontractId, subRef, subName, contractValue, onBack, initialView = 'list', initialAppId, readOnly }) {
   const [boqItems,      setBoqItems]      = useState([]);
   const [apps,          setApps]          = useState([]);
   const [view,          setView]          = useState(initialView); // 'list' | 'new' | 'detail' | 'certificate'
@@ -151,6 +151,7 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
               { method:'PUT', headers:{'Content-Type':'application/json'}, body: JSON.stringify({ status }) });
             loadApps();
           }}
+          readOnly={readOnly}
         />
       )}
       {view === 'new' && (
@@ -178,6 +179,7 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
           onUpdated={reloadDetail}
           onCertificate={openCertificate}
           onBack={backToList}
+          readOnly={readOnly}
         />
       )}
       </div>
@@ -186,7 +188,7 @@ export default function SubAssessmentView({ projectId, subcontractId, subRef, su
 }
 
 // ── Application list ─────────────────────────────────────────────────────────
-function ListView({ apps, boqItems, onNew, onDetail, onCertificate, onStatusChange, onDelete, onImportExcel, importing, importResult }) {
+function ListView({ apps, boqItems, onNew, onDetail, onCertificate, onStatusChange, onDelete, onImportExcel, importing, importResult, readOnly }) {
   const zoom = useZoom();
   const [showImport, setShowImport] = useState(false);
   const [importFile, setImportFile] = useState(null);
@@ -197,18 +199,20 @@ function ListView({ apps, boqItems, onNew, onDetail, onCertificate, onStatusChan
     <div style={{ display:'flex', flexDirection:'column', height:'100%', minHeight:0 }}>
       <div style={{ display:'flex', justifyContent:'space-between', alignItems:'center', marginBottom:6 }}>
         <h3 style={{ margin:0, fontSize:13, color:'#1a1a2e' }}>Payment Applications</h3>
-        <div style={{ display:'flex', gap:8 }}>
-          <button onClick={() => setShowImport(s => !s)}
-            style={{ padding:'4px 12px', borderRadius:6, border:'1px solid #6366f1', background:'#f5f3ff',
-              color:'#4338ca', cursor:'pointer', fontSize:12, fontWeight:600 }}>
-            ↑ Import Claim
-          </button>
-          <button className="btn-primary" onClick={onNew} style={{ padding:'5px 14px', fontSize:12 }}>+ Manual Assessment</button>
-        </div>
+        {!readOnly && (
+          <div style={{ display:'flex', gap:8 }}>
+            <button onClick={() => setShowImport(s => !s)}
+              style={{ padding:'4px 12px', borderRadius:6, border:'1px solid #6366f1', background:'#f5f3ff',
+                color:'#4338ca', cursor:'pointer', fontSize:12, fontWeight:600 }}>
+              ↑ Import Claim
+            </button>
+            <button className="btn-primary" onClick={onNew} style={{ padding:'5px 14px', fontSize:12 }}>+ Manual Assessment</button>
+          </div>
+        )}
       </div>
 
       {/* Import panel */}
-      {showImport && (
+      {showImport && !readOnly && (
         <div style={{ background:'#f5f3ff', border:'1px solid #c4b5fd', borderRadius:8, padding:14, marginBottom:16 }}>
           <div style={{ fontWeight:600, fontSize:13, color:'#4338ca', marginBottom:10 }}>
             Import a subcontractor claim (Excel) — creates the next application for the week you choose
@@ -300,7 +304,7 @@ function ListView({ apps, boqItems, onNew, onDetail, onCertificate, onStatusChan
                     <td style={{textAlign:'right', color:'#1e40af'}}>{fmtE(a.cumulative_gmc, 2)}</td>
                     <td style={{textAlign:'right', color:'#6b7280'}}>{fmtE(a.value_sub, 2)}</td>
                     <td>
-                      {['invoiced','paid'].includes(a.status) ? (
+                      {readOnly || ['invoiced','paid'].includes(a.status) ? (
                         <span className="status-badge" style={{ background: ss.bg, color: ss.color }}>{ss.label}</span>
                       ) : (
                         <select value={a.status}
@@ -330,10 +334,12 @@ function ListView({ apps, boqItems, onNew, onDetail, onCertificate, onStatusChan
                           📄 Certificate
                         </button>
                       )}
-                      <button onClick={() => { if (window.confirm(`Delete App ${a.application_number}?`)) onDelete(a.id); }}
-                        style={{ background:'none', border:'1px solid #fca5a5', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12, color:'#dc2626' }}>
-                        ✕
-                      </button>
+                      {!readOnly && (
+                        <button onClick={() => { if (window.confirm(`Delete App ${a.application_number}?`)) onDelete(a.id); }}
+                          style={{ background:'none', border:'1px solid #fca5a5', borderRadius:6, padding:'3px 8px', cursor:'pointer', fontSize:12, color:'#dc2626' }}>
+                          ✕
+                        </button>
+                      )}
                     </td>
                   </tr>
                 );
@@ -686,12 +692,17 @@ function NewAssessmentView({ projectId, subcontractId, boqItems, apps, onSave, o
 }
 
 // ── Application Detail ────────────────────────────────────────────────────────
-function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate, onBack }) {
+function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate, onBack, readOnly }) {
   const zoom = useZoom();
   const app = detail.app || detail.application;
   const items = detail.items || [];
   const ss = STATUS_STYLE[app.status] || STATUS_STYLE.draft;
   const editable = ['draft', 'assessed'].includes(app.status);
+  // Business-status editability (`editable`) stays separate from permission (`canEdit`) so a
+  // read-only viewer looking at a draft/assessed app still gets the plain read display below,
+  // not the "!editable" approved-summary block (which would wrongly offer "Issue Certificate"
+  // on a non-approved app).
+  const canEdit = editable && !readOnly;
 
   // % GMC (assessment) editável por item — começa no % atual (= claim do Folan após import)
   const [gmcPct, setGmcPct] = useState(() => {
@@ -716,7 +727,7 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
   const overItems  = items.filter(i => cumPctOf(i) > 100.01);
 
   const folanTotal = items.reduce((s, i) => s + folanEurOf(i), 0);
-  const gmcTotal   = items.reduce((s, i) => s + (editable ? gmcEurOf(i) : (i.value_gmc_computed || 0)), 0);
+  const gmcTotal   = items.reduce((s, i) => s + (canEdit ? gmcEurOf(i) : (i.value_gmc_computed || 0)), 0);
   const cutTotal   = folanTotal - gmcTotal;
   const cutPctLive = folanTotal > 0 ? (1 - gmcTotal / folanTotal) * 100 : 0;
 
@@ -799,13 +810,13 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
           <div style={{ marginLeft:'auto', display:'flex', gap:10, alignItems:'center' }}>
             <div style={{ textAlign:'right' }}>
               <div style={{ fontSize:8, color:'#6b7280' }}>GMC ASSESSMENT</div>
-              <div style={{ fontSize:13, fontWeight:700, color:'#166534' }}>{fmtE(editable ? gmcTotal + ceSumAgreed : app.value_gmc, 2)}</div>
+              <div style={{ fontSize:13, fontWeight:700, color:'#166534' }}>{fmtE(canEdit ? gmcTotal + ceSumAgreed : app.value_gmc, 2)}</div>
             </div>
             <div style={{ textAlign:'right' }}>
               <div style={{ fontSize:8, color:'#6b7280' }}>CUMULATIVE</div>
               <div style={{ fontSize:13, fontWeight:700, color:'#1e40af' }}>{fmtE(app.cumulative_gmc,2)}</div>
             </div>
-            {editable && (
+            {canEdit && (
               <>
                 <button onClick={handleSave} disabled={saving || approving}
                   style={{ padding:'5px 12px', borderRadius:6, border:'1px solid #16a34a', background:'#fff', color:'#166534',
@@ -850,7 +861,7 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
       )}
 
       {/* Painel de corte do QS (só quando editável) */}
-      {editable && (
+      {canEdit && (
         <div style={{ background:'#fff7ed', border:'1px solid #fed7aa', borderRadius:8, padding:8, marginBottom:6 }}>
           <div style={{ fontSize:12, fontWeight:700, color:'#9a3412', marginBottom:4 }}>✂️ QS Assessment — adjust GMC % before approving</div>
           <div style={{ display:'flex', gap:12, flexWrap:'wrap', alignItems:'center' }}>
@@ -909,7 +920,7 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
               <th style={{textAlign:'right', color:'#6b7280', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Accum %</th>
               <th style={{textAlign:'right', color:'#92400e', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Folan %</th>
               <th style={{textAlign:'right', color:'#92400e', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Folan €</th>
-              <th style={{textAlign:'center', color:'#166534', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>GMC % {editable && '✎'}</th>
+              <th style={{textAlign:'center', color:'#166534', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>GMC % {canEdit && '✎'}</th>
               <th style={{textAlign:'right', color:'#166534', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>GMC €</th>
               <th style={{textAlign:'right', color:'#dc2626', position:'sticky', top:0, background:'#f9fafb', zIndex:2}}>Cut €</th>
             </tr>
@@ -917,7 +928,7 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
           <tbody>
             {items.map((it, idx) => {
               const folanEur = folanEurOf(it);
-              const gmcEur   = editable ? gmcEurOf(it) : (it.value_gmc_computed || 0);
+              const gmcEur   = canEdit ? gmcEurOf(it) : (it.value_gmc_computed || 0);
               const itemCut  = folanEur - gmcEur;
               return (
                 <tr key={it.id} style={{ background: idx%2===0 ? '#f8fafc' : '#fff' }}>
@@ -927,8 +938,8 @@ function DetailView({ detail, projectId, subcontractId, onUpdated, onCertificate
                   <td style={{textAlign:'right', color: cumPctOf(it) > 100.01 ? '#dc2626' : '#9ca3af', fontSize:12}}>{fmtP(prevPctOf(it))}</td>
                   <td style={{textAlign:'right', color:'#92400e', fontSize:12}}>{fmtP(folanPctOf(it))}</td>
                   <td style={{textAlign:'right', color:'#92400e', fontSize:12, fontVariantNumeric:'tabular-nums'}}>€{fmt(folanEur,2)}</td>
-                  <td style={{textAlign:'center', background: editable ? '#f0fdf4' : 'transparent', padding: editable ? '2px 4px' : undefined}}>
-                    {editable ? (
+                  <td style={{textAlign:'center', background: canEdit ? '#f0fdf4' : 'transparent', padding: canEdit ? '2px 4px' : undefined}}>
+                    {canEdit ? (
                       <span style={{ display:'inline-flex', alignItems:'center', gap:2 }}>
                         <input type="number" min={0} max={Math.max(0, 100 - prevPctOf(it))} step={1} value={gmcPct[it.id] ?? ''}
                           className="cell-input gmc-col"
