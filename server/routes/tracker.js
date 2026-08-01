@@ -629,6 +629,22 @@ router.put('/projects/:pid/tracker/:we/sub-revenue', (req, res) => {
 // â”€â”€ DELETE /projects/:pid/tracker/:we â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€â”€
 router.delete('/projects/:pid/tracker/:we', (req, res) => {
   const con = db();
+  // A tracker week's revenue is derived from BOQ progress %, so wiping the week silently
+  // desyncs it from any subcontractor application already marked 'paid' against that same
+  // week_ending -- block instead of letting a QS nuke settled financial history by accident.
+  const paidApps = con.prepare(`
+    SELECT sc.ref AS sub_ref, sa.application_number
+    FROM sub_application sa
+    JOIN subcontract sc ON sc.id = sa.subcontract_id
+    WHERE sc.project_id = ? AND sa.week_ending = ? AND sa.status = 'paid'
+  `).all(req.params.pid, req.params.we);
+  if (paidApps.length > 0) {
+    con.close();
+    return res.status(409).json({
+      error: `Cannot delete: ${paidApps.length} paid application(s) reference this week (${paidApps.map(a => `${a.sub_ref} App ${a.application_number}`).join(', ')}). Change their status before deleting this week.`,
+      code: 'WEEK_HAS_PAID_APPLICATIONS',
+    });
+  }
   con.prepare('DELETE FROM boq_progress WHERE project_id=? AND week_ending=?').run(req.params.pid, req.params.we);
   con.prepare('DELETE FROM tracker_we_category WHERE project_id=? AND week_ending=?').run(req.params.pid, req.params.we);
   const r = con.prepare('DELETE FROM tracker_we WHERE project_id=? AND week_ending=?').run(req.params.pid, req.params.we);

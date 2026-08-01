@@ -87,7 +87,12 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
         <BackButton label="Tracker" onClick={onBack} />
         <button onClick={async () => {
           if (!window.confirm(`Delete week WE ${weekEnding} and all progress data for this week?`)) return;
-          await apiFetch(`/api/v1/projects/${projectId}/tracker/${weekEnding}`, { method:'DELETE' });
+          const res = await apiFetch(`/api/v1/projects/${projectId}/tracker/${weekEnding}`, { method:'DELETE' });
+          if (!res.ok) {
+            const j = await res.json().catch(() => ({}));
+            window.alert(j.error || 'Could not delete this week.');
+            return;
+          }
           onBack();
         }} style={{ padding:'5px 12px', borderRadius:6, border:'1px solid #fca5a5',
           background:'#fff5f5', cursor:'pointer', fontSize:12, color:'#dc2626', fontWeight:600 }}>
@@ -237,6 +242,14 @@ export default function ProgressSheet({ projectId, weekEnding, onBack }) {
                   placeholder={f.placeholder} />
               </div>
             ))}
+            <div className="field">
+              <button type="button"
+                onClick={() => setCosts({ cost_materials: 0, cost_plant: 0, ohp_allowance: 0 })}
+                style={{ padding:'5px 12px', borderRadius:6, border:'1px solid #d1d5db',
+                  background:'#f9fafb', cursor:'pointer', fontSize:12, color:'#374151', fontWeight:600 }}>
+                ↺ Clear costs
+              </button>
+            </div>
             <div className="field">
               <label className="field-label">Note</label>
               <p style={{ fontSize: 12, color: '#6b7280', marginTop: 4 }}>
