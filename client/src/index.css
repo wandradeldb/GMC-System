@@ -1145,7 +1145,20 @@ input, select, textarea, button { touch-action: manipulation; }
 }
 
 /* ── Tracker summary bar ─────────────────────────────────── */
+.tracker-summary-toggle-row { display: none; }
 @media (max-width: 768px) {
+  /* Collapsed by default on mobile (see TrackerView.jsx) -- the full 6-card grid alone was
+     eating over half the screen height above a phone's fold. This one-line strip replaces it
+     until tapped open; desktop never sees this row or the collapsed state at all. */
+  .tracker-summary-toggle-row { display: block; padding: 8px 12px 0; }
+  .tracker-summary-toggle {
+    width: 100%; display: flex; align-items: center; justify-content: space-between;
+    background: #eff6ff; border: 1px solid #bfdbfe; border-radius: 8px;
+    padding: 9px 12px; font-size: 12.5px; font-weight: 600; color: #1e40af;
+    cursor: pointer; font-variant-numeric: tabular-nums;
+  }
+  .tracker-summary-toggle-chevron { color: #60a5fa; font-size: 13px; margin-left: 8px; }
+  .tracker-summary.tracker-summary-mobile-collapsed { display: none; }
   .tracker-summary {
     display: grid;
     grid-template-columns: 1fr 1fr;

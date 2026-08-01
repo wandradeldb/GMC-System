@@ -117,6 +117,9 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
   const [reportFrom,  setReportFrom]  = useState('');
   const [reportTo,    setReportTo]    = useState('');
   const [showReport,  setShowReport]  = useState(false);
+  // Collapsed by default -- only matters on mobile (see .tracker-summary-toggle-row CSS, hidden
+  // above 768px), where the full 6-card grid alone was eating over half the screen height.
+  const [summaryOpen, setSummaryOpen] = useState(false);
   const tableRef = useRef(null);
   const zoom = useZoom();
 
@@ -211,7 +214,13 @@ export default function TrackerView({ projectId, readOnly, onSubCellClick }) {
   return (
     <div className="tracker-container">
       {/* ── Project Summary ──────────────────────────────────────── */}
-      <div className="tracker-summary">
+      <div className="tracker-summary-toggle-row">
+        <button type="button" className="tracker-summary-toggle" onClick={() => setSummaryOpen(o => !o)}>
+          <span>This Week €{fmt(latest?.rev_total_week, 0)} · Margin {fmtPct(latest?.margin_pct)}</span>
+          <span className="tracker-summary-toggle-chevron">{summaryOpen ? '▾' : '▸'}</span>
+        </button>
+      </div>
+      <div className={`tracker-summary${summaryOpen ? '' : ' tracker-summary-mobile-collapsed'}`}>
         <SummaryCard label="Contract Value"   value={`€${fmt(contractValue, 0)}`} color="#1a1a2e" />
         <div className="summary-divider" />
         <SummaryCard label="This Week"        value={`€${fmt(latest?.rev_total_week, 0)}`}   sub={`WE ${fmtWE(latest?.week_ending)}`}      color="#1e40af" />
