@@ -13,6 +13,13 @@ const emptyLabour   = () => ({ worker_name:'', trade:'Labourer', subcontract_id:
 const emptyPlant    = () => ({ plant_ref:'', description:'', operator:'', subcontract_id:null, period:'full', hours_worked:8, hours_idle:0, activity_code:'A', work_type:'Contract', notes:'' });
 const emptyActivity = () => ({ activity_code:'A', service_category:'Pump Station', description:'', qty_today:'', unit:'', work_type:'Contract', notes:'' });
 
+// Anchored at noon like the other date helpers in this codebase, to avoid a UTC-rollover date bug.
+function prevCalendarDay(dateStr) {
+  const d = new Date(dateStr + 'T12:00:00');
+  d.setDate(d.getDate() - 1);
+  return d.toISOString().slice(0, 10);
+}
+
 // Group flat segment rows into per-person/per-item cards — 2 segments (am/pm) = a split day
 // Pairs an 'am' row with the immediately-following 'pm' row of the SAME entity (worker/plant item)
 // into one card; everything else stays a single-segment ('full') card. Adjacency-based (not name-based)
@@ -50,6 +57,9 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
   const [subcontracts, setSubcontracts] = useState([]);
   // Registo de Site Agents (código, nome, telefone) — pra autocomplete + mostrar o código
   const [siteAgentList, setSiteAgentList] = useState([]);
+  // "Same as yesterday?" prompt — only offered on a genuinely untouched day, and only when
+  // yesterday actually has something to copy.
+  const [copyPrompt, setCopyPrompt] = useState(null); // { date, data } | null
 
   const loadSuggestions = useCallback(() => {
     apiFetch(`/api/v1/projects/${projectId}/das/suggestions`).then(r => r.json()).then(setSuggestions);
@@ -68,6 +78,7 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
   useEffect(() => {
     setLoading(true);
     setSaved(false);
+    setCopyPrompt(null);
     apiFetch(`/api/v1/projects/${projectId}/das/${date}`)
       .then(r => r.json())
       .then(d => {
@@ -77,8 +88,39 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
         setActivities(d.activities);
         setSubs(d.subcontractors || []);
         setLoading(false);
+
+        // Only offer to copy on a day nobody has touched yet -- not on a day that was already
+        // (partially) filled in, e.g. a stoppage day with just a reason and no crew.
+        const isBlank = !d.entry.site_agent && d.labour.length === 0 && d.plant.length === 0 &&
+          d.activities.length === 0 && (d.subcontractors || []).length === 0;
+        if (!isBlank) return;
+        const prevDate = prevCalendarDay(date);
+        apiFetch(`/api/v1/projects/${projectId}/das/${prevDate}?peek=1`)
+          .then(r => r.json())
+          .then(pd => {
+            const prevHasContent = pd.entry && (pd.entry.site_agent || pd.labour.length ||
+              pd.plant.length || pd.activities.length || (pd.subcontractors || []).length);
+            if (prevHasContent) setCopyPrompt({ date: prevDate, data: pd });
+          });
       });
   }, [projectId, date]);
+
+  // Copies yesterday's roster (subs/labour/plant/activity types) in one click. Deliberately
+  // leaves qty_today blank on each activity -- that's the day's actual measured output, which
+  // shouldn't be silently duplicated just because the crew was the same; the site agent still
+  // fills that part in. Day-specific narrative fields (notes, stoppage reason, photo) are left
+  // blank too, for the same reason.
+  const applyCopyFromPrevDay = () => {
+    if (!copyPrompt) return;
+    const { data: pd } = copyPrompt;
+    setEntry(e => ({ ...e, site_agent: pd.entry.site_agent, site_agent_code: pd.entry.site_agent_code,
+      weather: pd.entry.weather, work_type: pd.entry.work_type }));
+    setSubs(pd.subcontractors.map(s => ({ ...s })));
+    setLabour(pd.labour.map(l => ({ ...l })));
+    setPlant(pd.plant.map(p => ({ ...p })));
+    setActivities(pd.activities.map(a => ({ ...a, qty_today: '' })));
+    setCopyPrompt(null);
+  };
 
   const save = async (status) => {
     setSaving(true);
@@ -114,6 +156,27 @@ export default function DASForm({ projectId, date, showNextWeek, nextMonday, onS
 
   return (
     <div className="das-form">
+      {copyPrompt && (
+        <div className="modal-backdrop" onClick={() => setCopyPrompt(null)}>
+          <div className="modal" style={{ width: 420 }} onClick={e => e.stopPropagation()}>
+            <div className="modal-header">
+              <h3>Same as {fmtDate(copyPrompt.date)}?</h3>
+            </div>
+            <div className="modal-body">
+              <p style={{ margin: 0, fontSize: 14, color: '#374151' }}>
+                Copy yesterday's subcontractors, labour, plant and activity types onto today?
+                You'll still be able to review and adjust anything before submitting — today's
+                quantities and notes are left blank either way.
+              </p>
+            </div>
+            <div className="modal-footer">
+              <button className="btn-ghost" onClick={() => setCopyPrompt(null)}>No, start blank</button>
+              <button className="btn-primary" onClick={applyCopyFromPrevDay}>Yes, copy it</button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* DAS Header Info */}
       <div className="das-header-card">
         <div className="das-header-left">

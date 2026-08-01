@@ -189,6 +189,13 @@ router.get('/projects/:id/das/:date', (req, res) => {
   let entry = con.prepare('SELECT * FROM das_entry WHERE project_id=? AND entry_date=?')
                  .get(req.params.id, req.params.date);
 
+  if (!entry && req.query.peek === '1') {
+    // Used to check a neighbouring day (e.g. "copy yesterday?") without side-effecting a blank
+    // draft row into existence for a date nobody actually navigated to.
+    con.close();
+    return res.json({ entry: null, labour: [], plant: [], activities: [], subcontractors: [] });
+  }
+
   if (!entry) {
     // Auto-create draft
     const r = con.prepare(`
