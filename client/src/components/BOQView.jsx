@@ -207,8 +207,8 @@ export default function BOQView({ projectId, schedule, scheduleLabels = SCHED_LA
               </colgroup>
               <thead>
                 <tr>
-                  <th style={thStyle}>Ref</th>
-                  <th style={thStyle}>Description</th>
+                  <th className="boq-th-ref" style={thStyle}>Ref</th>
+                  <th className="boq-th-desc" style={thStyle}>Description</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Qty</th>
                   <th style={{ ...thStyle, textAlign: 'center' }}>Unit</th>
                   <th style={{ ...thStyle, textAlign: 'right' }}>Rate (€)</th>

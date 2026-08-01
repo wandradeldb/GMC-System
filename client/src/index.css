@@ -212,6 +212,13 @@ body {
   color: #fff;
   cursor: pointer;
 }
+/* On mobile there's no hover to reveal this at full opacity, and its default 19px buttons are
+   too small to reliably tap -- so below the tablet breakpoint it stays fully visible and bigger. */
+@media (max-width: 768px) {
+  .zoom-control { opacity: 0.85; bottom: 14px; padding: 4px 6px; }
+  .zoom-control button { width: 26px; height: 26px; font-size: 15px; }
+  .zoom-control .zoom-level { font-size: 12px; min-width: 38px; }
+}
 
 /* ── Mobile hamburger ─────────────────────────────────────── */
 .sidebar-hamburger { display: none; background: none; border: none; cursor: pointer; color: #374151; font-size: 22px; padding: 4px 8px; margin-right: 4px; line-height: 1; }
@@ -1065,12 +1072,12 @@ input, select, textarea, button { touch-action: manipulation; }
   .project-card {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
-    padding: 14px 16px;
+    gap: 8px;
+    padding: 10px 14px;
   }
-  .project-card h1 { font-size: 17px; }
+  .project-card h1 { font-size: 16px; }
   .kpi { text-align: left; }
-  .kpi-value { font-size: 18px; }
+  .kpi-value { font-size: 15px; }
   .project-card .spacer { display: none; }
 }
 
@@ -1083,6 +1090,16 @@ input, select, textarea, button { touch-action: manipulation; }
   .boq-table .col-num  { width: 90px; font-size: 12px; }
   /* Wrap table in scroll div via JS — handled by overflow-x below */
   .content { overflow-x: auto; }
+
+  /* Freeze Ref + Description while scrolling sideways to Qty/Rate/Contract Sum, so you don't
+     lose track of which item you're looking at. Left offset matches col-ref's mobile width above.
+     boq-th-ref/boq-th-desc are the header-row equivalents (thStyle already sets sticky top:0 +
+     z-index:5 inline, which wins over this class's z-index so vertical stacking is unaffected —
+     only the `left` this class adds is new). */
+  .boq-table .col-ref, .boq-table .col-desc,
+  .boq-table .boq-th-ref, .boq-table .boq-th-desc { position: sticky; z-index: 2; }
+  .boq-table .col-ref, .boq-table .boq-th-ref  { left: 0; }
+  .boq-table .col-desc, .boq-table .boq-th-desc { left: 60px; }
 }
 
 /* ── Filter bar ──────────────────────────────────────────── */
@@ -1101,9 +1118,10 @@ input, select, textarea, button { touch-action: manipulation; }
 /* ── Subcontracts ────────────────────────────────────────── */
 @media (max-width: 600px) {
   .sc-grid { grid-template-columns: 1fr; }
-  .sc-detail-header { flex-direction: column; gap: 16px; }
-  .sc-detail-kpis { flex-wrap: wrap; gap: 16px; }
+  .sc-detail-header { flex-direction: column; gap: 10px; }
+  .sc-detail-kpis { flex-wrap: wrap; gap: 10px; }
   .sc-detail-kpis .detail-kpi { text-align: left; }
+  .sc-detail-kpis .kpi-value { font-size: 11px; }
 }
 
 /* ── DAS tabs ────────────────────────────────────────────── */
@@ -1119,8 +1137,9 @@ input, select, textarea, button { touch-action: manipulation; }
 
 /* ── Assessment header ───────────────────────────────────── */
 @media (max-width: 768px) {
-  .assessment-header { padding: 14px; }
-  .assessment-kpis { flex-wrap: wrap; gap: 16px; }
+  .assessment-header { padding: 10px 12px; }
+  .assessment-kpis { flex-wrap: wrap; gap: 10px; }
+  .assess-kpi .kpi-value { font-size: 12px; }
   .assessment-actions { flex-wrap: wrap; }
   .assessment-period { font-size: 15px; }
 }
@@ -1130,19 +1149,27 @@ input, select, textarea, button { touch-action: manipulation; }
   .tracker-summary {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 8px;
-    padding: 12px;
+    gap: 6px;
+    padding: 8px;
   }
   .summary-divider { display: none; }
   .tracker-summary-card {
     background: #f8fafc;
     border-radius: 8px;
-    padding: 10px 12px;
+    padding: 7px 10px;
     min-width: unset;
   }
-  .tracker-kpi-value { font-size: 15px; }
+  .tracker-kpi-value { font-size: 13px; }
   .tracker-toolbar { padding: 10px 12px; gap: 10px; flex-wrap: wrap; }
   .tracker-scroll-wrap { padding: 0 8px 24px; }
+  /* The per-cell "edit" link was ~28x15px -- too small to reliably tap. */
+  .tracker-edit-btn { padding: 4px 10px; font-size: 11px; margin-top: 4px; }
+}
+
+/* ── QS Costs row-select checkboxes ──────────────────────────
+   Native checkboxes render at ~13x13px, too small to tap reliably. */
+@media (max-width: 768px) {
+  .qs-row-check { width: 20px; height: 20px; }
 }
 
 /* ── PayApp summary bar ──────────────────────────────────── */

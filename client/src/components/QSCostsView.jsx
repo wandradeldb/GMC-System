@@ -271,7 +271,7 @@ export default function QSCostsView({ projectId, readOnly }) {
               <thead>
                 <tr>
                   <th style={{ width:32, textAlign:'center', padding:'4px', position:'sticky', top:0, zIndex:4, background:'#1a1a2e', color:'#fff' }}>
-                    <input type="checkbox"
+                    <input type="checkbox" className="qs-row-check"
                       checked={data.rows.length > 0 && selected.size === data.rows.length}
                       onChange={() => toggleSelectAll(data.rows)}
                       style={{ cursor:'pointer' }} />
@@ -292,7 +292,7 @@ export default function QSCostsView({ projectId, readOnly }) {
                 {rows.map(r => (
                   <tr key={r.id}>
                     <td style={{ width:32, textAlign:'center', padding:'4px' }}>
-                      <input type="checkbox"
+                      <input type="checkbox" className="qs-row-check"
                         checked={selected.has(r.id)}
                         onChange={() => toggleSelect(r.id)}
                         style={{ cursor:'pointer' }} />
