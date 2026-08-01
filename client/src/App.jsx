@@ -214,23 +214,25 @@ export default function App() {
             });
             if (!items.length) return null;
             return (
-              <div key={group.label}>
+              <div key={group.label} className="sidebar-nav-group">
                 <div className="sidebar-nav-section">{group.label}</div>
-                {items.map(item => (
-                  <button
-                    key={item.id}
-                    className={`sidebar-nav-item${activeNav === item.id && !showAdmin && !showProfile ? ' active' : ''}`}
-                    onClick={() => {
-                      // Re-clicking the section you're already in resets it back to its
-                      // own home page, even if you're several sub-pages deep inside it.
-                      if (activeNav === item.id && !showAdmin && !showProfile) setNavResetToken(t => t + 1);
-                      setActiveNav(item.id); setShowAdmin(false); setShowProfile(false); setSidebarOpen(false);
-                    }}
-                  >
-                    <i className={`ti ${item.icon}`} aria-hidden="true" />
-                    {item.label}
-                  </button>
-                ))}
+                <div className="sidebar-nav-items">
+                  {items.map(item => (
+                    <button
+                      key={item.id}
+                      className={`sidebar-nav-item${activeNav === item.id && !showAdmin && !showProfile ? ' active' : ''}`}
+                      onClick={() => {
+                        // Re-clicking the section you're already in resets it back to its
+                        // own home page, even if you're several sub-pages deep inside it.
+                        if (activeNav === item.id && !showAdmin && !showProfile) setNavResetToken(t => t + 1);
+                        setActiveNav(item.id); setShowAdmin(false); setShowProfile(false); setSidebarOpen(false);
+                      }}
+                    >
+                      <i className={`ti ${item.icon}`} aria-hidden="true" />
+                      {item.label}
+                    </button>
+                  ))}
+                </div>
               </div>
             );
           })}
