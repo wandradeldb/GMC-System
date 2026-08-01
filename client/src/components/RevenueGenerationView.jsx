@@ -511,7 +511,7 @@ export default function RevenueGenerationView({ projectId, project, readOnly }) 
                             <option value="">GMC (none)</option>
                             {subs.map(s => <option key={s.id} value={s.id}>{subLabel(s)}</option>)}
                             <option value="__new__">+ Add new sub…</option>
-                            <option value="__split__">⋮ Split between subs…</option>
+                            <option value="__split__" style={{ fontWeight:700 }}>⋮ Split between subs…</option>
                           </select>
                         )}
                       </td>
