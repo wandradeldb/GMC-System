@@ -164,18 +164,26 @@ export default function PaymentCalendar({ projectId, subcontractId, applications
                         {inv.status}
                       </span>
                     ) : (
-                      <select
-                        className="status-badge"
-                        value={inv.status}
-                        onChange={e => updateStatus(inv.id, e.target.value)}
-                        title="Click to change status"
-                        style={{
-                          background: INV_STATUS_BG[inv.status], color: INV_STATUS_COLOR[inv.status],
-                          border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                        }}
-                      >
-                        {INV_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                      </select>
+                      <span style={{ position: 'relative', display: 'inline-block' }}>
+                        <select
+                          className="status-badge"
+                          value={inv.status}
+                          onChange={e => updateStatus(inv.id, e.target.value)}
+                          title="Click to change status"
+                          style={{
+                            background: INV_STATUS_BG[inv.status], color: INV_STATUS_COLOR[inv.status],
+                            border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                            appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+                            paddingRight: 20,
+                          }}
+                        >
+                          {INV_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <span aria-hidden="true" style={{
+                          position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+                          fontSize: 9, color: INV_STATUS_COLOR[inv.status], pointerEvents: 'none',
+                        }}>▾</span>
+                      </span>
                     )}
                   </td>
                 </tr>

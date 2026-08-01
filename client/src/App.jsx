@@ -327,7 +327,7 @@ export default function App() {
         {activeNav === 'tracker'   && <TrackerView key={navResetToken} projectId={projectId} readOnly={readOnly} onSubCellClick={subName => { setSubDeepLink({ subName }); setActiveNav('sub'); }} />}
         {activeNav === 'payapp'    && <PayAppView key={navResetToken} projectId={projectId} readOnly={readOnly} />}
         {activeNav === 'qscosts'   && <QSCostsView key={navResetToken} projectId={projectId} readOnly={readOnly} />}
-        {activeNav === 'invoices'  && <InvoiceTrackerView key={navResetToken} projectId={projectId} />}
+        {activeNav === 'invoices'  && <InvoiceTrackerView key={navResetToken} projectId={projectId} readOnly={readOnly} />}
         {activeNav === 'programme' && <ProgrammeView key={navResetToken} projectId={projectId} readOnly={readOnly} />}
         {activeNav === 'settings'  && <ProjectSettingsView key={navResetToken} project={project} onProjectUpdated={p => setProject(p)} />}
       </>

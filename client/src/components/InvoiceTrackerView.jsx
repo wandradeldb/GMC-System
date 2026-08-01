@@ -16,7 +16,7 @@ const INV_STATUSES     = ['received', 'sent_to_finance', 'scheduled', 'paid', 'd
 
 // Project-wide invoice list, aggregating sub_invoice across every subcontractor -- so answering
 // "has sub X invoiced yet?" doesn't require opening that sub's card and its "Tracker Invoices" tab.
-export default function InvoiceTrackerView({ projectId }) {
+export default function InvoiceTrackerView({ projectId, readOnly }) {
   const [invoices, setInvoices] = useState([]);
   const [loading,  setLoading]  = useState(true);
   const [search,   setSearch]   = useState('');
@@ -105,18 +105,32 @@ export default function InvoiceTrackerView({ projectId }) {
                   <td className="col-num" style={{ color: '#7c3aed' }}>{fmt(inv.retention_amount)}</td>
                   <td style={{ fontSize: 12 }}>{inv.sent_finance_date ? fmtDate(inv.sent_finance_date) : '—'}</td>
                   <td>
-                    <select
-                      className="status-badge"
-                      value={inv.status}
-                      onChange={e => updateStatus(inv.id, e.target.value)}
-                      title="Click to change status"
-                      style={{
-                        background: INV_STATUS_BG[inv.status], color: INV_STATUS_COLOR[inv.status],
-                        border: 'none', cursor: 'pointer', fontFamily: 'inherit',
-                      }}
-                    >
-                      {INV_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
-                    </select>
+                    {readOnly ? (
+                      <span className="status-badge" style={{ background: INV_STATUS_BG[inv.status], color: INV_STATUS_COLOR[inv.status] }}>
+                        {inv.status}
+                      </span>
+                    ) : (
+                      <span style={{ position: 'relative', display: 'inline-block' }}>
+                        <select
+                          className="status-badge"
+                          value={inv.status}
+                          onChange={e => updateStatus(inv.id, e.target.value)}
+                          title="Click to change status"
+                          style={{
+                            background: INV_STATUS_BG[inv.status], color: INV_STATUS_COLOR[inv.status],
+                            border: 'none', cursor: 'pointer', fontFamily: 'inherit',
+                            appearance: 'none', WebkitAppearance: 'none', MozAppearance: 'none',
+                            paddingRight: 20,
+                          }}
+                        >
+                          {INV_STATUSES.map(s => <option key={s} value={s}>{s}</option>)}
+                        </select>
+                        <span aria-hidden="true" style={{
+                          position: 'absolute', right: 6, top: '50%', transform: 'translateY(-50%)',
+                          fontSize: 9, color: INV_STATUS_COLOR[inv.status], pointerEvents: 'none',
+                        }}>▾</span>
+                      </span>
+                    )}
                   </td>
                 </tr>
               ))}
