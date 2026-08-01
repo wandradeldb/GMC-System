@@ -59,8 +59,12 @@ const SL = {
   sub:   CW.ref + CW.desc + CW.cv + CW.cumul + CW.rem,
 };
 const FIXED_W  = CW.ref + CW.desc + CW.cv + CW.cumul + CW.rem + CW.sub;
-const THEAD_H  = 34;
-const THEAD2_H = 16; // edit-button row height
+// Measured against the live rendered rows (26px / 26px) -- these have to match the actual thead
+// row heights, not just look roughly right, because the section header row below sticks at
+// exactly THEAD_H + THEAD2_H. Too small and the taller "edit" row (week total + button, two
+// lines) visually overlaps/cuts into the section header text underneath it.
+const THEAD_H  = 28;
+const THEAD2_H = 28;
 const SEC_TOP  = THEAD_H + THEAD2_H; // section headers stick below both thead rows
 const ROW_ODD  = '#f0f6ff';
 const ROW_EVEN = '#ffd8bb';
